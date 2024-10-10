@@ -22,12 +22,14 @@ import random
 
 from opentelemetry import trace
 from opentelemetry.context import create_key
+from opentelemetry.context.context import Context
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import HOST_NAME, SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import Span, Tracer as OpenTelemetryTracer, TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 from opentelemetry.sdk.trace.id_generator import IdGenerator
 from opentelemetry.trace import Link, NonRecordingSpan, SpanContext, TraceFlags, Tracer
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from opentelemetry.trace.span import INVALID_SPAN_ID, INVALID_TRACE_ID
 
 from airflow.configuration import conf
@@ -62,6 +64,7 @@ class OtelTrace:
         self.span_processor = BatchSpanProcessor(self.span_exporter)
         self.tag_string = tag_string
         self.otel_service = conf.get("traces", "otel_service")
+        print(f"xbis: otel_tracer.py init")
 
     def get_tracer(
         self, component: str, trace_id: int | None = None, span_id: int | None = None
@@ -222,6 +225,13 @@ class OtelTrace:
         )
         return span
 
+    def inject(self) -> dict:
+        carrier = {}
+        TraceContextTextMapPropagator().inject(carrier)
+        return carrier
+
+    def extract(self, carrier: dict) -> Context:
+        return TraceContextTextMapPropagator().extract(carrier)
 
 def gen_context(trace_id: int, span_id: int):
     """Generate a remote span context for given trace and span id."""

@@ -55,7 +55,7 @@ def scheduler(args: Namespace):
     print(settings.HEADER)
 
     usage_data_collection()
-
+    print("xbis")
     run_command_with_daemon_option(
         args=args,
         process_name="scheduler",

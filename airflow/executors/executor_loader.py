@@ -251,6 +251,7 @@ class ExecutorLoader:
                 f'The module/attribute could not be loaded. Please check "executor" key in "core" section. '
                 f'Current value: "{_executor_name}".'
             )
+        log.info("xbis: running from the source code")
         log.info("Loaded executor: %s", _executor_name)
 
         # Store the executor name we've built for this executor in the

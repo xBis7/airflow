@@ -201,6 +201,7 @@ class BaseTaskEndEvent(TriggerEvent):
         :param task_instance: The task instance to be submitted.
         :param session: The session to be used for the database callback sink.
         """
+        print(f"xbis: handle_submit: {task_instance.carrier}")
         # Mark the task with terminal state and prevent it from resuming on worker
         task_instance.trigger_id = None
         task_instance.set_state(self.task_instance_state, session=session)
@@ -209,6 +210,7 @@ class BaseTaskEndEvent(TriggerEvent):
 
     def _submit_callback_if_necessary(self, *, task_instance: TaskInstance, session) -> None:
         """Submit a callback request if the task state is SUCCESS or FAILED."""
+        print(f"xbis: _submit_callback_if_necessary: {task_instance.carrier}")
         if self.task_instance_state in (TaskInstanceState.SUCCESS, TaskInstanceState.FAILED):
             request = TaskCallbackRequest(
                 full_filepath=task_instance.dag_model.fileloc,

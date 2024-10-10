@@ -414,7 +414,7 @@ def get_otel_logger(cls) -> SafeOtelLogger:
 
     protocol = "https" if ssl_active else "http"
     endpoint = f"{protocol}://{host}:{port}/v1/metrics"
-
+    log.info("xbis: otel_logger")
     log.info("[Metric Exporter] Connecting to OpenTelemetry Collector at %s", endpoint)
     readers = [
         PeriodicExportingMetricReader(

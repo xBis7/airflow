@@ -103,6 +103,7 @@ class StandardTaskRunner(BaseTaskRunner):
             job_id = getattr(args, "job_id", self._task_instance.job_id)
             self.log.info("Running: %s", self._command)
             self.log.info("Job %s: Subtask %s", job_id, self._task_instance.task_id)
+            self.log.info(f"xbis: _task_instance.carrier {self._task_instance.carrier}")
 
             proc_title = "airflow task runner: {0.dag_id} {0.task_id} {0.execution_date_or_run_id}"
             if job_id is not None:

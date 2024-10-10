@@ -232,6 +232,7 @@ class PythonOperator(BaseOperator):
         self.show_return_value_in_logs = show_return_value_in_logs
 
     def execute(self, context: Context) -> Any:
+        print(f"xbis: operator_context: {context}")
         context_merge(context, self.op_kwargs, templates_dict=self.templates_dict)
         self.op_kwargs = self.determine_kwargs(context)
         self._dataset_events = context_get_outlet_events(context)
@@ -503,6 +504,7 @@ class _BasePythonVirtualenvOperator(PythonOperator, metaclass=ABCMeta):
         pass
 
     def execute(self, context: Context) -> Any:
+        print(f"xbis: _operator_context: {context}")
         serializable_keys = set(self._iter_serializable_context_keys())
         serializable_context = context_copy_partial(context, serializable_keys)
         return super().execute(context=serializable_context)

@@ -1,0 +1,42 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        # Use 0.0.0.0 to bind to all network interfaces
+        endpoint: "0.0.0.0:4317"
+      http:
+        endpoint: "0.0.0.0:4318"
+
+exporters:
+  otlp/jaeger:
+    endpoint: "http://localhost:34317"
+    tls:
+      insecure: true
+
+  otlphttp:
+    endpoint: "http://localhost:8000/v1/traces"
+    tls:
+      insecure: true
+
+  logging:
+#    loglevel: debug
+    verbosity: detailed
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+processors:
+  batch:
+    timeout: 1s # Export traces every 1s.
+
+  resource:
+    attributes:
+      - key: service.name
+        value: "airflow_test"
+        action: upsert
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [otlp/jaeger, otlphttp, logging]
+      processors: [batch, resource]

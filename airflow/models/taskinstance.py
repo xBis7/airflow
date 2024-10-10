@@ -57,6 +57,7 @@ from sqlalchemy import (
     or_,
     text,
     update,
+    JSON,
 )
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -1100,6 +1101,11 @@ def _get_template_context(
     except NotMapped:
         expanded_ti_count = None
 
+    def get_carrier() -> dict:
+        carrier = Trace.inject()
+        print(f"xbis_carrier: {carrier}")
+        return carrier
+
     # NOTE: If you add to this dict, make sure to also update the following:
     # * Context in airflow/utils/context.pyi
     # * KNOWN_CONTEXT_KEYS in airflow/utils/context.py
@@ -1155,6 +1161,7 @@ def _get_template_context(
         "conn": ConnectionAccessor(),
         "yesterday_ds": get_yesterday_ds(),
         "yesterday_ds_nodash": get_yesterday_ds_nodash(),
+        "carrier": get_carrier(),
     }
     # Mypy doesn't like turning existing dicts in to a TypeDict -- and we "lie" in the type stub to say it
     # is one, but in practice it isn't. See https://github.com/python/mypy/issues/8890
@@ -1840,6 +1847,7 @@ class TaskInstance(Base, LoggingMixin):
     executor_config = Column(ExecutorConfigType(pickler=dill))
     updated_at = Column(UtcDateTime, default=timezone.utcnow, onupdate=timezone.utcnow)
     rendered_map_index = Column(String(250))
+    carrier = Column(JSON)
 
     external_executor_id = Column(StringID())
 
@@ -1947,6 +1955,7 @@ class TaskInstance(Base, LoggingMixin):
         self.raw = False
         # can be changed when calling 'run'
         self.test_mode = False
+        self.carrier = {}
 
     def __hash__(self):
         return hash((self.task_id, self.dag_id, self.run_id, self.map_index))
@@ -2360,6 +2369,40 @@ class TaskInstance(Base, LoggingMixin):
         """
         return self._set_state(ti=self, state=state, session=session)
 
+    @staticmethod
+    @internal_api_call
+    def _set_carrier(ti: TaskInstance | TaskInstancePydantic, carrier, session: Session) -> bool:
+        if not isinstance(ti, TaskInstance):
+            ti = session.scalars(
+                select(TaskInstance).where(
+                    TaskInstance.task_id == ti.task_id,
+                    TaskInstance.dag_id == ti.dag_id,
+                    TaskInstance.run_id == ti.run_id,
+                    TaskInstance.map_index == ti.map_index,
+                )
+            ).one()
+
+        if ti.carrier == carrier:
+            return False
+
+        ti.log.debug("Setting task carrier for %s", ti.task_id)
+        ti.carrier = carrier
+
+        session.merge(ti)
+        session.commit()
+        return True
+
+    @provide_session
+    def set_carrier(self, carrier: dict, session: Session = NEW_SESSION) -> bool:
+        """
+        Set TaskInstance span context carrier.
+
+        :param carrier: dict to set for the TI
+        :param session: SQLAlchemy ORM Session
+        :return: Was the carrier changed
+        """
+        return self._set_carrier(ti=self, carrier=carrier, session=session)
+
     @property
     def is_premature(self) -> bool:
         """Returns whether a task is in UP_FOR_RETRY state and its retry interval has elapsed."""
@@ -2732,6 +2775,7 @@ class TaskInstance(Base, LoggingMixin):
             cls.logger().info("Resuming after deferral")
         else:
             cls.logger().info("Starting attempt %s of %s", ti.try_number, ti.max_tries + 1)
+        cls.logger().info(f"xbis: check_state: carrier: {ti.carrier}")
 
         if not test_mode:
             session.add(Log(TaskInstanceState.RUNNING.value, ti))
@@ -3109,14 +3153,59 @@ class TaskInstance(Base, LoggingMixin):
         if not res:
             return
 
-        self._run_raw_task(
-            mark_success=mark_success,
-            test_mode=test_mode,
-            job_id=job_id,
-            pool=pool,
-            session=session,
-            raise_on_defer=raise_on_defer,
-        )
+        with Trace.start_span_from_taskinstance(ti=self, span_name=str(self.task_id + "_outer")) as span:
+            span.set_attribute("category", "scheduler")
+            span.set_attribute("task_id", self.task_id)
+            span.set_attribute("dag_id", self.dag_id)
+            span.set_attribute("state", self.state)
+            span.set_attribute("start_date", str(self.start_date))
+            span.set_attribute("end_date", str(self.end_date))
+            span.set_attribute("duration", self.duration)
+            span.set_attribute("executor_config", str(self.executor_config))
+            span.set_attribute("execution_date", str(self.execution_date))
+            span.set_attribute("hostname", self.hostname)
+            span.set_attribute("log_url", self.log_url)
+            span.set_attribute("operator", str(self.operator))
+            span.set_attribute("try_number", self.try_number)
+            span.set_attribute("executor_state", self.state)
+            span.set_attribute("job_id", self.job_id)
+            span.set_attribute("pool", self.pool)
+            span.set_attribute("queue", self.queue)
+            span.set_attribute("priority_weight", self.priority_weight)
+            span.set_attribute("queued_dttm", str(self.queued_dttm))
+            span.set_attribute("queued_by_job_id", self.queued_by_job_id)
+            span.set_attribute("pid", self.pid)
+
+            carrier = Trace.inject()
+            self.set_carrier(carrier=carrier, session=session)
+            # TaskInstance.save_to_db(ti=ti, session=session)
+            print(f"xbis: injected_carrier: {carrier} | ti.carrier: {carrier}")
+
+            self._run_raw_task(
+                mark_success=mark_success,
+                test_mode=test_mode,
+                job_id=job_id,
+                pool=pool,
+                session=session,
+                raise_on_defer=raise_on_defer,
+            )
+
+            # if span.is_recording():
+            #     span.add_event(name="queued", timestamp=datetime_to_nano(ti.queued_dttm))
+            #     span.add_event(name="started", timestamp=datetime_to_nano(ti.start_date))
+            #     span.add_event(name="ended", timestamp=datetime_to_nano(ti.end_date))
+            #
+            # if span.is_recording():
+            #     span.add_event(
+            #         name="task_log",
+            #         attributes={
+            #             "message": message,
+            #             "metadata": str(metadata),
+            #         },
+            #     )
+
+            if self.state == TaskInstanceState.FAILED:
+                span.set_attribute("error", True)
 
     def dry_run(self) -> None:
         """Only Renders Templates for the TI."""
@@ -3961,6 +4050,7 @@ class SimpleTaskInstance:
         key: TaskInstanceKey,
         run_as_user: str | None = None,
         priority_weight: int | None = None,
+        carrier: dict | None = None,
     ):
         self.dag_id = dag_id
         self.task_id = task_id
@@ -3977,6 +4067,7 @@ class SimpleTaskInstance:
         self.priority_weight = priority_weight
         self.queue = queue
         self.key = key
+        self.carrier = carrier
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
@@ -4001,6 +4092,7 @@ class SimpleTaskInstance:
             key=ti.key,
             run_as_user=ti.run_as_user if hasattr(ti, "run_as_user") else None,
             priority_weight=ti.priority_weight if hasattr(ti, "priority_weight") else None,
+            carrier=ti.carrier if hasattr(ti, "carrier") else None,
         )
 
 

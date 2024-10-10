@@ -181,6 +181,28 @@ class Tracer(Protocol):
         """Start a span from taskinstance."""
         raise NotImplementedError()
 
+    @classmethod
+    def start_new_span(
+        cls,
+        ti,
+        span_name=None,
+        component=None,
+    ) -> EmptySpan:
+        """Start a new span."""
+        raise NotImplementedError()
+
+    @classmethod
+    def inject(cls):
+        """Inject tracer into current context."""
+        raise NotImplementedError()
+
+    @classmethod
+    def extract(
+        cls,
+        carrier
+    ) -> EmptyContext:
+        """Extract tracer from current context."""
+        raise NotImplementedError()
 
 class EmptyTrace:
     """If no Tracer is configured, EmptyTracer is used as a fallback."""
@@ -242,6 +264,28 @@ class EmptyTrace:
         """Start a span from taskinstance."""
         return EMPTY_SPAN
 
+    @classmethod
+    def start_new_span(
+        cls,
+        ti,
+        span_name=None,
+        component=None,
+    ) -> EmptySpan:
+        """Start a new span."""
+        return EMPTY_SPAN
+
+    @classmethod
+    def inject(cls):
+        """Inject tracer into current context."""
+        return {}
+
+    @classmethod
+    def extract(
+        cls,
+        carrier
+    ) -> EmptyContext:
+        """Extract tracer from current context."""
+        raise EMPTY_CTX
 
 class _Trace(type):
     factory: Callable

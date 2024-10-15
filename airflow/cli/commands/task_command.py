@@ -72,7 +72,6 @@ from airflow.utils.session import NEW_SESSION, create_session, provide_session
 from airflow.utils.state import DagRunState, TaskInstanceState
 from airflow.utils.task_instance_session import set_current_task_instance_session
 from airflow.utils.types import DagRunTriggeredByType
-from tests.providers.apache.beam.triggers.test_beam import INSTANCE
 
 if TYPE_CHECKING:
     from sqlalchemy.orm.session import Session

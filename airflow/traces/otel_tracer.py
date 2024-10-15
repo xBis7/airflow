@@ -185,6 +185,10 @@ class OtelTrace:
 
         Essentially the span represents the ti itself if child == True, it will create a 'child' span under the given span.
         """
+        trace_id = self.get_current_span().get_span_context().trace_id
+        print(f"x: taskinstance_traceid: {trace_id}")
+        # tracer = self.get_tracer(component=component, trace_id=trace_id)
+
         dagrun = ti.dag_run
         conf = dagrun.conf
         trace_id = int(gen_trace_id(dag_run=dagrun, as_int=True))
@@ -224,6 +228,14 @@ class OtelTrace:
             attributes=parse_tracestate(tag_string),
         )
         return span
+
+    # def start_child_span(
+    #     self,
+    #     parent_context: Context,
+    #     component: str | None = None,
+    #     links=None,
+    # ):
+
 
     def inject(self) -> dict:
         carrier = {}

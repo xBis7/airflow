@@ -925,6 +925,10 @@ class DagRun(Base, LoggingMixin):
                 self.dag_hash,
             )
 
+            if self.queued_at is None and self.start_date is not None:
+                self.queued_at = self.start_date
+
+            print(f"x: before dag_run span")
             with Trace.start_span_from_dagrun(dagrun=self) as span:
                 if self._state is DagRunState.FAILED:
                     span.set_attribute("error", True)

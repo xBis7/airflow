@@ -14,13 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import SpanContext, NonRecordingSpan
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.traces import otel_tracer
+from airflow.traces.otel_tracer import OtelTrace
 from airflow.traces.tracer import Trace
 from datetime import datetime
 from opentelemetry import trace
+
+import time
 
 args = {
     'owner': 'airflow',
@@ -36,42 +41,68 @@ with DAG(
     catchup=False,
 ) as dag:
 
-    airflow_otel_tracer = otel_tracer.get_otel_tracer(Trace)
-    print(f"type: {type(airflow_otel_tracer)}")
+    # memory_exporter = InMemorySpanExporter()
+    # airflow_otel_tracer = OtelTrace(span_exporter=memory_exporter)
+
+    # tracer = airflow_otel_tracer.get_tracer("trace_test.tracer")
+
+    # print(f"type: {type(airflow_otel_tracer)}")
 
     # pydevd_pycharm.settrace('host.docker.internal', port=3003, stdoutToServer=True, stderrToServer=True)
 
-    # tracer = trace.get_tracer("trace_test.tracer",tracer_provider=otel_hook.tracer_provider)
-    tracer = airflow_otel_tracer.get_tracer("trace_test.tracer")
-
     # Task functions
     def task_1_func(**dag_context):
+        print(f"dag_context: {dag_context}")
 
-      print(f"dag_context: {dag_context}")
+        # print(f"xbis: __carrier: {airflow_otel_tracer.carrier}")
 
-      current_context0 = trace.get_current_span().get_span_context()
-      airflow_current_context0 = airflow_otel_tracer.get_current_span().get_span_context()
+        current_context0 = trace.get_current_span().get_span_context()
+        # airflow_current_context0 = airflow_otel_tracer.get_current_span().get_span_context()
 
-      dag_run = dag_context["dag_run"]
-      task_instance = dag_context["ti"]
-      print(f"xbis: task_instance: {task_instance.context_carrier}")
+        dag_run = dag_context["dag_run"]
+        ti = dag_context["ti"]
+        task_instance = dag_context["task_instance"]
+        carrier_from_context = dag_context["carrier"]
 
-      print(f"curr_t_id: {current_context0.trace_id} | curr_s_id: {current_context0.span_id}")
-      print(f"airf_curhr_t_id: {airflow_current_context0.trace_id} | airf_curr_s_id: {airflow_current_context0.span_id}")
+        if carrier_from_context is not None:
+            context = Trace.extract(carrier_from_context)
+            print(f"xbis: context: {context}")
+            for key, value in context.items():
+                if isinstance(value, NonRecordingSpan):
+                    span_context = value.get_span_context()
 
-      # pydevd_pycharm.settrace('host.docker.internal', port=3003, stdoutToServer=True, stderrToServer=True)
-      # print("Waiting for debugger attach...")
+                    # Extract trace_id, span_id, etc. from SpanContext
+                    trace_id = span_context.trace_id
+                    span_id = span_context.span_id
+                    trace_flags = span_context.trace_flags
+                    trace_state = span_context.trace_state
 
-      # Start a span and print the context before injecting
-      with airflow_otel_tracer.start_span_from_taskinstance(ti=task_instance, span_name="task_1_span", child = True) as s1:
-          print("Task_1, first part")
+                    print(f"Extracted SpanContext from key '{key}':")
+                    print(f"  trace_id: {hex(trace_id)}")
+                    print(f"  span_id: {hex(span_id)}")
+                    print(f"  trace_flags: {trace_flags}")
 
-          # Start a new span using the extracted context
-          with airflow_otel_tracer.start_span("extracted_span") as span2:
-              for i in range(5):
-                  # time.sleep(3)
-                  print(f"Task_1, iteration '{i}' with context propagation")
-              print("Task_1 finished")
+                    with Trace.start_span(span_name="task1_sub_span", component="taskinstance", parent_sc=span_context) as span:
+                        span.set_attribute("what?", "hi")
+                    break
+            else:
+                raise ValueError("No valid NonRecordingSpan found in the context")
+
+            # span_ctx = SpanContext(
+            #     trace_id=context.get("tra"), span_id=INVALID_SPAN_ID, is_remote=True,
+            #     trace_flags=TraceFlags(0x01)
+            # )
+            # ctx = trace.set_span_in_context(NonRecordingSpan(span_ctx))
+            # span = tracer.start_as_current_span(
+            #
+            # with airflow_otel_tracer.start_span(span_name="task1_sub_span", component="taskinstance", parent_sc=)
+
+        print(
+            f"xbis: carrier_from_context: {carrier_from_context} | ti.carrier: {ti.carrier} | task_instance.carrier: {task_instance.carrier}")
+
+        print(f"curr_t_id: {current_context0.trace_id} | curr_s_id: {current_context0.span_id}")
+        # print(f"airf_curhr_t_id: {airflow_current_context0.trace_id} | airf_curr_s_id: {airflow_current_context0.span_id}")
+
 
     def task_2_func():
         for i in range(3):

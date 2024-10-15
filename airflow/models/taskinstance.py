@@ -1247,6 +1247,9 @@ def _handle_failure(
     if not test_mode:
         TaskInstance.save_to_db(failure_context["ti"], session)
 
+    if task_instance.queued_dttm is None and task_instance.start_date is not None:
+        task_instance.queued_dttm = task_instance.start_date
+
     with Trace.start_span_from_taskinstance(ti=task_instance) as span:
         # ---- error info ----
         span.set_attribute("error", "true")
@@ -3152,6 +3155,9 @@ class TaskInstance(Base, LoggingMixin):
         )
         if not res:
             return
+
+        if self.queued_dttm is None and self.start_date is not None:
+            self.queued_dttm = self.start_date
 
         with Trace.start_span_from_taskinstance(ti=self, span_name=str(self.task_id + "_outer")) as span:
             span.set_attribute("category", "scheduler")

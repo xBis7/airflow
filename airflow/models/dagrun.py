@@ -40,7 +40,7 @@ from sqlalchemy import (
     func,
     or_,
     text,
-    update,
+    update, JSON,
 )
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.associationproxy import association_proxy
@@ -155,6 +155,8 @@ class DagRun(Base, LoggingMixin):
     # when the DagRun is cleared.
     clear_number = Column(Integer, default=0, nullable=False, server_default="0")
 
+    context_carrier = Column(JSON)
+
     # Remove this `if` after upgrading Sphinx-AutoAPI
     if not TYPE_CHECKING and "BUILDING_AIRFLOW_DOCS" in os.environ:
         dag: DAG | None
@@ -245,6 +247,7 @@ class DagRun(Base, LoggingMixin):
         self.creating_job_id = creating_job_id
         self.clear_number = 0
         self.triggered_by = triggered_by
+        self.context_carrier = {}
         super().__init__()
 
     def __repr__(self):
@@ -795,6 +798,7 @@ class DagRun(Base, LoggingMixin):
             def recalculate(self) -> _UnfinishedStates:
                 return self._replace(tis=[t for t in self.tis if t.state in State.unfinished])
 
+        print(f"x: update_state: current_state: {self.state} | dag_id: {self.dag_id} | run_id: {self.run_id}")
         start_dttm = timezone.utcnow()
         self.last_scheduling_decision = start_dttm
         with Stats.timer(f"dagrun.dependency-check.{self.dag_id}"), Stats.timer(
@@ -896,7 +900,46 @@ class DagRun(Base, LoggingMixin):
 
         # finally, if the leaves aren't done, the dag is still running
         else:
-            self.set_state(DagRunState.RUNNING)
+            if not self.context_carrier:
+                if self.queued_at is None and self.start_date is not None:
+                    self.queued_at = self.start_date
+
+                print(f"x: before outer_dag_run span")
+                with Trace.start_span_from_dagrun(dagrun=self, span_name=f"{self.dag_id}_xb") as span:
+                    attributes = {
+                        "category": "DAG runs",
+                        "dag_id": str(self.dag_id),
+                        "execution_date": str(self.execution_date),
+                        "run_id": str(self.run_id),
+                        "queued_at": str(self.queued_at),
+                        "run_start_date": str(self.start_date),
+                        "run_end_date": str(self.end_date),
+                        "run_duration": str(
+                            (self.end_date - self.start_date).total_seconds()
+                            if self.start_date and self.end_date
+                            else 0
+                        ),
+                        "state": str(self._state),
+                        "external_trigger": str(self.external_trigger),
+                        "run_type": str(self.run_type),
+                        "data_interval_start": str(self.data_interval_start),
+                        "data_interval_end": str(self.data_interval_end),
+                        "dag_hash": str(self.dag_hash),
+                        "conf": str(self.conf),
+                    }
+                    if span.is_recording():
+                        span.add_event(name="queued", timestamp=datetime_to_nano(self.queued_at))
+                        span.add_event(name="started", timestamp=datetime_to_nano(self.start_date))
+                        # TODO: add this at the end, where the original span was getting created.
+                        # span.add_event(name="ended", timestamp=datetime_to_nano(self.end_date))
+                    span.set_attributes(attributes)
+                    carrier = Trace.inject()
+                    self.set_context_carrier(context_carrier=carrier, session=session, with_commit=False)
+                    print(f"xbis: injected_context_carrier: {carrier} | dagrun.context_carrier: {carrier}")
+
+                    self.set_state(DagRunState.RUNNING)
+            else:
+                self.set_state(DagRunState.RUNNING)
 
         if self._state == DagRunState.FAILED or self._state == DagRunState.SUCCESS:
             msg = (
@@ -1018,6 +1061,42 @@ class DagRun(Base, LoggingMixin):
             unfinished_tis=unfinished_tis,
             finished_tis=finished_tis,
         )
+
+    @staticmethod
+    @internal_api_call
+    def _set_context_carrier(dagrun: DagRun, context_carrier: dict, session: Session, with_commit: bool) -> bool:
+        if not isinstance(dagrun, DagRun):
+            dagrun = session.scalars(
+                select(DagRun).where(
+                    DagRun.dag_id == dagrun.dag_id,
+                    DagRun.run_id == dagrun.run_id,
+                )
+            ).one()
+
+        if dagrun.context_carrier == context_carrier:
+            return False
+
+        dagrun.log.debug("Setting dagrun context_carrier for %s", dagrun.run_id)
+        dagrun.context_carrier = context_carrier
+
+        session.merge(dagrun)
+
+        if with_commit:
+            session.commit()
+
+        return True
+
+    @provide_session
+    def set_context_carrier(self, context_carrier: dict, session: Session = NEW_SESSION, with_commit: bool = False) -> bool:
+        """
+        Set DagRun span context_carrier.
+
+        :param context_carrier: dict to set for the dagrun
+        :param session: SQLAlchemy ORM Session
+        :param with_commit: should the carrier be committed?
+        :return: Was the context_carrier changed
+        """
+        return self._set_context_carrier(dagrun=self, context_carrier=context_carrier, session=session, with_commit=with_commit)
 
     def notify_dagrun_state_changed(self, msg: str = ""):
         if self.state == DagRunState.RUNNING:

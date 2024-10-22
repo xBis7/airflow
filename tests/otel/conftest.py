@@ -18,7 +18,8 @@
 import pytest
 import os
 
-from airflow.configuration import conf
+# from airflow.configuration import conf
+
 
 @pytest.fixture(scope='session', autouse=True)
 def config_setup():
@@ -26,21 +27,39 @@ def config_setup():
     os.environ["AIRFLOW__TRACES__OTEL_ON"] = "True"
     os.environ["AIRFLOW__TRACES__OTEL_HOST"] = "localhost"
     os.environ["AIRFLOW__TRACES__OTEL_PORT"] = "4318"
-    os.environ["AIRFLOW__TRACES__OTEL_DEBUGGING_ON"] = "False"
+    os.environ["AIRFLOW__TRACES__OTEL_DEBUGGING_ON"] = "True"
     os.environ["AIRFLOW__TRACES__OTEL_TASK_LOG_EVENT"] = "True"
     os.environ["AIRFLOW__SCHEDULER__STANDALONE_DAG_PROCESSOR"] = "False"
     os.environ["AIRFLOW__SCHEDULER__PROCESSOR_POLL_INTERVAL"] = "2"
 
-    os.environ["AIRFLOW__CELERY__BROKER_URL"] = "memory://"
-    os.environ["AIRFLOW__CELERY__RESULT_BACKEND"] = "db+sqlite:///memory"
+    test_dir = os.path.dirname(os.path.abspath(__file__))
+    dag_folder = os.path.join(test_dir, "dags")
+    os.environ["AIRFLOW__CORE__DAGS_FOLDER"] = f"{dag_folder}"
+
+    data_folder = os.path.join(test_dir, "data")
+    os.environ["AIRFLOW_HOME"] = f"{data_folder}"
+
+    # os.environ["AIRFLOW__DATABASE__SQL_ALCHEMY_CONN"] = "sqlite:///:memory:"
+
+    # os.environ["AIRFLOW__DATABASE__SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+
+    # conf.remove_option("database", "sql_alchemy_conn")
+
+    # print(f"x: conf.get(\"database\", \"sql_alchemy_conn\") {conf.get("database", "sql_alchemy_conn")}")
+
+    # os.environ["AIRFLOW__CELERY__BROKER_URL"] = "memory://"
+
+    # os.environ["AIRFLOW__DATABASE__SQL_ALCHEMY_CONN"] = "sqlite:////tmp/airflow_test.db"
+    # os.environ["AIRFLOW__DATABASE__SQL_ALCHEMY_CONN"] = "sqlite:////:memory:"
+    # os.environ["AIRFLOW__CELERY__RESULT_BACKEND"] = "db+sqlite:////tmp/airflow_test.db"
+    # os.environ["AIRFLOW__CELERY__RESULT_BACKEND"] = str(db)
 
     os.environ["AIRFLOW__CORE__LOAD_EXAMPLES"] = "False"
+    os.environ["AIRFLOW__CORE__UNIT_TEST_MODE"] = "False"
 
-    # conf.__init__()
-    # conf.add_section("traces")
-    # conf.set(section="traces", option="otel_on", value="True")
-    # conf.set(section="traces", option="otel_host", value="localhost")
-    # conf.set(section="traces", option="otel_port", value="4318")
-    # conf.set(section="traces", option="otel_debugging_on", value="False")
-    # conf.set(section="traces", option="otel_task_log_event", value="True")
+
+    # AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+    # AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    # AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+    # AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
 

@@ -196,6 +196,9 @@ class OtelTrace:
         if span_name is None:
             span_name = ti.task_id
 
+        # span_ctx = None
+        print(f"x: taskinstance_dagrun_carrier: {dagrun.context_carrier}")
+
         parent_id = span_id if child else int(gen_dag_span_id(dag_run=dagrun, as_int=True))
 
         span_ctx = SpanContext(
@@ -229,13 +232,48 @@ class OtelTrace:
         )
         return span
 
-    # def start_child_span(
-    #     self,
-    #     parent_context: Context,
-    #     component: str | None = None,
-    #     links=None,
-    # ):
+    def start_child_span(
+        self,
+        span_name: str,
+        parent_context: Context | None = None,
+        component: str | None = None,
+        links=None,
+        start_time=None,
+    ):
+        """
+          Create and start child span.
+        """
 
+        print(f"x: my.span.here: {parent_context}")
+
+        if not parent_context:
+            return
+
+        context_val = next(iter(parent_context.values()))
+        parent_span_context = context_val.get_span_context()
+
+        _links = gen_links_from_kv_list(links) if links else []
+        _links.append(
+            Link(
+                context=parent_span_context,
+                attributes={"meta.annotation_type": "link", "from": "parenttrace"},
+            )
+        )
+
+        tracer = self.get_tracer(component=component)
+
+        tag_string = self.tag_string if self.tag_string else ""
+        tag_string = tag_string + ("," + conf.get(TRACESTATE) if (conf and conf.get(TRACESTATE)) else "")
+
+        ctx = trace.set_span_in_context(NonRecordingSpan(parent_context))
+        span = tracer.start_as_current_span(
+            name=span_name,
+            context=ctx,
+            links=_links,
+            start_time=datetime_to_nano(start_time),
+            attributes=parse_tracestate(tag_string),
+        )
+        return span
 
     def inject(self) -> dict:
         carrier = {}

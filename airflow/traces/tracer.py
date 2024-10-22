@@ -182,11 +182,13 @@ class Tracer(Protocol):
         raise NotImplementedError()
 
     @classmethod
-    def start_new_span(
+    def start_child_span(
         cls,
-        ti,
         span_name=None,
+        parent_context=None,
         component=None,
+        links=None,
+        start_time=None,
     ) -> EmptySpan:
         """Start a new span."""
         raise NotImplementedError()
@@ -265,13 +267,15 @@ class EmptyTrace:
         return EMPTY_SPAN
 
     @classmethod
-    def start_new_span(
+    def start_child_span(
         cls,
-        ti,
         span_name=None,
+        parent_context=None,
         component=None,
+        links=None,
+        start_time=None,
     ) -> EmptySpan:
-        """Start a new span."""
+        """Start a new child span."""
         return EMPTY_SPAN
 
     @classmethod

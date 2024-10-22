@@ -1101,10 +1101,10 @@ def _get_template_context(
     except NotMapped:
         expanded_ti_count = None
 
-    def get_carrier() -> dict:
-        carrier = Trace.inject()
-        print(f"xbis_carrier: {carrier}")
-        return carrier
+    def get_context_carrier() -> dict:
+        context_carrier = Trace.inject()
+        print(f"xbis_context_carrier: {context_carrier}")
+        return context_carrier
 
     # NOTE: If you add to this dict, make sure to also update the following:
     # * Context in airflow/utils/context.pyi
@@ -1161,7 +1161,7 @@ def _get_template_context(
         "conn": ConnectionAccessor(),
         "yesterday_ds": get_yesterday_ds(),
         "yesterday_ds_nodash": get_yesterday_ds_nodash(),
-        "carrier": get_carrier(),
+        # "context_carrier": get_context_carrier(),
     }
     # Mypy doesn't like turning existing dicts in to a TypeDict -- and we "lie" in the type stub to say it
     # is one, but in practice it isn't. See https://github.com/python/mypy/issues/8890
@@ -1850,7 +1850,7 @@ class TaskInstance(Base, LoggingMixin):
     executor_config = Column(ExecutorConfigType(pickler=dill))
     updated_at = Column(UtcDateTime, default=timezone.utcnow, onupdate=timezone.utcnow)
     rendered_map_index = Column(String(250))
-    carrier = Column(JSON)
+    context_carrier = Column(JSON)
 
     external_executor_id = Column(StringID())
 
@@ -1958,7 +1958,7 @@ class TaskInstance(Base, LoggingMixin):
         self.raw = False
         # can be changed when calling 'run'
         self.test_mode = False
-        self.carrier = {}
+        self.context_carrier = {}
 
     def __hash__(self):
         return hash((self.task_id, self.dag_id, self.run_id, self.map_index))
@@ -2374,7 +2374,7 @@ class TaskInstance(Base, LoggingMixin):
 
     @staticmethod
     @internal_api_call
-    def _set_carrier(ti: TaskInstance | TaskInstancePydantic, carrier, session: Session) -> bool:
+    def _set_context_carrier(ti: TaskInstance | TaskInstancePydantic, context_carrier, session: Session) -> bool:
         if not isinstance(ti, TaskInstance):
             ti = session.scalars(
                 select(TaskInstance).where(
@@ -2385,26 +2385,26 @@ class TaskInstance(Base, LoggingMixin):
                 )
             ).one()
 
-        if ti.carrier == carrier:
+        if ti.context_carrier == context_carrier:
             return False
 
-        ti.log.debug("Setting task carrier for %s", ti.task_id)
-        ti.carrier = carrier
+        ti.log.debug("Setting task context_carrier for %s", ti.task_id)
+        ti.context_carrier = context_carrier
 
         session.merge(ti)
         session.commit()
         return True
 
     @provide_session
-    def set_carrier(self, carrier: dict, session: Session = NEW_SESSION) -> bool:
+    def set_context_carrier(self, context_carrier: dict, session: Session = NEW_SESSION) -> bool:
         """
-        Set TaskInstance span context carrier.
+        Set TaskInstance span context_carrier.
 
-        :param carrier: dict to set for the TI
+        :param context_carrier: dict to set for the TI
         :param session: SQLAlchemy ORM Session
-        :return: Was the carrier changed
+        :return: Was the context_carrier changed
         """
-        return self._set_carrier(ti=self, carrier=carrier, session=session)
+        return self._set_context_carrier(ti=self, context_carrier=context_carrier, session=session)
 
     @property
     def is_premature(self) -> bool:
@@ -2778,7 +2778,7 @@ class TaskInstance(Base, LoggingMixin):
             cls.logger().info("Resuming after deferral")
         else:
             cls.logger().info("Starting attempt %s of %s", ti.try_number, ti.max_tries + 1)
-        cls.logger().info(f"xbis: check_state: carrier: {ti.carrier}")
+        cls.logger().info(f"xbis: check_state: context_carrier: {ti.context_carrier}")
 
         if not test_mode:
             session.add(Log(TaskInstanceState.RUNNING.value, ti))
@@ -3159,7 +3159,7 @@ class TaskInstance(Base, LoggingMixin):
         if self.queued_dttm is None and self.start_date is not None:
             self.queued_dttm = self.start_date
 
-        with Trace.start_span_from_taskinstance(ti=self, span_name=str(self.task_id + "_outer")) as span:
+        with Trace.start_span_from_taskinstance(ti=self, span_name=str(self.task_id + "_outer_raw")) as span:
             span.set_attribute("category", "scheduler")
             span.set_attribute("task_id", self.task_id)
             span.set_attribute("dag_id", self.dag_id)
@@ -3182,10 +3182,10 @@ class TaskInstance(Base, LoggingMixin):
             span.set_attribute("queued_by_job_id", self.queued_by_job_id)
             span.set_attribute("pid", self.pid)
 
-            carrier = Trace.inject()
-            self.set_carrier(carrier=carrier, session=session)
+            context_carrier = Trace.inject()
+            self.set_context_carrier(context_carrier=context_carrier, session=session)
             # TaskInstance.save_to_db(ti=ti, session=session)
-            print(f"xbis: injected_carrier: {carrier} | ti.carrier: {carrier}")
+            print(f"xbis: injected_context_carrier: {context_carrier} | ti.context_carrier: {context_carrier}")
 
             self._run_raw_task(
                 mark_success=mark_success,
@@ -4056,7 +4056,7 @@ class SimpleTaskInstance:
         key: TaskInstanceKey,
         run_as_user: str | None = None,
         priority_weight: int | None = None,
-        carrier: dict | None = None,
+        context_carrier: dict | None = None,
     ):
         self.dag_id = dag_id
         self.task_id = task_id
@@ -4073,7 +4073,7 @@ class SimpleTaskInstance:
         self.priority_weight = priority_weight
         self.queue = queue
         self.key = key
-        self.carrier = carrier
+        self.context_carrier = context_carrier
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
@@ -4098,7 +4098,7 @@ class SimpleTaskInstance:
             key=ti.key,
             run_as_user=ti.run_as_user if hasattr(ti, "run_as_user") else None,
             priority_weight=ti.priority_weight if hasattr(ti, "priority_weight") else None,
-            carrier=ti.carrier if hasattr(ti, "carrier") else None,
+            context_carrier=ti.context_carrier if hasattr(ti, "context_carrier") else None,
         )
 
 

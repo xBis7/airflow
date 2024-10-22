@@ -37,6 +37,7 @@ from airflow import settings
 from airflow.api_internal.internal_api_call import InternalApiConfig, internal_api_call
 from airflow.cli.simple_table import AirflowConsole
 from airflow.configuration import conf
+from airflow.example_dags.example_external_task_marker_dag import start_date
 from airflow.exceptions import AirflowException, DagRunNotFound, TaskDeferred, TaskInstanceNotFound
 from airflow.executors.executor_loader import ExecutorLoader
 from airflow.jobs.job import Job, run_job
@@ -252,15 +253,63 @@ def _run_task_by_selected_method(
     - as raw task
     - by executor
     """
-    if TYPE_CHECKING:
-        assert not isinstance(ti, TaskInstancePydantic)  # Wait for AIP-44 implementation to complete
-    if args.local:
-        return _run_task_by_local_task_job(args, ti)
-    if args.raw:
-        return _run_raw_task(args, ti)
-    _run_task_by_executor(args, dag, ti)
-    return None
 
+    if ti.queued_dttm is None and ti.start_date is not None:
+        ti.queued_dttm = ti.start_date
+    elif ti.queued_dttm is None and ti.start_date is None and ti.execution_date is not None:
+        ti.queued_dttm = ti.execution_date
+
+    context_carrier = ti.dag_run.context_carrier
+    print(f"x: task_cmd: taskinstance_dagrun_carrier: {context_carrier}")
+
+    context = Trace.extract(context_carrier)
+    print(f"x: task_cmd: context: {context}")
+    # If it evaluates to true, then it means that it's not empty.
+    if context:
+        context_val = next(iter(context.values()))
+        span_context = context_val.get_span_context()
+
+    # with Trace.start_child_span(span_name=f"{ti.task_id}_xb", parent_context=context, component="taskinstance", start_time=ti.start_date) as span:
+    with Trace.start_span_from_taskinstance(ti, span_name=f"{ti.task_id}_xb") as span:
+        span.set_attribute("category", "scheduler")
+        span.set_attribute("task_id", ti.task_id)
+        span.set_attribute("dag_id", ti.dag_id)
+        span.set_attribute("state", ti.state)
+        span.set_attribute("start_date", str(ti.start_date))
+        span.set_attribute("end_date", str(ti.end_date))
+        span.set_attribute("duration", ti.duration)
+        span.set_attribute("executor_config", str(ti.executor_config))
+        span.set_attribute("execution_date", str(ti.execution_date))
+        span.set_attribute("hostname", ti.hostname)
+        span.set_attribute("log_url", ti.log_url)
+        span.set_attribute("operator", str(ti.operator))
+        span.set_attribute("try_number", ti.try_number)
+        span.set_attribute("executor_state", ti.state)
+        span.set_attribute("job_id", ti.job_id)
+        span.set_attribute("pool", ti.pool)
+        span.set_attribute("queue", ti.queue)
+        span.set_attribute("priority_weight", ti.priority_weight)
+        span.set_attribute("queued_dttm", str(ti.queued_dttm))
+        span.set_attribute("queued_by_job_id", ti.queued_by_job_id)
+        span.set_attribute("pid", ti.pid)
+
+        carrier = Trace.inject()
+        ti.set_context_carrier(context_carrier=carrier)
+        # TaskInstance.save_to_db(ti=ti, session=session)
+        print(f"xbis: injected_carrier: {carrier} | ti.context_carrier: {carrier}")
+
+        try:
+            if TYPE_CHECKING:
+                assert not isinstance(ti, TaskInstancePydantic)  # Wait for AIP-44 implementation to complete
+            if args.local:
+                return _run_task_by_local_task_job(args, ti)
+            if args.raw:
+                return _run_raw_task(args, ti)
+            _run_task_by_executor(args, dag, ti)
+            return None
+        finally:
+            if ti.state == TaskInstanceState.FAILED:
+                span.set_attribute("error", True)
 
 def _run_task_by_executor(args, dag: DAG, ti: TaskInstance) -> None:
     """
@@ -466,7 +515,7 @@ def task_run(args, dag: DAG | None = None) -> TaskReturnCode | None:
     ti.init_run_context(raw=args.raw)
 
     hostname = get_hostname()
-    log.info(f"xbis: task_run: ti.carrier {ti.carrier}")
+    log.info(f"xbis: task_run: ti.carrier {ti.context_carrier}")
 
     log.info("Running %s on host %s", ti, hostname)
 
@@ -479,51 +528,19 @@ def task_run(args, dag: DAG | None = None) -> TaskReturnCode | None:
         # which can cause trouble if running process in a fork.
         settings.reconfigure_orm(disable_connection_pool=True)
 
-    with Trace.start_span_from_taskinstance(ti=ti) as span:
-        span.set_attribute("category", "scheduler")
-        span.set_attribute("task_id", ti.task_id)
-        span.set_attribute("dag_id", ti.dag_id)
-        span.set_attribute("state", ti.state)
-        span.set_attribute("start_date", str(ti.start_date))
-        span.set_attribute("end_date", str(ti.end_date))
-        span.set_attribute("duration", ti.duration)
-        span.set_attribute("executor_config", str(ti.executor_config))
-        span.set_attribute("execution_date", str(ti.execution_date))
-        span.set_attribute("hostname", ti.hostname)
-        span.set_attribute("log_url", ti.log_url)
-        span.set_attribute("operator", str(ti.operator))
-        span.set_attribute("try_number", ti.try_number)
-        span.set_attribute("executor_state", ti.state)
-        span.set_attribute("job_id", ti.job_id)
-        span.set_attribute("pool", ti.pool)
-        span.set_attribute("queue", ti.queue)
-        span.set_attribute("priority_weight", ti.priority_weight)
-        span.set_attribute("queued_dttm", str(ti.queued_dttm))
-        span.set_attribute("queued_by_job_id", ti.queued_by_job_id)
-        span.set_attribute("pid", ti.pid)
-
-        carrier = Trace.inject()
-        ti.set_carrier(carrier=carrier)
-        # TaskInstance.save_to_db(ti=ti, session=session)
-        print(f"xbis: injected_carrier: {carrier} | ti.carrier: {carrier}")
-
-        try:
-            if args.interactive:
+    try:
+        if args.interactive:
+            task_return_code = _run_task_by_selected_method(args, _dag, ti)
+        else:
+            with _move_task_handlers_to_root(ti), _redirect_stdout_to_ti_log(ti):
                 task_return_code = _run_task_by_selected_method(args, _dag, ti)
-            else:
-                with _move_task_handlers_to_root(ti), _redirect_stdout_to_ti_log(ti):
-                    task_return_code = _run_task_by_selected_method(args, _dag, ti)
-                    if task_return_code == TaskReturnCode.DEFERRED:
-                        _set_task_deferred_context_var()
-        finally:
-            try:
-                get_listener_manager().hook.before_stopping(component=TaskCommandMarker())
-            except Exception:
-                pass
-
-        if ti.state == TaskInstanceState.FAILED:
-            span.set_attribute("error", True)
-
+                if task_return_code == TaskReturnCode.DEFERRED:
+                    _set_task_deferred_context_var()
+    finally:
+        try:
+            get_listener_manager().hook.before_stopping(component=TaskCommandMarker())
+        except Exception:
+            pass
     return task_return_code
 
 

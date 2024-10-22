@@ -1161,7 +1161,7 @@ def _get_template_context(
         "conn": ConnectionAccessor(),
         "yesterday_ds": get_yesterday_ds(),
         "yesterday_ds_nodash": get_yesterday_ds_nodash(),
-        # "context_carrier": get_context_carrier(),
+        "context_carrier": get_context_carrier(),
     }
     # Mypy doesn't like turning existing dicts in to a TypeDict -- and we "lie" in the type stub to say it
     # is one, but in practice it isn't. See https://github.com/python/mypy/issues/8890

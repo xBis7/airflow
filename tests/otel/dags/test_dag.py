@@ -23,8 +23,6 @@ from airflow.traces.tracer import Trace
 from datetime import datetime
 from opentelemetry import trace
 
-import time
-
 args = {
     'owner': 'airflow',
     'start_date': datetime(2024, 9, 1),

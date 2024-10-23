@@ -19,10 +19,15 @@ from __future__ import annotations
 
 import itertools
 import os
+import threading
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any, Callable, Iterable, Iterator, NamedTuple, Sequence, TypeVar, overload
 
+import pendulum
 import re2
+from opentelemetry import trace
+from opentelemetry.context import detach
+from opentelemetry.trace import NonRecordingSpan
 from sqlalchemy import (
     Boolean,
     Column,
@@ -117,6 +122,9 @@ class DagRun(Base, LoggingMixin):
     A DAG run can be created by the scheduler (i.e. scheduled runs), or by an
     external trigger (i.e. manual runs).
     """
+
+    # Thread local storage to manage an active dagrun span.
+    _thread_local_storage = threading.local()
 
     __tablename__ = "dag_run"
 
@@ -905,41 +913,44 @@ class DagRun(Base, LoggingMixin):
                     self.queued_at = self.start_date
 
                 print(f"x: before outer_dag_run span")
-                with Trace.start_span_from_dagrun(dagrun=self, span_name=f"{self.dag_id}_xb") as span:
-                    attributes = {
-                        "category": "DAG runs",
-                        "dag_id": str(self.dag_id),
-                        "execution_date": str(self.execution_date),
-                        "run_id": str(self.run_id),
-                        "queued_at": str(self.queued_at),
-                        "run_start_date": str(self.start_date),
-                        "run_end_date": str(self.end_date),
-                        "run_duration": str(
-                            (self.end_date - self.start_date).total_seconds()
-                            if self.start_date and self.end_date
-                            else 0
-                        ),
-                        "state": str(self._state),
-                        "external_trigger": str(self.external_trigger),
-                        "run_type": str(self.run_type),
-                        "data_interval_start": str(self.data_interval_start),
-                        "data_interval_end": str(self.data_interval_end),
-                        "dag_hash": str(self.dag_hash),
-                        "conf": str(self.conf),
-                    }
-                    if span.is_recording():
-                        span.add_event(name="queued", timestamp=datetime_to_nano(self.queued_at))
-                        span.add_event(name="started", timestamp=datetime_to_nano(self.start_date))
-                        # TODO: add this at the end, where the original span was getting created.
-                        # span.add_event(name="ended", timestamp=datetime_to_nano(self.end_date))
-                    span.set_attributes(attributes)
-                    carrier = Trace.inject()
-                    self.set_context_carrier(context_carrier=carrier, session=session, with_commit=False)
-                    print(f"xbis: injected_context_carrier: {carrier} | dagrun.context_carrier: {carrier}")
+                # with Trace.start_span_from_dagrun(dagrun=self, span_name=f"{self.dag_id}_xb") as span:
+                span = Trace.start_root_span(span_name=f"{self.dag_id}_xb", component="dag_xb", start_as_current=False)
+                attributes = {
+                    "category": "DAG runs",
+                    "dag_id": str(self.dag_id),
+                    "execution_date": str(self.execution_date),
+                    "run_id": str(self.run_id),
+                    "queued_at": str(self.queued_at),
+                    "run_start_date": str(self.start_date),
+                    "external_trigger": str(self.external_trigger),
+                    "run_type": str(self.run_type),
+                    "data_interval_start": str(self.data_interval_start),
+                    "data_interval_end": str(self.data_interval_end),
+                    "dag_hash": str(self.dag_hash),
+                    "conf": str(self.conf),
+                }
+                if span.is_recording():
+                    span.add_event(name="queued", timestamp=datetime_to_nano(self.queued_at))
+                    span.add_event(name="started", timestamp=datetime_to_nano(self.start_date))
+                span.set_attributes(attributes)
+                carrier = Trace.inject()
+                self.set_context_carrier(context_carrier=carrier, session=session, with_commit=False)
+                self._thread_local_storage.active_span = span
+                # self._thread_local_storage.active_span_token = token
+                print(f"xbis: injected_context_carrier: {carrier} | dagrun.context_carrier: {carrier}")
 
-                    self.set_state(DagRunState.RUNNING)
-            else:
-                self.set_state(DagRunState.RUNNING)
+                print(f"x: (1) trace_id: {span.get_span_context().trace_id} | is_recording: {span.is_recording()}")
+
+                # sub-span
+                context = Trace.extract(self.context_carrier)
+                print(f"x: dag: context: {context}")
+
+                with Trace.start_child_span(span_name=f"{self.dag_id}_sub_xb", parent_context=context, component="dag_xb") as span:
+                    print(f"x: sub-span")
+            self.set_state(DagRunState.RUNNING)
+
+            s = getattr(self._thread_local_storage, 'active_span', None)
+            print(f"x: (2) s.trace_id: {s.get_span_context().trace_id} | is_recording: {s.is_recording()}")
 
         if self._state == DagRunState.FAILED or self._state == DagRunState.SUCCESS:
             msg = (
@@ -968,6 +979,33 @@ class DagRun(Base, LoggingMixin):
                 self.dag_hash,
             )
 
+            s = getattr(self._thread_local_storage, 'active_span', None)
+            # t = getattr(self._thread_local_storage, 'active_span_token', None)
+            print(f"x: (3) s.trace_id: {s.get_span_context().trace_id} | is_recording: {s.is_recording()}")
+
+            attributes = {
+                "run_end_date": str(self.end_date),
+                "run_duration": str(
+                    (self.end_date - self.start_date).total_seconds()
+                    if self.start_date and self.end_date
+                    else 0
+                ),
+                "state": str(self._state),
+            }
+
+            s.set_attributes(attributes)
+            s.add_event(name="ended", timestamp=datetime_to_nano(self.end_date))
+
+            # detach(t)
+            s.end()
+            print(f"x: (4) s.trace_id: {s.get_span_context().trace_id} | is_recording: {s.is_recording()}")
+            print(f"x: shouldn't be empty: {self._thread_local_storage}")
+            # Remove the span from thread-local storage
+            del self._thread_local_storage.active_span
+
+            print(f"x: should be empty: {self._thread_local_storage}")
+
+            #######################################
             if self.queued_at is None and self.start_date is not None:
                 self.queued_at = self.start_date
 

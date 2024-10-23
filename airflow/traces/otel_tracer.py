@@ -19,11 +19,13 @@ from __future__ import annotations
 
 import logging
 import random
+import pendulum
 
 from opentelemetry import trace
-from opentelemetry.context import create_key
+from opentelemetry.context import create_key, attach
 from opentelemetry.context.context import Context
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.propagate import set_global_textmap, propagators
 from opentelemetry.sdk.resources import HOST_NAME, SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import Span, Tracer as OpenTelemetryTracer, TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
@@ -64,7 +66,8 @@ class OtelTrace:
         self.span_processor = BatchSpanProcessor(self.span_exporter)
         self.tag_string = tag_string
         self.otel_service = conf.get("traces", "otel_service")
-        print(f"xbis: otel_tracer.py init")
+        # Global propagator, W3C TraceContext.
+        set_global_textmap(TraceContextTextMapPropagator())
 
     def get_tracer(
         self, component: str, trace_id: int | None = None, span_id: int | None = None
@@ -232,6 +235,53 @@ class OtelTrace:
         )
         return span
 
+    def start_root_span(
+        self,
+        span_name: str,
+        component: str | None = None,
+        start_time=None,
+        start_as_current: bool = True
+    ):
+        if component is None:
+            component = self.otel_service
+
+        """Produce a root span."""
+
+        tracer = self.get_tracer(component=component)
+
+        if start_time is None:
+            start_time = pendulum.now("UTC")
+
+        # There is always an active span. We need to set an invalid trace id for the context.
+        # trace_id = tracer.id_generator.generate_trace_id()
+        # span_id = tracer.id_generator.generate_span_id()
+
+        span_ctx = SpanContext(
+            trace_id=INVALID_TRACE_ID, span_id=INVALID_SPAN_ID, is_remote=True, trace_flags=TraceFlags(0x01)
+        )
+        # 1. the ctx has to be invalid. If we pass None, then it will try to get the context of the current active span.
+        # There is always some active span due to auto-instrumentation.
+        # We need to pass a context, but the context also has to be invalid.
+        ctx = trace.set_span_in_context(NonRecordingSpan(span_ctx))
+
+        if start_as_current:
+            span = tracer.start_as_current_span(
+                name=span_name,
+                context=ctx,
+                start_time=datetime_to_nano(start_time),
+            )
+        else:
+            span = tracer.start_span(
+                name=span_name,
+                context=ctx,
+                start_time=datetime_to_nano(start_time),
+            )
+            current_span_ctx = trace.set_span_in_context(NonRecordingSpan(span.get_span_context()))
+            # We have to manually make the span context as the active context.
+            token = attach(current_span_ctx)
+        print(f"x: root_span: trace_id: {span.get_span_context().trace_id} | span_context: {span.get_span_context()}")
+        return span
+
     def start_child_span(
         self,
         span_name: str,
@@ -239,10 +289,16 @@ class OtelTrace:
         component: str | None = None,
         links=None,
         start_time=None,
+        start_as_current: bool = True
     ):
         """
-          Create and start child span.
+          Produce a child span.
         """
+        if component is None:
+            component = self.otel_service
+
+        if start_time is None:
+            start_time = pendulum.now("UTC")
 
         print(f"x: my.span.here: {parent_context}")
 
@@ -250,7 +306,9 @@ class OtelTrace:
             return
 
         context_val = next(iter(parent_context.values()))
-        parent_span_context = context_val.get_span_context()
+        parent_span_context = None
+        if isinstance(context_val, NonRecordingSpan):
+            parent_span_context = context_val.get_span_context()
 
         _links = gen_links_from_kv_list(links) if links else []
         _links.append(
@@ -260,19 +318,32 @@ class OtelTrace:
             )
         )
 
+        # tracer = self.get_tracer(
+        #     component=component,
+        #     trace_id=parent_span_context.trace_id)
         tracer = self.get_tracer(component=component)
 
         tag_string = self.tag_string if self.tag_string else ""
-        tag_string = tag_string + ("," + conf.get(TRACESTATE) if (conf and conf.get(TRACESTATE)) else "")
+        # This is dagrun.conf and not configuration.conf.
+        # tag_string = tag_string + ("," + conf.get(TRACESTATE) if (conf and conf.get(TRACESTATE)) else "")
 
-        ctx = trace.set_span_in_context(NonRecordingSpan(parent_context))
-        span = tracer.start_as_current_span(
-            name=span_name,
-            context=ctx,
-            links=_links,
-            start_time=datetime_to_nano(start_time),
-            attributes=parse_tracestate(tag_string),
-        )
+
+        if start_as_current:
+            span = tracer.start_as_current_span(
+                name=span_name,
+                context=parent_context,
+                links=_links,
+                start_time=datetime_to_nano(start_time),
+                attributes=parse_tracestate(tag_string),
+            )
+        else:
+            span = tracer.start_span(
+                name=span_name,
+                context=parent_context,
+                links=_links,
+                start_time=datetime_to_nano(start_time),
+                attributes=parse_tracestate(tag_string),
+            )
         return span
 
     def inject(self) -> dict:

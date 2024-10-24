@@ -333,6 +333,7 @@ class BaseExecutor(LoggingMixin):
         for _ in range(min((open_slots, len(self.queued_tasks)))):
             key, (command, _, queue, ti) = sorted_queue.pop(0)
 
+            print(f"x: trigger_tasks: ti: {ti.task_id} | state: {ti.state} | ti.dag_run.context: {ti.dag_run.context_carrier}")
             # If a task makes it here but is still understood by the executor
             # to be running, it generally means that the task has been killed
             # externally and not yet been marked as failed.
@@ -369,6 +370,8 @@ class BaseExecutor(LoggingMixin):
             else:
                 if key in self.attempts:
                     del self.attempts[key]
+                # parent_context = Trace.extract(ti.dag_run.context_carrier)
+                # with Trace.start_child_span(span_name=f"{ti.task_id}_{ti.try_number}_executor_xb", parent_context=parent_context, component="dag_xb") as span:
                 task_tuples.append((key, command, queue, ti.executor_config))
                 if span.is_recording():
                     span.add_event(

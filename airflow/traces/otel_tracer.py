@@ -20,6 +20,7 @@ from __future__ import annotations
 import logging
 import random
 import pendulum
+from dill.pointers import parent
 
 from opentelemetry import trace
 from opentelemetry.context import create_key, attach
@@ -199,6 +200,11 @@ class OtelTrace:
         if span_name is None:
             span_name = ti.task_id
 
+        if ti.queued_dttm is None:
+            start_time = pendulum.now("UTC")
+        else:
+            start_time = ti.queued_dttm
+
         # span_ctx = None
         print(f"x: taskinstance_dagrun_carrier: {dagrun.context_carrier}")
 
@@ -230,7 +236,7 @@ class OtelTrace:
             name=span_name,
             context=ctx,
             links=_links,
-            start_time=datetime_to_nano(ti.queued_dttm),
+            start_time=datetime_to_nano(start_time),
             attributes=parse_tracestate(tag_string),
         )
         return span
@@ -278,6 +284,8 @@ class OtelTrace:
             )
             current_span_ctx = trace.set_span_in_context(NonRecordingSpan(span.get_span_context()))
             # We have to manually make the span context as the active context.
+            # Right after the span is created, we inject the context into the carrier.
+            # The injected context must point to this span context.
             token = attach(current_span_ctx)
         print(f"x: root_span: trace_id: {span.get_span_context().trace_id} | span_context: {span.get_span_context()}")
         return span
@@ -309,6 +317,10 @@ class OtelTrace:
         parent_span_context = None
         if isinstance(context_val, NonRecordingSpan):
             parent_span_context = context_val.get_span_context()
+
+        print(f"x: child: current_span: traceid: {trace.get_current_span().get_span_context().trace_id} | spanid: {trace.get_current_span().get_span_context().span_id}")
+        print(f"x: child: span_from_carrier: traceid: {parent_span_context.trace_id} | spanid: {parent_span_context.span_id}")
+        print(f"x: child: current_span_is_recording: {trace.get_current_span().is_recording()}")
 
         _links = gen_links_from_kv_list(links) if links else []
         _links.append(
@@ -344,6 +356,11 @@ class OtelTrace:
                 start_time=datetime_to_nano(start_time),
                 attributes=parse_tracestate(tag_string),
             )
+            # current_span_ctx = trace.set_span_in_context(NonRecordingSpan(span.get_span_context()))
+            # We have to manually make the span context as the active context.
+            # Right after the span is created, we inject the context into the carrier.
+            # The injected context must point to this span context.
+            # token = attach(current_span_ctx)
         return span
 
     def inject(self) -> dict:

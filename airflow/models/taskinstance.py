@@ -2381,14 +2381,14 @@ class TaskInstance(Base, LoggingMixin):
                     TaskInstance.task_id == ti.task_id,
                     TaskInstance.dag_id == ti.dag_id,
                     TaskInstance.run_id == ti.run_id,
-                    TaskInstance.map_index == ti.map_index,
+                    # TaskInstance.map_index == ti.map_index,
                 )
             ).one()
 
         if ti.context_carrier == context_carrier:
             return False
 
-        ti.log.debug("Setting task context_carrier for %s", ti.task_id)
+        ti.log.info("Setting task context_carrier for %s", ti.task_id)
         ti.context_carrier = context_carrier
 
         session.merge(ti)

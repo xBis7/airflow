@@ -43,36 +43,21 @@ with DAG(
 
         current_context0 = trace.get_current_span().get_span_context()
 
-        dag_run = dag_context["dag_run"]
         ti = dag_context["ti"]
-        task_instance = dag_context["task_instance"]
-        carrier_from_context = dag_context["context_carrier"]
 
-        if carrier_from_context is not None:
-            context = Trace.extract(carrier_from_context)
-            print(f"xbis: context: {context}")
-            for key, value in context.items():
-                if isinstance(value, NonRecordingSpan):
-                    span_context = value.get_span_context()
+        context_carrier = ti.context_carrier
 
-                    # Extract trace_id, span_id, etc. from SpanContext
-                    trace_id = span_context.trace_id
-                    span_id = span_context.span_id
-                    trace_flags = span_context.trace_flags
+        if context_carrier is not None:
+            parent_context = Trace.extract(context_carrier)
 
-                    print(f"Extracted SpanContext from key '{key}':")
-                    print(f"  trace_id: {hex(trace_id)}")
-                    print(f"  span_id: {hex(span_id)}")
-                    print(f"  trace_flags: {trace_flags}")
-                else:
-                    raise ValueError("No valid NonRecordingSpan found in the context")
+            # with Trace.start_child_span(span_name=f"{ti.task_id}_span_from_inside_xb",
+            #                               parent_context=parent_context, component="dag_xb") as s:
+            #     print(f"xbis: context: {parent_context}")
+            #     print("halo")
 
-        print(
-            f"xbis: carrier_from_context: {carrier_from_context} | ti.context_carrier: {ti.context_carrier} | task_instance.context_carrier: {task_instance.context_carrier}")
+        print(f"xbis: context_carrier: {context_carrier}")
 
         print(f"curr_t_id: {current_context0.trace_id} | curr_s_id: {current_context0.span_id}")
-        # print(f"airf_curhr_t_id: {airflow_current_context0.trace_id} | airf_curr_s_id: {airflow_current_context0.span_id}")
-
 
     def task_2_func():
         for i in range(3):

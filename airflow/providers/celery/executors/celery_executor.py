@@ -28,6 +28,7 @@ from __future__ import annotations
 import logging
 import math
 import operator
+import threading
 import time
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
@@ -55,6 +56,7 @@ from airflow.configuration import conf
 from airflow.exceptions import AirflowTaskTimeout
 from airflow.executors.base_executor import BaseExecutor
 from airflow.stats import Stats
+from airflow.traces.tracer import Trace
 from airflow.utils.state import TaskInstanceState
 
 log = logging.getLogger(__name__)
@@ -229,6 +231,8 @@ class CeleryExecutor(BaseExecutor):
     supports_ad_hoc_ti_run: bool = True
     supports_sentry: bool = True
 
+    _thread_local_storage = threading.local()
+
     def __init__(self):
         super().__init__()
 
@@ -244,6 +248,7 @@ class CeleryExecutor(BaseExecutor):
         self.tasks = {}
         self.task_publish_retries: Counter[TaskInstanceKey] = Counter()
         self.task_publish_max_retries = conf.getint("celery", "task_publish_max_retries")
+        self._thread_local_storage.active_spans = {}
 
     def start(self) -> None:
         self.log.debug("Starting Celery Executor using %s processes for syncing", self._sync_parallelism)
@@ -285,7 +290,7 @@ class CeleryExecutor(BaseExecutor):
                     )
                     self.task_publish_retries[key] = retries + 1
                     continue
-            self.queued_tasks.pop(key)
+            value = self.queued_tasks.pop(key)
             self.task_publish_retries.pop(key, None)
             if isinstance(result, ExceptionWithTraceback):
                 self.log.error("%s: %s\n%s\n", CELERY_SEND_ERR_MSG_HEADER, result.exception, result.traceback)
@@ -294,6 +299,20 @@ class CeleryExecutor(BaseExecutor):
                 result.backend = cached_celery_backend
                 self.running.add(key)
                 self.tasks[key] = result
+
+                ti = value[3]
+                parent_context = Trace.extract(ti.dag_run.context_carrier)
+                print(f"x: process: ti: {ti.task_id}, {ti.state}, {ti.dag_run.context_carrier}")
+                # If it's None, then the span hasn't already been started.
+                if self._thread_local_storage.active_spans.get(key, None) is None:
+                    # Start a new span.
+                    span = Trace.start_child_span(span_name=f"{ti.task_id}_executor_xb", parent_context=parent_context, component="dag_xb", start_as_current=False)
+                    self._thread_local_storage.active_spans[key] = span
+                    # Get the context.
+                    carrier = Trace.inject()
+                    # Set the context on the ti and update the db.
+                    # ti.set_context_carrier(context_carrier=carrier)
+                    print(f"x: executor: ti.carrier: {carrier} | ti.context_carrier: {ti.context_carrier}")
 
                 # Store the Celery task_id in the event buffer. This will get "overwritten" if the task
                 # has another event, but that is fine, because the only other events are success/failed at
@@ -361,8 +380,16 @@ class CeleryExecutor(BaseExecutor):
         try:
             if state == celery_states.SUCCESS:
                 self.success(key, info)
+                span = self._thread_local_storage.active_spans.get(key, None)
+                span.end()
+                # Remove span.
+                del self._thread_local_storage.active_spans[key]
             elif state in (celery_states.FAILURE, celery_states.REVOKED):
                 self.fail(key, info)
+                span = self._thread_local_storage.active_spans.get(key, None)
+                span.end()
+                # Remove span.
+                del self._thread_local_storage.active_spans[key]
             elif state in (celery_states.STARTED, celery_states.PENDING):
                 pass
             else:

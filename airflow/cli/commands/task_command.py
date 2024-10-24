@@ -37,7 +37,6 @@ from airflow import settings
 from airflow.api_internal.internal_api_call import InternalApiConfig, internal_api_call
 from airflow.cli.simple_table import AirflowConsole
 from airflow.configuration import conf
-from airflow.example_dags.example_external_task_marker_dag import start_date
 from airflow.exceptions import AirflowException, DagRunNotFound, TaskDeferred, TaskInstanceNotFound
 from airflow.executors.executor_loader import ExecutorLoader
 from airflow.jobs.job import Job, run_job
@@ -52,7 +51,6 @@ from airflow.serialization.pydantic.taskinstance import TaskInstancePydantic
 from airflow.settings import IS_EXECUTOR_CONTAINER, IS_K8S_EXECUTOR_POD
 from airflow.ti_deps.dep_context import DepContext
 from airflow.ti_deps.dependencies_deps import SCHEDULER_QUEUED_DEPS
-from airflow.traces.tracer import Trace
 from airflow.typing_compat import Literal
 from airflow.utils import cli as cli_utils
 from airflow.utils.cli import (
@@ -70,7 +68,7 @@ from airflow.utils.log.secrets_masker import RedactedIO
 from airflow.utils.net import get_hostname
 from airflow.utils.providers_configuration_loader import providers_configuration_loaded
 from airflow.utils.session import NEW_SESSION, create_session, provide_session
-from airflow.utils.state import DagRunState, TaskInstanceState
+from airflow.utils.state import DagRunState
 from airflow.utils.task_instance_session import set_current_task_instance_session
 from airflow.utils.types import DagRunTriggeredByType
 
@@ -467,86 +465,32 @@ def task_run(args, dag: DAG | None = None) -> TaskReturnCode | None:
     ti.init_run_context(raw=args.raw)
 
     hostname = get_hostname()
-    log.info(f"xbis: task_run: ti.dag_run.context_carrier {ti.dag_run.context_carrier}")
 
     log.info("Running %s on host %s", ti, hostname)
 
-    print(f"x: hi")
-
-    if ti.queued_dttm is None and ti.start_date is not None:
-        ti.queued_dttm = ti.start_date
-    elif ti.queued_dttm is None and ti.start_date is None and ti.execution_date is not None:
-        ti.queued_dttm = ti.execution_date
-
-    context_carrier = ti.dag_run.context_carrier
-    print(f"x: task_cmd: taskinstance_dagrun_carrier: {context_carrier}")
-
-    context = Trace.extract(context_carrier)
-    print(f"x: task_cmd: context: {context}")
-
-    execution_date = pendulum.now("UTC")
-
-    with Trace.start_child_span(span_name=f"{ti.task_id}_xb", parent_context=context, component="dag_xb") as span:
-    # with Trace.start_span_from_taskinstance(ti, span_name=f"{ti.task_id}_xb") as span:
-        span.set_attribute("category", "scheduler")
-        span.set_attribute("task_id", ti.task_id)
-        span.set_attribute("dag_id", ti.dag_id)
-        span.set_attribute("state", ti.state)
-        span.set_attribute("start_date", str(ti.start_date))
-        span.set_attribute("end_date", str(ti.end_date))
-        span.set_attribute("duration", ti.duration)
-        span.set_attribute("executor_config", str(ti.executor_config))
-        span.set_attribute("execution_date", str(ti.execution_date))
-        span.set_attribute("hostname", ti.hostname)
-        span.set_attribute("log_url", ti.log_url)
-        span.set_attribute("operator", str(ti.operator))
-        span.set_attribute("try_number", ti.try_number)
-        span.set_attribute("executor_state", ti.state)
-        span.set_attribute("job_id", ti.job_id)
-        span.set_attribute("pool", ti.pool)
-        span.set_attribute("queue", ti.queue)
-        span.set_attribute("priority_weight", ti.priority_weight)
-        span.set_attribute("queued_dttm", str(ti.queued_dttm))
-        span.set_attribute("queued_by_job_id", ti.queued_by_job_id)
-        span.set_attribute("pid", ti.pid)
-
-        carrier = Trace.inject()
-        ti.set_context_carrier(context_carrier=carrier)
-        # TaskInstance.save_to_db(ti=ti, session=session)
-        print(f"xbis: task_injected_carrier: {carrier} | ti.context_carrier: {carrier}")
-
+    if not InternalApiConfig.get_use_internal_api():
+        # IMPORTANT, have to re-configure ORM with the NullPool, otherwise, each "run" command may leave
+        # behind multiple open sleeping connections while heartbeating, which could
+        # easily exceed the database connection limit when
+        # processing hundreds of simultaneous tasks.
+        # this should be last thing before running, to reduce likelihood of an open session
+        # which can cause trouble if running process in a fork.
+        settings.reconfigure_orm(disable_connection_pool=True)
+    task_return_code = None
+    try:
+        if args.interactive:
+            task_return_code = _run_task_by_selected_method(args, _dag, ti)
+        else:
+            with _move_task_handlers_to_root(ti), _redirect_stdout_to_ti_log(ti):
+                task_return_code = _run_task_by_selected_method(args, _dag, ti)
+                if task_return_code == TaskReturnCode.DEFERRED:
+                    _set_task_deferred_context_var()
+    finally:
         try:
-            if not InternalApiConfig.get_use_internal_api():
-                # IMPORTANT, have to re-configure ORM with the NullPool, otherwise, each "run" command may leave
-                # behind multiple open sleeping connections while heartbeating, which could
-                # easily exceed the database connection limit when
-                # processing hundreds of simultaneous tasks.
-                # this should be last thing before running, to reduce likelihood of an open session
-                # which can cause trouble if running process in a fork.
-                settings.reconfigure_orm(disable_connection_pool=True)
-                print("x: here1")
-            try:
-                print("x: here2")
-                if args.interactive:
-                    print("x: here3")
-                    task_return_code = _run_task_by_selected_method(args, _dag, ti)
-                else:
-                    print("x: here4")
-                    with _move_task_handlers_to_root(ti), _redirect_stdout_to_ti_log(ti):
-                        print("x: here5")
-                        task_return_code = _run_task_by_selected_method(args, _dag, ti)
-                        if task_return_code == TaskReturnCode.DEFERRED:
-                            _set_task_deferred_context_var()
-            finally:
-                try:
-                    print("x: here6")
-                    get_listener_manager().hook.before_stopping(component=TaskCommandMarker())
-                except Exception:
-                    pass
-            return task_return_code
-        finally:
-            if ti.state == TaskInstanceState.FAILED:
-                span.set_attribute("error", True)
+            get_listener_manager().hook.before_stopping(component=TaskCommandMarker())
+        except Exception:
+            pass
+    return task_return_code
 
 
 @cli_utils.action_cli(check_db=False)

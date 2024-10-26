@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from opentelemetry.trace import SpanContext, NonRecordingSpan
+from airflow.traces import otel_tracer
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
@@ -45,15 +45,19 @@ with DAG(
 
         ti = dag_context["ti"]
 
+        otel_airflow_tracer = otel_tracer.get_otel_tracer_for_task(Trace)
         context_carrier = ti.context_carrier
+
+        # with otel_airflow_tracer.start_root_span(span_name=f"{ti.task_id}_span_from_inside_without_x", component="dag_x") as s:
+        #   print(f"xbis: context from current_context")
+        #   print("halo")
 
         if context_carrier is not None:
             parent_context = Trace.extract(context_carrier)
-
-            # with Trace.start_child_span(span_name=f"{ti.task_id}_span_from_inside_xb",
-            #                               parent_context=parent_context, component="dag_xb") as s:
-            #     print(f"xbis: context: {parent_context}")
-            #     print("halo")
+            with otel_airflow_tracer.start_child_span(span_name=f"{ti.task_id}_span_from_inside_with_xb",
+                                          parent_context=parent_context, component="dag_x") as s:
+                print(f"xbis: context: {parent_context}")
+                print("halo")
 
         print(f"xbis: context_carrier: {context_carrier}")
 

@@ -20,7 +20,6 @@ from __future__ import annotations
 import logging
 import random
 import pendulum
-from dill.pointers import parent
 
 from opentelemetry import trace
 from opentelemetry.context import create_key, attach
@@ -29,7 +28,7 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.propagate import set_global_textmap, propagators
 from opentelemetry.sdk.resources import HOST_NAME, SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import Span, Tracer as OpenTelemetryTracer, TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter, SimpleSpanProcessor
 from opentelemetry.sdk.trace.id_generator import IdGenerator
 from opentelemetry.trace import Link, NonRecordingSpan, SpanContext, TraceFlags, Tracer
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
@@ -62,13 +61,21 @@ class OtelTrace:
     When OTEL is enabled, the Trace class will be replaced by this class.
     """
 
-    def __init__(self, span_exporter: ConsoleSpanExporter | OTLPSpanExporter, tag_string: str | None = None):
+    def __init__(self, span_exporter: ConsoleSpanExporter | OTLPSpanExporter, tag_string: str | None = None, use_simple_processor: bool = False):
         self.span_exporter = span_exporter
-        self.span_processor = BatchSpanProcessor(self.span_exporter)
+        if use_simple_processor:
+            # Tasks run so fast that span don't get exported.
+            # A SimpleSpanProcessor exports the spans immediately after they are created.
+            # If we use a BatchSpanProcessor, the task might finish before the spans are exported
+            # and the collector will never get them.
+            self.span_processor = SimpleSpanProcessor(self.span_exporter)
+        else:
+            self.span_processor = BatchSpanProcessor(self.span_exporter)
         self.tag_string = tag_string
         self.otel_service = conf.get("traces", "otel_service")
         # Global propagator, W3C TraceContext.
         set_global_textmap(TraceContextTextMapPropagator())
+        print(f"xbis: otel_tracer.py init")
 
     def get_tracer(
         self, component: str, trace_id: int | None = None, span_id: int | None = None
@@ -287,7 +294,7 @@ class OtelTrace:
             # Right after the span is created, we inject the context into the carrier.
             # The injected context must point to this span context.
             token = attach(current_span_ctx)
-        print(f"x: root_span: trace_id: {span.get_span_context().trace_id} | span_context: {span.get_span_context()}")
+            print(f"x: root_span: trace_id: {span.get_span_context().trace_id} | span_context: {span.get_span_context()}")
         return span
 
     def start_child_span(
@@ -310,13 +317,14 @@ class OtelTrace:
 
         print(f"x: my.span.here: {parent_context}")
 
-        if not parent_context:
-            return
-
-        context_val = next(iter(parent_context.values()))
-        parent_span_context = None
-        if isinstance(context_val, NonRecordingSpan):
-            parent_span_context = context_val.get_span_context()
+        if parent_context is None:
+            parent_span_context = trace.get_current_span().get_span_context()
+        else:
+            # attach(parent_context)
+            context_val = next(iter(parent_context.values()))
+            parent_span_context = None
+            if isinstance(context_val, NonRecordingSpan):
+                parent_span_context = context_val.get_span_context()
 
         print(f"x: child: current_span: traceid: {trace.get_current_span().get_span_context().trace_id} | spanid: {trace.get_current_span().get_span_context().span_id}")
         print(f"x: child: span_from_carrier: traceid: {parent_span_context.trace_id} | spanid: {parent_span_context.span_id}")
@@ -356,11 +364,11 @@ class OtelTrace:
                 start_time=datetime_to_nano(start_time),
                 attributes=parse_tracestate(tag_string),
             )
-            # current_span_ctx = trace.set_span_in_context(NonRecordingSpan(span.get_span_context()))
+            current_span_ctx = trace.set_span_in_context(NonRecordingSpan(span.get_span_context()))
             # We have to manually make the span context as the active context.
             # Right after the span is created, we inject the context into the carrier.
             # The injected context must point to this span context.
-            # token = attach(current_span_ctx)
+            token = attach(current_span_ctx)
         return span
 
     def inject(self) -> dict:
@@ -404,7 +412,7 @@ def gen_link_from_traceparent(traceparent: str):
     return Link(context=span_ctx, attributes={"meta.annotation_type": "link", "from": "traceparent"})
 
 
-def get_otel_tracer(cls) -> OtelTrace:
+def get_otel_tracer(cls, use_simple_processor: bool | None = None) -> OtelTrace:
     """Get OTEL tracer from airflow configuration."""
     host = conf.get("traces", "otel_host")
     port = conf.getint("traces", "otel_port")
@@ -412,18 +420,22 @@ def get_otel_tracer(cls) -> OtelTrace:
     ssl_active = conf.getboolean("traces", "otel_ssl_active")
     tag_string = cls.get_constant_tags()
 
+    print(f"x: otel_tracer: host: {host}, port: {port}, debug: {debug}, ssl_active: {ssl_active}")
+
     if debug is True:
         log.info("[ConsoleSpanExporter] is being used")
-        return OtelTrace(span_exporter=ConsoleSpanExporter(), tag_string=tag_string)
+        return OtelTrace(span_exporter=ConsoleSpanExporter(), tag_string=tag_string, use_simple_processor=use_simple_processor)
     else:
         protocol = "https" if ssl_active else "http"
         endpoint = f"{protocol}://{host}:{port}/v1/traces"
         log.info("[OTLPSpanExporter] Connecting to OpenTelemetry Collector at %s", endpoint)
         return OtelTrace(
             span_exporter=OTLPSpanExporter(endpoint=endpoint, headers={"Content-Type": "application/json"}),
-            tag_string=tag_string,
+            tag_string=tag_string, use_simple_processor=use_simple_processor,
         )
 
+def get_otel_tracer_for_task(cls) -> OtelTrace:
+    return get_otel_tracer(cls, use_simple_processor=True)
 
 class AirflowOtelIdGenerator(IdGenerator):
     """

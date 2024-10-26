@@ -18,8 +18,10 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import sys
+import threading
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, List, Optional, Sequence, Tuple
@@ -110,6 +112,8 @@ class BaseExecutor(LoggingMixin):
 
     :param parallelism: how many jobs should run at one time. Set to ``0`` for infinity.
     """
+
+    _thread_local_storage = threading.local()
 
     supports_ad_hoc_ti_run: bool = False
     supports_pickling: bool = True
@@ -333,7 +337,29 @@ class BaseExecutor(LoggingMixin):
         for _ in range(min((open_slots, len(self.queued_tasks)))):
             key, (command, _, queue, ti) = sorted_queue.pop(0)
 
-            print(f"x: trigger_tasks: ti: {ti.task_id} | state: {ti.state} | ti.dag_run.context: {ti.dag_run.context_carrier}")
+            parent_context = Trace.extract(ti.dag_run.context_carrier)
+            print(f"x: process: ti: {ti.task_id}, {ti.state}, {ti.dag_run.context_carrier}")
+            # If it's None, then the span hasn't already been started.
+            if self._thread_local_storage.active_spans.get(key, None) is None:
+                # Start a new span.
+                span = Trace.start_child_span(span_name=f"{ti.task_id}_executor_xb",
+                                              parent_context=parent_context, component="dag_xb",
+                                              start_as_current=False)
+                self._thread_local_storage.active_spans[key] = span
+                # Get the context.
+                carrier = Trace.inject()
+                print(f"x: executor: command_list: {command}")
+                command.append("--carrier")
+                command.append(json.dumps(carrier))
+                print(f"x: executor: command_list2: {command}")
+                # Set the context on the ti and update the db.
+                # ti.context_carrier = carrier
+                # ti.set_context_carrier(context_carrier=carrier, with_commit=False)
+                # ti.context
+                # context = ti.get_template_context()
+                # context["context_carrier"] = carrier
+                print(f"x: executor: ti.carrier: {carrier} | ti.context_carrier: {ti.context_carrier}")
+
             # If a task makes it here but is still understood by the executor
             # to be running, it generally means that the task has been killed
             # externally and not yet been marked as failed.
@@ -423,6 +449,10 @@ class BaseExecutor(LoggingMixin):
         if remove_running:
             try:
                 self.running.remove(key)
+                span = self._thread_local_storage.active_spans.get(key, None)
+                span.end()
+                # Remove span.
+                del self._thread_local_storage.active_spans[key]
             except KeyError:
                 self.log.debug("Could not find key: %s", key)
         self.event_buffer[key] = state, info

@@ -165,7 +165,12 @@ def celery_worker(monkeypatch):
 
     celery_worker_process = None
     try:
-        celery_worker_process = subprocess.Popen(celery_command_args, env=os.environ.copy())
+        celery_worker_process = subprocess.Popen(
+            celery_command_args,
+            env=os.environ.copy(),
+            stdout=None,
+            stderr=None,
+        )
         # Wait a bit to ensure the worker starts
         time.sleep(5)
         yield executor_name, celery_worker_process

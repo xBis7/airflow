@@ -30,6 +30,9 @@ from contextlib import contextmanager, redirect_stderr, redirect_stdout, suppres
 from typing import TYPE_CHECKING, Generator, Protocol, Union, cast
 
 import pendulum
+from opentelemetry.sdk.trace.export import ConsoleSpanExporter
+
+from airflow.traces import otel_tracer
 from pendulum.parsing.exceptions import ParserError
 from sqlalchemy import select
 
@@ -51,6 +54,8 @@ from airflow.serialization.pydantic.taskinstance import TaskInstancePydantic
 from airflow.settings import IS_EXECUTOR_CONTAINER, IS_K8S_EXECUTOR_POD
 from airflow.ti_deps.dep_context import DepContext
 from airflow.ti_deps.dependencies_deps import SCHEDULER_QUEUED_DEPS
+from airflow.traces.otel_tracer import OtelTrace
+from airflow.traces.tracer import Trace
 from airflow.typing_compat import Literal
 from airflow.utils import cli as cli_utils
 from airflow.utils.cli import (
@@ -71,6 +76,7 @@ from airflow.utils.session import NEW_SESSION, create_session, provide_session
 from airflow.utils.state import DagRunState
 from airflow.utils.task_instance_session import set_current_task_instance_session
 from airflow.utils.types import DagRunTriggeredByType
+from dev.check_files import airflow
 
 if TYPE_CHECKING:
     from sqlalchemy.orm.session import Session
@@ -251,6 +257,27 @@ def _run_task_by_selected_method(
     - as raw task
     - by executor
     """
+    # Gets initialized to empty dict {}.
+    # print(f"x: cmd: {ti.context_carrier}")
+    # if ti.context_carrier is None:
+    #     airflow_tracer = otel_tracer.get_otel_tracer_for_task(Trace)
+    #
+    #     parent_context = airflow_tracer.extract(ti.dag_run.context_carrier)
+    #     print(f"x: task_command: ti.dag_run.context_carrier: {ti.dag_run.context_carrier}")
+    #
+    #     with airflow_tracer.start_child_span(span_name=f"{ti.task_id}_cli_xb", parent_context=parent_context, component="dag_xb") as s:
+    #         carrier = Trace.inject()
+    #         ti.set_context_carrier(context_carrier=carrier, with_commit=True)
+    #
+    #         if TYPE_CHECKING:
+    #             assert not isinstance(ti, TaskInstancePydantic)  # Wait for AIP-44 implementation to complete
+    #         if args.local:
+    #             return _run_task_by_local_task_job(args, ti)
+    #         if args.raw:
+    #             return _run_raw_task(args, ti)
+    #         _run_task_by_executor(args, dag, ti)
+    #         return None
+    # else:
     if TYPE_CHECKING:
         assert not isinstance(ti, TaskInstancePydantic)  # Wait for AIP-44 implementation to complete
     if args.local:
@@ -259,7 +286,6 @@ def _run_task_by_selected_method(
         return _run_raw_task(args, ti)
     _run_task_by_executor(args, dag, ti)
     return None
-
 
 def _run_task_by_executor(args, dag: DAG, ti: TaskInstance) -> None:
     """
@@ -417,7 +443,6 @@ def task_run(args, dag: DAG | None = None) -> TaskReturnCode | None:
     "airflow tasks test ..." command instead.
     """
     # Load custom airflow config
-
     if args.local and args.raw:
         raise AirflowException(
             "Option --raw and --local are mutually exclusive. "
@@ -464,9 +489,10 @@ def task_run(args, dag: DAG | None = None) -> TaskReturnCode | None:
     ti, _ = _get_ti(task, args.map_index, exec_date_or_run_id=args.execution_date_or_run_id, pool=args.pool)
     ti.init_run_context(raw=args.raw)
 
-    hostname = get_hostname()
-
-    log.info("Running %s on host %s", ti, hostname)
+    if args.carrier is not None:
+        print(f"x: task_run: args.carrier: {args.carrier}")
+        carrier_dict = json.loads(args.carrier)
+        ti.set_context_carrier(carrier_dict, with_commit=True)
 
     if not InternalApiConfig.get_use_internal_api():
         # IMPORTANT, have to re-configure ORM with the NullPool, otherwise, each "run" command may leave

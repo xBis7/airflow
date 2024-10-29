@@ -207,7 +207,6 @@ class GunicornMonitor(LoggingMixin):
 
     def start(self) -> NoReturn:
         """Start monitoring the webserver."""
-        log.info("xbis_new2: webserver.start()")
         try:
             self._wait_until_true(
                 lambda: self.num_workers_expected == self._get_num_workers_running(),

@@ -140,7 +140,6 @@ class Context(TypedDict, total=False):
     var: _VariableAccessors
     yesterday_ds: str
     yesterday_ds_nodash: str
-    carrier: dict
 
 class AirflowContextDeprecationWarning(DeprecationWarning): ...
 

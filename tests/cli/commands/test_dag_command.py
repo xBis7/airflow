@@ -866,24 +866,6 @@ class TestCliDags:
         )
 
     @mock.patch("airflow.cli.commands.dag_command.get_dag")
-    def test_dag(self, mock_get_dag):
-        cli_args = self.parser.parse_args(["dags", "test", "test_dag_with_otel", DEFAULT_DATE.isoformat()])
-        dag_command.dag_test(cli_args)
-
-        mock_get_dag.assert_has_calls(
-            [
-                mock.call(subdir=cli_args.subdir, dag_id="test_dag_with_otel"),
-                mock.call().test(
-                    execution_date=timezone.parse(DEFAULT_DATE.isoformat()),
-                    run_conf=None,
-                    use_executor=False,
-                    session=mock.ANY,
-                    mark_success_pattern=None,
-                ),
-            ]
-        )
-
-    @mock.patch("airflow.cli.commands.dag_command.get_dag")
     def test_dag_test_fail_raise_error(self, mock_get_dag):
         execution_date_str = DEFAULT_DATE.isoformat()
         mock_get_dag.return_value.test.return_value = DagRun(

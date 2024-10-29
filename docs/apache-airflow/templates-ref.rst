@@ -92,7 +92,6 @@ Variable                                    Type                  Description
                                             list[DatasetEvent]]   | (there may be more than one, if there are multiple Datasets with different frequencies).
                                                                   | Read more here :doc:`Datasets <authoring-and-scheduling/datasets>`.
                                                                   | Added in version 2.4.
-TODO: add 'carrier'
 =========================================== ===================== ===================================================================
 
 .. note::

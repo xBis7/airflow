@@ -110,7 +110,6 @@ KNOWN_CONTEXT_KEYS: set[str] = {
     "var",
     "yesterday_ds",
     "yesterday_ds_nodash",
-    "carrier",
 }
 
 

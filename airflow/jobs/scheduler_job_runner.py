@@ -167,7 +167,6 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
     ):
         super().__init__(job)
         self.subdir = subdir
-        print(f"x: subdir: {subdir}")
         self.num_runs = num_runs
         # In specific tests, we want to stop the parse loop after the _files_ have been parsed a certain
         # number of times. This is only to support testing, and isn't something a user is likely to want to
@@ -193,7 +192,6 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
 
         # Check what SQL backend we use
         sql_conn: str = conf.get_mandatory_value("database", "sql_alchemy_conn").lower()
-        print(f"x: sql_conn: {sql_conn}")
         self.using_sqlite = sql_conn.startswith("sqlite")
         # Dag Processor agent - not used in Dag Processor standalone mode.
         self.processor_agent: DagFileProcessorAgent | None = None
@@ -293,8 +291,6 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
         from airflow.utils.db import DBLocks
 
         executable_tis: list[TI] = []
-
-        print(f"x: dialect {session.get_bind().dialect.name}")
 
         if session.get_bind().dialect.name == "postgresql":
             # Optimization: to avoid littering the DB errors of "ERROR: canceling statement due to lock
@@ -551,7 +547,6 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                             )
                             continue
 
-                print(f"x: task_instance_exec: {task_instance.executor}")
                 if executor_obj := self._try_to_load_executor(task_instance.executor):
                     if TYPE_CHECKING:
                         # All executors should have a name if they are initted from the executor_loader.

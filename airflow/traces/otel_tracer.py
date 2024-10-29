@@ -64,10 +64,9 @@ class OtelTrace:
     def __init__(self, span_exporter: ConsoleSpanExporter | OTLPSpanExporter, tag_string: str | None = None, use_simple_processor: bool = False):
         self.span_exporter = span_exporter
         if use_simple_processor:
-            # Tasks run so fast that span don't get exported.
+            # With a BatchSpanProcessor, spans are exported at an interval.
+            # A task can run fast and finish before spans have enough time to get exported to the collector.
             # A SimpleSpanProcessor exports the spans immediately after they are created.
-            # If we use a BatchSpanProcessor, the task might finish before the spans are exported
-            # and the collector will never get them.
             self.span_processor = SimpleSpanProcessor(self.span_exporter)
         else:
             self.span_processor = BatchSpanProcessor(self.span_exporter)

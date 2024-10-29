@@ -38,7 +38,6 @@ import dill
 import jinja2
 import lazy_object_proxy
 import pendulum
-from airflow.traces import otel_tracer
 from jinja2 import TemplateAssertionError, UndefinedError
 from sqlalchemy import (
     Column,
@@ -1102,11 +1101,6 @@ def _get_template_context(
     except NotMapped:
         expanded_ti_count = None
 
-    def get_context_carrier() -> dict:
-        context_carrier = Trace.inject()
-        print(f"xbis_context_carrier: {context_carrier}")
-        return context_carrier
-
     # NOTE: If you add to this dict, make sure to also update the following:
     # * Context in airflow/utils/context.pyi
     # * KNOWN_CONTEXT_KEYS in airflow/utils/context.py
@@ -1162,7 +1156,6 @@ def _get_template_context(
         "conn": ConnectionAccessor(),
         "yesterday_ds": get_yesterday_ds(),
         "yesterday_ds_nodash": get_yesterday_ds_nodash(),
-        # "context_carrier": get_context_carrier(),
     }
     # Mypy doesn't like turning existing dicts in to a TypeDict -- and we "lie" in the type stub to say it
     # is one, but in practice it isn't. See https://github.com/python/mypy/issues/8890
@@ -2379,7 +2372,6 @@ class TaskInstance(Base, LoggingMixin):
                     TaskInstance.task_id == ti.task_id,
                     TaskInstance.dag_id == ti.dag_id,
                     TaskInstance.run_id == ti.run_id,
-                    # TaskInstance.map_index == ti.map_index,
                 )
             ).one()
 
@@ -2780,7 +2772,6 @@ class TaskInstance(Base, LoggingMixin):
             cls.logger().info("Resuming after deferral")
         else:
             cls.logger().info("Starting attempt %s of %s", ti.try_number, ti.max_tries + 1)
-        cls.logger().info(f"xbis: check_state: context_carrier: {ti.context_carrier}")
 
         if not test_mode:
             session.add(Log(TaskInstanceState.RUNNING.value, ti))
@@ -3003,7 +2994,6 @@ class TaskInstance(Base, LoggingMixin):
             assert self.task
 
         parent_pid = os.getpid()
-        print(f"x: _execute_task_with_callbacks, task: {self.task_id}, context_carrier: {self.context_carrier}")
 
         def signal_handler(signum, frame):
             pid = os.getpid()

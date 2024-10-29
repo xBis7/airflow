@@ -43,7 +43,6 @@ class PipeCallbackSink(BaseCallbackSink):
 
         :param callback: Callback request to be executed.
         """
-        print(f"xbis: pipe_callback_sink: {callback.to_json()}")
         try:
             self._get_sink_pipe().send(callback)
         except ConnectionError:

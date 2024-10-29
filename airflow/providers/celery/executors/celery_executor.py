@@ -55,7 +55,6 @@ from airflow.configuration import conf
 from airflow.exceptions import AirflowTaskTimeout
 from airflow.executors.base_executor import BaseExecutor
 from airflow.stats import Stats
-from airflow.traces.tracer import Trace
 from airflow.utils.state import TaskInstanceState
 
 log = logging.getLogger(__name__)
@@ -245,7 +244,6 @@ class CeleryExecutor(BaseExecutor):
         self.tasks = {}
         self.task_publish_retries: Counter[TaskInstanceKey] = Counter()
         self.task_publish_max_retries = conf.getint("celery", "task_publish_max_retries")
-        self._thread_local_storage.active_spans = {}
 
     def start(self) -> None:
         self.log.debug("Starting Celery Executor using %s processes for syncing", self._sync_parallelism)
@@ -287,7 +285,7 @@ class CeleryExecutor(BaseExecutor):
                     )
                     self.task_publish_retries[key] = retries + 1
                     continue
-            value = self.queued_tasks.pop(key)
+            self.queued_tasks.pop(key)
             self.task_publish_retries.pop(key, None)
             if isinstance(result, ExceptionWithTraceback):
                 self.log.error("%s: %s\n%s\n", CELERY_SEND_ERR_MSG_HEADER, result.exception, result.traceback)
@@ -301,6 +299,7 @@ class CeleryExecutor(BaseExecutor):
                 # has another event, but that is fine, because the only other events are success/failed at
                 # which point we don't need the ID anymore anyway
                 self.event_buffer[key] = (TaskInstanceState.QUEUED, result.task_id)
+
                 # If the task runs _really quickly_ we may already have a result!
                 self.update_task_state(key, result.state, getattr(result, "info", None))
 

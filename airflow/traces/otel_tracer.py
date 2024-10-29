@@ -30,7 +30,7 @@ from opentelemetry.sdk.resources import HOST_NAME, SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import Span, Tracer as OpenTelemetryTracer, TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter, SimpleSpanProcessor
 from opentelemetry.sdk.trace.id_generator import IdGenerator
-from opentelemetry.trace import Link, NonRecordingSpan, SpanContext, TraceFlags, Tracer
+from opentelemetry.trace import Link, NonRecordingSpan, SpanContext, TraceFlags, Tracer, get_tracer_provider
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from opentelemetry.trace.span import INVALID_SPAN_ID, INVALID_TRACE_ID
 
@@ -76,20 +76,25 @@ class OtelTrace:
         # Global propagator, W3C TraceContext.
         set_global_textmap(TraceContextTextMapPropagator())
         print(f"xbis: otel_tracer.py init")
+        self.resource = Resource.create(attributes={HOST_NAME: get_hostname(), SERVICE_NAME: self.otel_service})
+
+    def get_otel_tracer_provider(self, trace_id: int | None = None, span_id: int | None = None) -> TracerProvider:
+        """Tracer that will use special AirflowOtelIdGenerator to control producing certain span and trace id."""
+        if trace_id or span_id:
+            # in case where trace_id or span_id was given
+            tracer_provider = TracerProvider(
+                resource=self.resource, id_generator=AirflowOtelIdGenerator(span_id=span_id, trace_id=trace_id)
+            )
+        else:
+            tracer_provider = TracerProvider(resource=self.resource)
+
+        tracer_provider.add_span_processor(self.span_processor)
+        return tracer_provider
 
     def get_tracer(
         self, component: str, trace_id: int | None = None, span_id: int | None = None
     ) -> OpenTelemetryTracer | Tracer:
-        """Tracer that will use special AirflowOtelIdGenerator to control producing certain span and trace id."""
-        resource = Resource.create(attributes={HOST_NAME: get_hostname(), SERVICE_NAME: self.otel_service})
-        if trace_id or span_id:
-            # in case where trace_id or span_id was given
-            tracer_provider = TracerProvider(
-                resource=resource, id_generator=AirflowOtelIdGenerator(span_id=span_id, trace_id=trace_id)
-            )
-        else:
-            tracer_provider = TracerProvider(resource=resource)
-        tracer_provider.add_span_processor(self.span_processor)
+        tracer_provider = self.get_otel_tracer_provider(trace_id=trace_id, span_id=span_id)
         tracer = tracer_provider.get_tracer(component)
         """
         Tracer will produce a single ID value if value is provided. Note that this is one-time only, so any
@@ -319,16 +324,12 @@ class OtelTrace:
 
         if parent_context is None:
             parent_span_context = trace.get_current_span().get_span_context()
+            parent_context = trace.set_span_in_context(NonRecordingSpan(parent_span_context))
         else:
-            # attach(parent_context)
             context_val = next(iter(parent_context.values()))
             parent_span_context = None
             if isinstance(context_val, NonRecordingSpan):
                 parent_span_context = context_val.get_span_context()
-
-        print(f"x: child: current_span: traceid: {trace.get_current_span().get_span_context().trace_id} | spanid: {trace.get_current_span().get_span_context().span_id}")
-        print(f"x: child: span_from_carrier: traceid: {parent_span_context.trace_id} | spanid: {parent_span_context.span_id}")
-        print(f"x: child: current_span_is_recording: {trace.get_current_span().is_recording()}")
 
         _links = gen_links_from_kv_list(links) if links else []
         _links.append(
@@ -338,9 +339,6 @@ class OtelTrace:
             )
         )
 
-        # tracer = self.get_tracer(
-        #     component=component,
-        #     trace_id=parent_span_context.trace_id)
         tracer = self.get_tracer(component=component)
 
         tag_string = self.tag_string if self.tag_string else ""

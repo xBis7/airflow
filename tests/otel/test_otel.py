@@ -14,8 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+import io
+import json
 import pprint
+from contextlib import redirect_stdout
 
 import pytest
 import subprocess
@@ -23,6 +25,7 @@ import pendulum
 import time
 import os
 
+from airflow.traces import otel_tracer
 from testcontainers.redis import RedisContainer
 
 from airflow.executors import executor_loader
@@ -33,6 +36,7 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from airflow import settings
 from sqlalchemy import create_engine, inspect
 
+from airflow.traces.tracer import Trace
 from airflow.utils.session import create_session
 
 from testcontainers.postgres import PostgresContainer
@@ -48,7 +52,7 @@ from airflow.utils.state import State
 
 from airflow.models import DagBag, DagRun, Base
 
-@pytest.fixture
+@pytest.fixture(scope='function')
 def redis_testcontainer():
     # Start a Redis container for testing
     redis = RedisContainer()
@@ -64,7 +68,7 @@ def redis_testcontainer():
 
     yield broker_url
 
-@pytest.fixture
+@pytest.fixture(scope='function')
 def postgres_testcontainer(monkeypatch, redis_testcontainer):
     # Start a PostgreSQL container for testing
     postgres = PostgresContainer(
@@ -121,33 +125,17 @@ def postgres_testcontainer(monkeypatch, redis_testcontainer):
     finally:
         postgres.stop()
 
-@pytest.fixture
-def airflow_scheduler(celery_worker, postgres_testcontainer, redis_testcontainer):
+@pytest.fixture(scope='function')
+def airflow_scheduler_args(capfd):
     scheduler_command_args = [
         "airflow",
         "scheduler",
     ]
 
-    scheduler_process = None
-    try:
-        scheduler_process = subprocess.Popen(
-            scheduler_command_args,
-            env=os.environ.copy(),
-            # stdout=subprocess.PIPE,
-            # stderr=subprocess.PIPE,
-            stdout=None,
-            stderr=None,
-        )
-        # Wait a bit to ensure the scheduler starts
-        time.sleep(10)
-        yield scheduler_process
-    finally:
-        if scheduler_process:
-            scheduler_process.terminate()
-            scheduler_process.wait()
+    yield scheduler_command_args
 
-@pytest.fixture
-def celery_worker(monkeypatch):
+@pytest.fixture(scope='function')
+def celery_worker_args(monkeypatch):
     os.environ["AIRFLOW__CORE__EXECUTOR"] = "CeleryExecutor"
     executor_name = ExecutorName(
         module_path="airflow.providers.celery.executors.celery_executor.CeleryExecutor",
@@ -163,20 +151,7 @@ def celery_worker(monkeypatch):
         "--loglevel", "INFO",
     ]
 
-    celery_worker_process = None
-    try:
-        celery_worker_process = subprocess.Popen(
-            celery_command_args,
-            env=os.environ.copy(),
-            stdout=None,
-            stderr=None,
-        )
-        # Wait a bit to ensure the worker starts
-        time.sleep(5)
-        yield executor_name, celery_worker_process
-    finally:
-        celery_worker_process.terminate()
-        celery_worker_process.wait()
+    yield celery_command_args
 
 @pytest.fixture(scope="function")
 def dag_bag():
@@ -214,15 +189,71 @@ def dump_airflow_metadata_db(session):
     print("\nAirflow metadata database dump complete.")
     print("\n-----END_airDb-----\n")
 
+def extract_spans_from_output(output_lines):
+    spans = []
+    total_lines = len(output_lines)
+    index = 0
+
+    while index < total_lines:
+        line = output_lines[index].strip()
+        if line.startswith('{') and line == '{':
+            # Start of a JSON object
+            json_lines = [line]
+            index += 1
+            while index < total_lines:
+                line = output_lines[index]
+                json_lines.append(line)
+                if line.strip().startswith('}') and line == '}':
+                    # End of the JSON object
+                    break
+                index += 1
+            # Attempt to parse the collected lines as JSON
+            json_str = '\n'.join(json_lines)
+            try:
+                span = json.loads(json_str)
+                spans.append(span)
+            except json.JSONDecodeError as e:
+                # Handle or log the error if needed
+                print(f"Failed to parse JSON span: {e}")
+                print("Failed JSON string:")
+                print(json_str)
+        else:
+            index += 1
+
+    return spans
+
 def test_postgres_and_celery_executor(
     monkeypatch,
     postgres_testcontainer,
-    airflow_scheduler,
-    celery_worker,
+    airflow_scheduler_args,
+    celery_worker_args,
     dag_bag,
+    capfd
 ):
     """Test that a DAG runs successfully using CeleryExecutor and external scheduler and worker."""
     psql_engine, psql_session = postgres_testcontainer
+
+    celery_command_args = celery_worker_args
+
+    celery_worker_process = subprocess.Popen(
+        celery_command_args,
+        env=os.environ.copy(),
+        stdout=None,
+        stderr=None,
+    )
+
+    # Start the processes here and not as fixtures, so that the test can capture their output.
+    scheduler_command_args = airflow_scheduler_args
+
+    scheduler_process = subprocess.Popen(
+        scheduler_command_args,
+        env=os.environ.copy(),
+        stdout=None,
+        stderr=None,
+    )
+
+    # Wait a bit to ensure both processes have started
+    time.sleep(10)
 
     execution_date = pendulum.now("UTC")
 
@@ -262,7 +293,7 @@ def test_postgres_and_celery_executor(
     subprocess.run(trigger_command, check=True, env=os.environ.copy())
 
     # Wait until the DAG run completes
-    max_wait_time = 30  # seconds
+    max_wait_time = 60  # seconds
     start_time = time.time()
 
     dag_run_state = None
@@ -286,7 +317,57 @@ def test_postgres_and_celery_executor(
 
         time.sleep(5)
 
-    with create_session() as session:
-        dump_airflow_metadata_db(session)
+    # with create_session() as session:
+    #     dump_airflow_metadata_db(session)
 
     assert dag_run_state == State.SUCCESS, f"DAG run did not complete successfully. Final state: {dag_run_state}"
+
+    # Terminate the processes.
+    celery_worker_process.terminate()
+    celery_worker_process.wait()
+
+    scheduler_process.terminate()
+    scheduler_process.wait()
+
+    out, err = capfd.readouterr()
+
+    output_lines = out.splitlines()
+
+    # Example span from the ConsoleSpanExporter
+    #     {
+    #         "name": "perform_heartbeat",
+    #         "context": {
+    #             "trace_id": "0xa18781ea597c3d07c85e95fd3a6d7d40",
+    #             "span_id": "0x8ae7bb13ec5b28ba",
+    #             "trace_state": "[]"
+    #         },
+    #         "kind": "SpanKind.INTERNAL",
+    #         "parent_id": "0x17ac77a4a840758d",
+    #         "start_time": "2024-10-30T16:19:33.947155Z",
+    #         "end_time": "2024-10-30T16:19:33.947192Z",
+    #         "status": {
+    #             "status_code": "UNSET"
+    #         },
+    #         "attributes": {},
+    #         "events": [],
+    #         "links": [],
+    #         "resource": {
+    #             "attributes": {
+    #                 "telemetry.sdk.language": "python",
+    #                 "telemetry.sdk.name": "opentelemetry",
+    #                 "telemetry.sdk.version": "1.27.0",
+    #                 "host.name": "host.local",
+    #                 "service.name": "Airflow"
+    #             },
+    #             "schema_url": ""
+    #         }
+    #     }
+    spans = extract_spans_from_output(output_lines)
+    # print(f"x: spans-start: {spans} -- spans-end")
+
+    for span in spans:
+        print(f"span:   | name: {span['name']} | spanid: {span['context']['span_id']} | traceid: {span['context']['trace_id']}")
+        # if span.parent is not None:
+        #     print(f"        | parent.spanid: {span.parent.span_id} | parent.traceid: {span.parent.trace_id}")
+        # else:
+        #     print(f"        | span is root and has no parent.")

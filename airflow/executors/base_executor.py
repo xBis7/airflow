@@ -137,6 +137,7 @@ class BaseExecutor(LoggingMixin):
         self.running: set[TaskInstanceKey] = set()
         self.event_buffer: dict[TaskInstanceKey, EventBufferValueType] = {}
         self._task_event_logs: deque[Log] = deque()
+        self._thread_local_storage.active_spans = {}
         """
         Deque for storing task event log messages.
 

@@ -30,7 +30,7 @@ from opentelemetry.sdk.resources import HOST_NAME, SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import Span, Tracer as OpenTelemetryTracer, TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter, SimpleSpanProcessor
 from opentelemetry.sdk.trace.id_generator import IdGenerator
-from opentelemetry.trace import Link, NonRecordingSpan, SpanContext, TraceFlags, Tracer, get_tracer_provider
+from opentelemetry.trace import Link, NonRecordingSpan, SpanContext, TraceFlags, Tracer
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from opentelemetry.trace.span import INVALID_SPAN_ID, INVALID_TRACE_ID
 
@@ -200,24 +200,12 @@ class OtelTrace:
 
         Essentially the span represents the ti itself if child == True, it will create a 'child' span under the given span.
         """
-        trace_id = self.get_current_span().get_span_context().trace_id
-        print(f"x: taskinstance_traceid: {trace_id}")
-        # tracer = self.get_tracer(component=component, trace_id=trace_id)
-
         dagrun = ti.dag_run
         conf = dagrun.conf
         trace_id = int(gen_trace_id(dag_run=dagrun, as_int=True))
         span_id = int(gen_span_id(ti=ti, as_int=True))
         if span_name is None:
             span_name = ti.task_id
-
-        if ti.queued_dttm is None:
-            start_time = pendulum.now("UTC")
-        else:
-            start_time = ti.queued_dttm
-
-        # span_ctx = None
-        print(f"x: taskinstance_dagrun_carrier: {dagrun.context_carrier}")
 
         parent_id = span_id if child else int(gen_dag_span_id(dag_run=dagrun, as_int=True))
 
@@ -247,7 +235,7 @@ class OtelTrace:
             name=span_name,
             context=ctx,
             links=_links,
-            start_time=datetime_to_nano(start_time),
+            start_time=datetime_to_nano(ti.queued_dttm),
             attributes=parse_tracestate(tag_string),
         )
         return span
@@ -408,7 +396,6 @@ def gen_link_from_traceparent(traceparent: str):
     span_ctx = gen_context(int(trace_id, 16), int(span_id, 16))
     return Link(context=span_ctx, attributes={"meta.annotation_type": "link", "from": "traceparent"})
 
-
 def get_otel_tracer(cls, use_simple_processor: bool | None = None) -> OtelTrace:
     """Get OTEL tracer from airflow configuration."""
     host = conf.get("traces", "otel_host")
@@ -416,8 +403,6 @@ def get_otel_tracer(cls, use_simple_processor: bool | None = None) -> OtelTrace:
     debug = conf.getboolean("traces", "otel_debugging_on")
     ssl_active = conf.getboolean("traces", "otel_ssl_active")
     tag_string = cls.get_constant_tags()
-
-    print(f"x: otel_tracer: host: {host}, port: {port}, debug: {debug}, ssl_active: {ssl_active}")
 
     if debug is True:
         log.info("[ConsoleSpanExporter] is being used")

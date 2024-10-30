@@ -39,27 +39,5 @@ def config_setup():
     data_folder = os.path.join(test_dir, "data")
     os.environ["AIRFLOW_HOME"] = f"{data_folder}"
 
-    # os.environ["AIRFLOW__DATABASE__SQL_ALCHEMY_CONN"] = "sqlite:///:memory:"
-
-    # os.environ["AIRFLOW__DATABASE__SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
-
-    # conf.remove_option("database", "sql_alchemy_conn")
-
-    # print(f"x: conf.get(\"database\", \"sql_alchemy_conn\") {conf.get("database", "sql_alchemy_conn")}")
-
-    # os.environ["AIRFLOW__CELERY__BROKER_URL"] = "memory://"
-
-    # os.environ["AIRFLOW__DATABASE__SQL_ALCHEMY_CONN"] = "sqlite:////tmp/airflow_test.db"
-    # os.environ["AIRFLOW__DATABASE__SQL_ALCHEMY_CONN"] = "sqlite:////:memory:"
-    # os.environ["AIRFLOW__CELERY__RESULT_BACKEND"] = "db+sqlite:////tmp/airflow_test.db"
-    # os.environ["AIRFLOW__CELERY__RESULT_BACKEND"] = str(db)
-
     os.environ["AIRFLOW__CORE__LOAD_EXAMPLES"] = "False"
     os.environ["AIRFLOW__CORE__UNIT_TEST_MODE"] = "False"
-
-
-    # AIRFLOW__CORE__EXECUTOR: CeleryExecutor
-    # AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
-    # AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
-    # AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
-

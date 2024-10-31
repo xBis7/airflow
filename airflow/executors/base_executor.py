@@ -34,6 +34,7 @@ from airflow.executors.executor_loader import ExecutorLoader
 from airflow.models import Log
 from airflow.stats import Stats
 from airflow.traces import NO_TRACE_ID
+from airflow.traces.otel_tracer import CTX_PROP_SUFFIX
 from airflow.traces.tracer import Trace, add_span, gen_context
 from airflow.traces.utils import gen_span_id_from_ti_key, gen_trace_id
 from airflow.utils.log.logging_mixin import LoggingMixin
@@ -343,8 +344,8 @@ class BaseExecutor(LoggingMixin):
             # If it's None, then the span hasn't already been started.
             if self._thread_local_storage.active_spans.get(key, None) is None:
                 # Start a new span.
-                span = Trace.start_child_span(span_name=f"{ti.task_id}_executor_xb",
-                                              parent_context=parent_context, component="dag_xb",
+                span = Trace.start_child_span(span_name=f"{ti.task_id}{CTX_PROP_SUFFIX}",
+                                              parent_context=parent_context, component=f"dag{CTX_PROP_SUFFIX}",
                                               start_as_current=False)
                 self._thread_local_storage.active_spans[key] = span
                 # Get the context.
@@ -398,7 +399,7 @@ class BaseExecutor(LoggingMixin):
                 if key in self.attempts:
                     del self.attempts[key]
                 # parent_context = Trace.extract(ti.dag_run.context_carrier)
-                # with Trace.start_child_span(span_name=f"{ti.task_id}_{ti.try_number}_executor_xb", parent_context=parent_context, component="dag_xb") as span:
+                # with Trace.start_child_span(span_name=f"{ti.task_id}_{ti.try_number}_executor{CTX_PROP_SUFFIX}", parent_context=parent_context, component=f"dag{CTX_PROP_SUFFIX}") as span:
                 task_tuples.append((key, command, queue, ti.executor_config))
                 if span.is_recording():
                     span.add_event(

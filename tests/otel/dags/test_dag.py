@@ -19,6 +19,7 @@ from airflow.traces import otel_tracer
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+from airflow.traces.otel_tracer import CTX_PROP_SUFFIX
 from airflow.traces.tracer import Trace
 from datetime import datetime
 from opentelemetry import trace
@@ -56,17 +57,20 @@ with DAG(
 
         if context_carrier is not None:
             parent_context = Trace.extract(context_carrier)
-            with otel_airflow_tracer.start_child_span(span_name=f"{ti.task_id}_span_from_inside_with_xb",
-                                          parent_context=parent_context, component="dag_x") as s:
+            with otel_airflow_tracer.start_child_span(span_name=f"{ti.task_id}_sub_span1{CTX_PROP_SUFFIX}",
+                                          parent_context=parent_context, component=f"dag{CTX_PROP_SUFFIX}") as s1:
                 print(f"xbis: context: {parent_context}")
                 print("halo")
 
-                with otel_airflow_tracer.start_child_span(f"{ti.task_id}_sub_inner_xb") as ss:
+                with otel_airflow_tracer.start_child_span(f"{ti.task_id}_sub_span2{CTX_PROP_SUFFIX}") as s2:
                     print("halo2")
 
                     tracer = trace.get_tracer("trace_test.tracer", tracer_provider=tracer_provider)
-                    with tracer.start_as_current_span(name=f"{ti.task_id}_sub2_inner_xb") as sss:
+                    with tracer.start_as_current_span(name=f"{ti.task_id}_sub_span3{CTX_PROP_SUFFIX}") as s3:
                         print("halo3")
+            with otel_airflow_tracer.start_child_span(span_name=f"{ti.task_id}_sub_span4{CTX_PROP_SUFFIX}",
+                                                      parent_context=parent_context, component=f"dag{CTX_PROP_SUFFIX}") as s4:
+                print("halo4")
 
         print(f"xbis: context_carrier: {context_carrier}")
 

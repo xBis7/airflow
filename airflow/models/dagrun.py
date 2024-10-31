@@ -63,6 +63,7 @@ from airflow.models.tasklog import LogTemplate
 from airflow.stats import Stats
 from airflow.ti_deps.dep_context import DepContext
 from airflow.ti_deps.dependencies_states import SCHEDULEABLE_STATES
+from airflow.traces.otel_tracer import CTX_PROP_SUFFIX
 from airflow.traces.tracer import Trace
 from airflow.utils import timezone
 from airflow.utils.dates import datetime_to_nano
@@ -909,8 +910,8 @@ class DagRun(Base, LoggingMixin):
                     self.queued_at = self.start_date
 
                 print(f"x: before xb_dag_run span")
-                # with Trace.start_span_from_dagrun(dagrun=self, span_name=f"{self.dag_id}_xb") as span:
-                span = Trace.start_root_span(span_name=f"{self.dag_id}_xb", component="dag_xb", start_as_current=False)
+                # with Trace.start_span_from_dagrun(dagrun=self, span_name=f"{self.dag_id}{CTX_PROP_SUFFIX}") as span:
+                span = Trace.start_root_span(span_name=f"{self.dag_id}{CTX_PROP_SUFFIX}", component=f"dag{CTX_PROP_SUFFIX}", start_as_current=False)
                 attributes = {
                     "category": "DAG runs",
                     "dag_id": str(self.dag_id),
@@ -941,7 +942,7 @@ class DagRun(Base, LoggingMixin):
                 # context = Trace.extract(self.context_carrier)
                 # print(f"x: dag: context: {context}")
                 # print(f"x: before_child: dagrun1")
-                # with Trace.start_child_span(span_name=f"{self.dag_id}_sub_xb", parent_context=context, component="dag_xb") as span:
+                # with Trace.start_child_span(span_name=f"{self.dag_id}_sub{CTX_PROP_SUFFIX}", parent_context=context, component=f"dag{CTX_PROP_SUFFIX}") as span:
                 #     print(f"x: sub-span")
             self.set_state(DagRunState.RUNNING)
 
@@ -978,7 +979,7 @@ class DagRun(Base, LoggingMixin):
             # context = Trace.extract(self.context_carrier)
             # print(f"x: dag: context: {context}")
             # print(f"x: before_child: dagrun2")
-            # with Trace.start_child_span(span_name=f"{self.dag_id}_sub2_xb", parent_context=context, component="dag_xb") as span:
+            # with Trace.start_child_span(span_name=f"{self.dag_id}_sub2{CTX_PROP_SUFFIX}", parent_context=context, component=f"dag{CTX_PROP_SUFFIX}") as span:
             #     print(f"x: sub-span2")
 
             s = getattr(self._thread_local_storage, 'active_span', None)

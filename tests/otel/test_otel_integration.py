@@ -14,10 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import io
-import json
-import pprint
-from contextlib import redirect_stdout
+
+import logging
 
 import pytest
 import subprocess
@@ -25,7 +23,6 @@ import pendulum
 import time
 import os
 
-from airflow.traces import otel_tracer
 from testcontainers.redis import RedisContainer
 
 from airflow.executors import executor_loader
@@ -36,7 +33,7 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from airflow import settings
 from sqlalchemy import create_engine, inspect
 
-from airflow.traces.tracer import Trace
+from airflow.traces.otel_tracer import CTX_PROP_SUFFIX
 from airflow.utils.session import create_session
 
 from testcontainers.postgres import PostgresContainer
@@ -50,7 +47,18 @@ from airflow.providers.celery.executors import celery_executor
 
 from airflow.utils.state import State
 
-from airflow.models import DagBag, DagRun, Base
+from airflow.models import DagBag, DagRun
+from tests.otel.test_utils import (
+    extract_spans_from_output,
+    get_parent_child_dict,
+    assert_span_name_belongs_to_root_span,
+    assert_parent_children_spans,
+    assert_span_not_in_children_spans,
+    assert_parent_children_spans_for_non_root,
+    dump_airflow_metadata_db
+)
+
+log = logging.getLogger("test_otel_integration")
 
 @pytest.fixture(scope='function')
 def redis_testcontainer():
@@ -83,11 +91,6 @@ def postgres_testcontainer(monkeypatch, redis_testcontainer):
     postgres.start()
 
     try:
-
-        print(f"x: postgres.get_exposed_port(5432): {postgres.get_exposed_port(5432)}")
-        print(f"x: postgres.get_container_host_ip(): {postgres.get_container_host_ip()}")
-        print(f"x: postgres.get_connection_url(): {postgres.get_connection_url()}")
-
         postgres_url = f"postgresql+psycopg2://airflow:airflow@localhost:{postgres.get_exposed_port(5432)}/airflow"
         celery_backend_postgres_url = f"db+postgresql://airflow:airflow@localhost:{postgres.get_exposed_port(5432)}/airflow"
 
@@ -160,67 +163,6 @@ def dag_bag():
 
     # Load DAGs from that directory
     return DagBag(dag_folder=dag_folder, include_examples=False)
-
-def dump_airflow_metadata_db(session):
-    inspector = inspect(session.bind)
-    all_tables = inspector.get_table_names()
-
-    # dump with the entire db
-    db_dump = {}
-
-    print("\n-----START_airDb-----\n")
-
-    for table_name in all_tables:
-        print(f"\nDumping table: {table_name}")
-        table = Base.metadata.tables.get(table_name)
-        if table is not None:
-            query = session.query(table)
-            results = [dict(row) for row in query.all()]
-            db_dump[table_name] = results
-            # Pretty-print the table contents
-            if table_name == "connection":
-                filtered_results = [row for row in results if row.get('conn_id') == 'airflow_db']
-                pprint.pprint({table_name: filtered_results}, width=120)
-            else:
-                pprint.pprint({table_name: results}, width=120)
-        else:
-            print(f"Table {table_name} not found in metadata.")
-
-    print("\nAirflow metadata database dump complete.")
-    print("\n-----END_airDb-----\n")
-
-def extract_spans_from_output(output_lines):
-    spans = []
-    total_lines = len(output_lines)
-    index = 0
-
-    while index < total_lines:
-        line = output_lines[index].strip()
-        if line.startswith('{') and line == '{':
-            # Start of a JSON object
-            json_lines = [line]
-            index += 1
-            while index < total_lines:
-                line = output_lines[index]
-                json_lines.append(line)
-                if line.strip().startswith('}') and line == '}':
-                    # End of the JSON object
-                    break
-                index += 1
-            # Attempt to parse the collected lines as JSON
-            json_str = '\n'.join(json_lines)
-            try:
-                span = json.loads(json_str)
-                spans.append(span)
-            except json.JSONDecodeError as e:
-                # Handle or log the error if needed
-                print(f"Failed to parse JSON span: {e}")
-                print("Failed JSON string:")
-                print(json_str)
-        else:
-            index += 1
-
-    return spans
 
 def test_postgres_and_celery_executor(
     monkeypatch,
@@ -310,15 +252,16 @@ def test_postgres_and_celery_executor(
                 continue
 
             dag_run_state = dag_run.state
-            print(f"DAG Run state: {dag_run_state}")
+            log.info(f"DAG Run state: {dag_run_state}")
 
             if dag_run_state in [State.SUCCESS, State.FAILED]:
                 break
 
         time.sleep(5)
 
-    # with create_session() as session:
-    #     dump_airflow_metadata_db(session)
+    if logging.root.level == logging.DEBUG:
+        with create_session() as session:
+            dump_airflow_metadata_db(session)
 
     assert dag_run_state == State.SUCCESS, f"DAG run did not complete successfully. Final state: {dag_run_state}"
 
@@ -330,6 +273,7 @@ def test_postgres_and_celery_executor(
     scheduler_process.wait()
 
     out, err = capfd.readouterr()
+    log.debug(f"out-start --\n{out}\n-- out-end")
 
     output_lines = out.splitlines()
 
@@ -362,12 +306,55 @@ def test_postgres_and_celery_executor(
     #             "schema_url": ""
     #         }
     #     }
-    spans = extract_spans_from_output(output_lines)
-    # print(f"x: spans-start: {spans} -- spans-end")
+    root_span_dict, span_dict = extract_spans_from_output(output_lines)
+    parent_child_dict = get_parent_child_dict(root_span_dict, span_dict)
 
-    for span in spans:
-        print(f"span:   | name: {span['name']} | spanid: {span['context']['span_id']} | traceid: {span['context']['trace_id']}")
-        # if span.parent is not None:
-        #     print(f"        | parent.spanid: {span.parent.span_id} | parent.traceid: {span.parent.trace_id}")
-        # else:
-        #     print(f"        | span is root and has no parent.")
+    dag_span_name = str(dag_id + CTX_PROP_SUFFIX)
+    assert_span_name_belongs_to_root_span(root_span_dict=root_span_dict, span_name=dag_span_name, should_succeed=True)
+
+    non_existent_dag_span_name = str(dag_id + CTX_PROP_SUFFIX + "fail")
+    assert_span_name_belongs_to_root_span(root_span_dict=root_span_dict, span_name=non_existent_dag_span_name, should_succeed=False)
+
+    dag_children_span_names = []
+    task_instance_ids = dag.task_ids
+
+    for task_id in task_instance_ids:
+        dag_children_span_names.append(f"{task_id}{CTX_PROP_SUFFIX}")
+
+    first_task_id = task_instance_ids[0]
+
+    assert_parent_children_spans(parent_child_dict=parent_child_dict, root_span_dict=root_span_dict,
+                                 parent_name=dag_span_name, children_names=dag_children_span_names)
+
+    assert_span_not_in_children_spans(parent_child_dict=parent_child_dict, root_span_dict=root_span_dict, span_dict=span_dict,
+                                      parent_name=dag_span_name, child_name=first_task_id, span_exists=True)
+
+    assert_span_not_in_children_spans(parent_child_dict=parent_child_dict, root_span_dict=root_span_dict, span_dict=span_dict,
+                                      parent_name=dag_span_name, child_name=f"{first_task_id}_fail", span_exists=False)
+
+    # Any spans generated under a task, are children of the task span.
+    # The span hierarchy is
+    # dag span
+    #   |_ task_1 span
+    #       |_ sub_span_1
+    #           |_ sub_span_2
+    #               |_ sub_span_3
+    #       |_ sub_span_4
+    #   |_ task_2 span
+
+    first_task_children_span_names = [
+        f"{first_task_id}_sub_span1{CTX_PROP_SUFFIX}",
+        f"{first_task_id}_sub_span4{CTX_PROP_SUFFIX}"
+    ]
+    assert_parent_children_spans_for_non_root(span_dict=span_dict, parent_name=f"{first_task_id}{CTX_PROP_SUFFIX}", children_names=first_task_children_span_names)
+
+    # Single element list.
+    sub_span1_children_span_names = [
+        f"{first_task_id}_sub_span2{CTX_PROP_SUFFIX}"
+    ]
+    assert_parent_children_spans_for_non_root(span_dict=span_dict, parent_name=f"{first_task_id}_sub_span1{CTX_PROP_SUFFIX}", children_names=sub_span1_children_span_names)
+
+    sub_span2_children_span_names = [
+        f"{first_task_id}_sub_span3{CTX_PROP_SUFFIX}"
+    ]
+    assert_parent_children_spans_for_non_root(span_dict=span_dict, parent_name=f"{first_task_id}_sub_span2{CTX_PROP_SUFFIX}", children_names=sub_span2_children_span_names)

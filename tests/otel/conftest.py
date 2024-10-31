@@ -18,9 +18,6 @@
 import pytest
 import os
 
-# from airflow.configuration import conf
-
-
 @pytest.fixture(scope='session', autouse=True)
 def config_setup():
     print(f"x: config_setup fixture")
@@ -35,9 +32,6 @@ def config_setup():
     test_dir = os.path.dirname(os.path.abspath(__file__))
     dag_folder = os.path.join(test_dir, "dags")
     os.environ["AIRFLOW__CORE__DAGS_FOLDER"] = f"{dag_folder}"
-
-    data_folder = os.path.join(test_dir, "data")
-    os.environ["AIRFLOW_HOME"] = f"{data_folder}"
 
     os.environ["AIRFLOW__CORE__LOAD_EXAMPLES"] = "False"
     os.environ["AIRFLOW__CORE__UNIT_TEST_MODE"] = "False"

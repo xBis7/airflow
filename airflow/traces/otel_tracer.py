@@ -53,6 +53,7 @@ log = logging.getLogger(__name__)
 
 _NEXT_ID = create_key("next_id")
 
+CTX_PROP_SUFFIX = "_ctx_prop"
 
 class OtelTrace:
     """

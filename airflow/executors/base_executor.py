@@ -340,27 +340,24 @@ class BaseExecutor(LoggingMixin):
             key, (command, _, queue, ti) = sorted_queue.pop(0)
 
             parent_context = Trace.extract(ti.dag_run.context_carrier)
-            print(f"x: process: ti: {ti.task_id}, {ti.state}, {ti.dag_run.context_carrier}")
-            # If it's None, then the span hasn't already been started.
+            # If it's None, then the span hasn't been started.
             if self._thread_local_storage.active_spans.get(key, None) is None:
                 # Start a new span.
                 span = Trace.start_child_span(span_name=f"{ti.task_id}{CTX_PROP_SUFFIX}",
-                                              parent_context=parent_context, component=f"dag{CTX_PROP_SUFFIX}",
+                                              parent_context=parent_context,
+                                              component=f"dag{CTX_PROP_SUFFIX}",
                                               start_as_current=False)
+                # TODO: set attributes. Also, set events while the task state gets updated.
                 self._thread_local_storage.active_spans[key] = span
                 # Get the context.
                 carrier = Trace.inject()
-                print(f"x: executor: command_list: {command}")
+                # The carrier needs to be set on the ti, but it can't happen here because db calls are expensive.
+                # By the time the db update has finished, another heartbeat will have started
+                # and the tasks will have been triggered again.
+                # So set the carrier as an argument to the command.
+                # The command execution will set it on the ti, and it will be propagated to the task itself.
                 command.append("--carrier")
                 command.append(json.dumps(carrier))
-                print(f"x: executor: command_list2: {command}")
-                # Set the context on the ti and update the db.
-                # ti.context_carrier = carrier
-                # ti.set_context_carrier(context_carrier=carrier, with_commit=False)
-                # ti.context
-                # context = ti.get_template_context()
-                # context["context_carrier"] = carrier
-                print(f"x: executor: ti.carrier: {carrier} | ti.context_carrier: {ti.context_carrier}")
 
             # If a task makes it here but is still understood by the executor
             # to be running, it generally means that the task has been killed
@@ -398,8 +395,6 @@ class BaseExecutor(LoggingMixin):
             else:
                 if key in self.attempts:
                     del self.attempts[key]
-                # parent_context = Trace.extract(ti.dag_run.context_carrier)
-                # with Trace.start_child_span(span_name=f"{ti.task_id}_{ti.try_number}_executor{CTX_PROP_SUFFIX}", parent_context=parent_context, component=f"dag{CTX_PROP_SUFFIX}") as span:
                 task_tuples.append((key, command, queue, ti.executor_config))
                 if span.is_recording():
                     span.add_event(
@@ -452,9 +447,10 @@ class BaseExecutor(LoggingMixin):
             try:
                 self.running.remove(key)
                 span = self._thread_local_storage.active_spans.get(key, None)
-                span.end()
-                # Remove span.
-                del self._thread_local_storage.active_spans[key]
+                if span is not None:
+                    span.end()
+                    # Remove span.
+                    del self._thread_local_storage.active_spans[key]
             except KeyError:
                 self.log.debug("Could not find key: %s", key)
         self.event_buffer[key] = state, info

@@ -18,11 +18,13 @@
 from airflow.traces import otel_tracer
 
 from airflow import DAG
-from airflow.operators.python import PythonOperator
-from airflow.traces.otel_tracer import CTX_PROP_SUFFIX
+from airflow.operators.python import PythonOperator, PythonVirtualenvOperator
+# from airflow.traces.otel_tracer import CTX_PROP_SUFFIX
 from airflow.traces.tracer import Trace
 from datetime import datetime
 from opentelemetry import trace
+
+CTX_PROP_SUFFIX="_ctx_prop"
 
 args = {
     'owner': 'airflow',
@@ -81,6 +83,51 @@ with DAG(
             print(f"Task_2, iteration '{i}'")
         print("Task_2 finished")
 
+    # def task_3_func(task_id, carrier):
+    #     import sys
+    #
+    #     print(sys.version)
+    #
+    #     import ast
+    #     # import logging
+    #     from airflow.traces import otel_tracer
+    #     from airflow.traces.tracer import Trace
+    #     from opentelemetry import trace
+    #
+    #     CTX_PROP_SUFFIX="_ctx_prop"
+    #
+    #     # get the airflow.task logger
+    #     # task_logger = logging.getLogger("airflow.task")
+    #
+    #     # get the Open Telemetry hook
+    #     otel_airflow_tracer = otel_tracer.get_otel_tracer_for_task(Trace)
+    #
+    #     print("Starting beta_impl")
+    #
+    #     # context_carrier is passed as a string. Convert it back to a dictionary.
+    #     context_carrier = ast.literal_eval(carrier)
+    #
+    #     tracer_provider = otel_airflow_tracer.get_otel_tracer_provider()
+    #
+    #     if context_carrier is not None:
+    #         parent_context = Trace.extract(context_carrier)
+    #         with otel_airflow_tracer.start_child_span(span_name=f"{task_id}_sub_span1{CTX_PROP_SUFFIX}",
+    #                                                   parent_context=parent_context,
+    #                                                   component=f"dag{CTX_PROP_SUFFIX}") as s1:
+    #             print(f"xbis: context: {parent_context}")
+    #             print("halo")
+    #
+    #             with otel_airflow_tracer.start_child_span(f"{task_id}_sub_span2{CTX_PROP_SUFFIX}") as s2:
+    #                 print("halo2")
+    #
+    #                 tracer = trace.get_tracer("trace_test.tracer", tracer_provider=tracer_provider)
+    #                 with tracer.start_as_current_span(name=f"{task_id}_sub_span3{CTX_PROP_SUFFIX}") as s3:
+    #                     print("halo3")
+    #         with otel_airflow_tracer.start_child_span(span_name=f"{task_id}_sub_span4{CTX_PROP_SUFFIX}",
+    #                                                   parent_context=parent_context,
+    #                                                   component=f"dag{CTX_PROP_SUFFIX}") as s4:
+    #             print("halo4")
+
     # Setup PythonOperator tasks
     t1 = PythonOperator(
         task_id='task_1',
@@ -93,3 +140,36 @@ with DAG(
     )
 
     t1 >> t2
+
+    # t3 = PythonVirtualenvOperator(
+    #     task_id='task_3',
+    #     python_callable=task_3_func,
+    #     op_kwargs={
+    #         'task_id': '{{ ti.task_id }}',
+    #         'carrier': '{{ ti.context_carrier }}',
+    #     },
+    #     requirements=[
+    #         'dill',
+    #         'pyre2',
+    #         'typing-extensions',
+    #         'methodtools',
+    #         'PyYAML',
+    #         'sqlalchemy',
+    #         'sqlalchemy-jsonfield',
+    #         'requests',
+    #         'tenacity',
+    #         'pluggy',
+    #         'pendulum',
+    #         'jwt',
+    #         'colorlog',
+    #         'lazy_object_proxy',
+    #         'jinja2',
+    #         'attrs',
+    #         'alembic',
+    #         'apache-airflow @ file:///Users/xbis/projects/work/airflow'
+    #     ],
+    #     system_site_packages=False,
+    #     serializer='dill'
+    # )
+    #
+    # t1 >> t2 >> t3

@@ -53,6 +53,36 @@ def dump_airflow_metadata_db(session):
     log.debug("\nAirflow metadata database dump complete.")
     log.debug("\n-----END_airflow_db_dump-----\n")
 
+# Example span from the ConsoleSpanExporter
+#     {
+#         "name": "perform_heartbeat",
+#         "context": {
+#             "trace_id": "0xa18781ea597c3d07c85e95fd3a6d7d40",
+#             "span_id": "0x8ae7bb13ec5b28ba",
+#             "trace_state": "[]"
+#         },
+#         "kind": "SpanKind.INTERNAL",
+#         "parent_id": "0x17ac77a4a840758d",
+#         "start_time": "2024-10-30T16:19:33.947155Z",
+#         "end_time": "2024-10-30T16:19:33.947192Z",
+#         "status": {
+#             "status_code": "UNSET"
+#         },
+#         "attributes": {},
+#         "events": [],
+#         "links": [],
+#         "resource": {
+#             "attributes": {
+#                 "telemetry.sdk.language": "python",
+#                 "telemetry.sdk.name": "opentelemetry",
+#                 "telemetry.sdk.version": "1.27.0",
+#                 "host.name": "host.local",
+#                 "service.name": "Airflow"
+#             },
+#             "schema_url": ""
+#         }
+#     }
+
 def extract_spans_from_output(output_lines):
     span_dict = {}
     root_span_dict = {}

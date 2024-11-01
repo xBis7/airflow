@@ -71,7 +71,6 @@ from airflow.utils.session import NEW_SESSION, create_session, provide_session
 from airflow.utils.state import DagRunState
 from airflow.utils.task_instance_session import set_current_task_instance_session
 from airflow.utils.types import DagRunTriggeredByType
-from dev.check_files import airflow
 
 if TYPE_CHECKING:
     from sqlalchemy.orm.session import Session

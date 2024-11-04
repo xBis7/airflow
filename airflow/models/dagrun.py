@@ -41,7 +41,8 @@ from sqlalchemy import (
     func,
     or_,
     text,
-    update, JSON,
+    update,
+    JSON,
 )
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.associationproxy import association_proxy
@@ -120,7 +121,7 @@ class DagRun(Base, LoggingMixin):
     external trigger (i.e. manual runs).
     """
 
-    # Thread local storage to manage an active dagrun span.
+    # Thread local storage to manage active dag_run spans.
     _thread_local_storage = threading.local()
 
     __tablename__ = "dag_run"
@@ -159,7 +160,7 @@ class DagRun(Base, LoggingMixin):
     # This number is incremented only when the DagRun is re-Queued,
     # when the DagRun is cleared.
     clear_number = Column(Integer, default=0, nullable=False, server_default="0")
-
+    # Span context carrier, used for context propagation.
     context_carrier = Column(JSON)
 
     # Remove this `if` after upgrading Sphinx-AutoAPI
@@ -213,6 +214,11 @@ class DagRun(Base, LoggingMixin):
         fallback=20,
     )
 
+    otel_use_context_propagation = airflow_conf.get(
+        "traces",
+        "otel_use_context_propagation"
+    )
+
     def __init__(
         self,
         dag_id: str | None = None,
@@ -253,6 +259,8 @@ class DagRun(Base, LoggingMixin):
         self.clear_number = 0
         self.triggered_by = triggered_by
         self.context_carrier = {}
+        # Initialize active_spans to empty dict.
+        self._thread_local_storage.active_spans = {}
         super().__init__()
 
     def __repr__(self):
@@ -803,7 +811,6 @@ class DagRun(Base, LoggingMixin):
             def recalculate(self) -> _UnfinishedStates:
                 return self._replace(tis=[t for t in self.tis if t.state in State.unfinished])
 
-        print(f"x: update_state: current_state: {self.state} | dag_id: {self.dag_id} | run_id: {self.run_id}")
         start_dttm = timezone.utcnow()
         self.last_scheduling_decision = start_dttm
         with Stats.timer(f"dagrun.dependency-check.{self.dag_id}"), Stats.timer(
@@ -905,12 +912,12 @@ class DagRun(Base, LoggingMixin):
 
         # finally, if the leaves aren't done, the dag is still running
         else:
-            if not self.context_carrier:
+            # If there is no value in active_spans, then the span hasn't already been started.
+            if self.otel_use_context_propagation and self._thread_local_storage.active_spans.get(self.run_id, None) is None:
+                # This is necessary to avoid an error in case of testing or running the dag with dag.test().
                 if self.queued_at is None and self.start_date is not None:
                     self.queued_at = self.start_date
 
-                print(f"x: before xb_dag_run span")
-                # with Trace.start_span_from_dagrun(dagrun=self, span_name=f"{self.dag_id}{CTX_PROP_SUFFIX}") as span:
                 span = Trace.start_root_span(span_name=f"{self.dag_id}{CTX_PROP_SUFFIX}", component=f"dag{CTX_PROP_SUFFIX}", start_as_current=False)
                 attributes = {
                     "category": "DAG runs",
@@ -932,22 +939,12 @@ class DagRun(Base, LoggingMixin):
                 span.set_attributes(attributes)
                 carrier = Trace.inject()
                 self.set_context_carrier(context_carrier=carrier, session=session, with_commit=False)
-                self._thread_local_storage.active_span = span
-                # self._thread_local_storage.active_span_token = token
-                print(f"xbis: injected_context_carrier: {carrier} | dagrun.context_carrier: {carrier}")
+                # Set the span in a thread local variable, so that the variable can be used to end the span.
+                self._thread_local_storage.active_spans[self.run_id] = span
 
-                print(f"x: (1) trace_id: {span.get_span_context().trace_id} | is_recording: {span.is_recording()}")
+                self.log.debug(f"DagRun span has been started and the injected context_carrier is: {self.context_carrier}")
 
-                # sub-span
-                # context = Trace.extract(self.context_carrier)
-                # print(f"x: dag: context: {context}")
-                # print(f"x: before_child: dagrun1")
-                # with Trace.start_child_span(span_name=f"{self.dag_id}_sub{CTX_PROP_SUFFIX}", parent_context=context, component=f"dag{CTX_PROP_SUFFIX}") as span:
-                #     print(f"x: sub-span")
             self.set_state(DagRunState.RUNNING)
-
-            # s = getattr(self._thread_local_storage, 'active_span', None)
-            # print(f"x: (2) s.trace_id: {s.get_span_context().trace_id} | is_recording: {s.is_recording()}")
 
         if self._state == DagRunState.FAILED or self._state == DagRunState.SUCCESS:
             msg = (
@@ -976,46 +973,35 @@ class DagRun(Base, LoggingMixin):
                 self.dag_hash,
             )
 
-            # context = Trace.extract(self.context_carrier)
-            # print(f"x: dag: context: {context}")
-            # print(f"x: before_child: dagrun2")
-            # with Trace.start_child_span(span_name=f"{self.dag_id}_sub2{CTX_PROP_SUFFIX}", parent_context=context, component=f"dag{CTX_PROP_SUFFIX}") as span:
-            #     print(f"x: sub-span2")
+            if self.otel_use_context_propagation:
+                active_span = self._thread_local_storage.active_spans.get(self.run_id, None)
+                if active_span is not None:
+                    self.log.debug(f"Found active span with span_id: {active_span.get_span_context().span_id}, "
+                                   f"for dag_id: {self.dag_id}, run_id: {self.run_id}, state: {self.state}")
 
-            s = getattr(self._thread_local_storage, 'active_span', None)
-            # t = getattr(self._thread_local_storage, 'active_span_token', None)
+                    attributes = {
+                        "run_end_date": str(self.end_date),
+                        "run_duration": str(
+                            (self.end_date - self.start_date).total_seconds()
+                            if self.start_date and self.end_date
+                            else 0
+                        ),
+                        "state": str(self._state),
+                    }
 
-            if s is not None:
-                print(f"x: (3) s.trace_id: {s.get_span_context().trace_id} | is_recording: {s.is_recording()}")
+                    active_span.set_attributes(attributes)
+                    active_span.add_event(name="ended", timestamp=datetime_to_nano(self.end_date))
 
-                attributes = {
-                    "run_end_date": str(self.end_date),
-                    "run_duration": str(
-                        (self.end_date - self.start_date).total_seconds()
-                        if self.start_date and self.end_date
-                        else 0
-                    ),
-                    "state": str(self._state),
-                }
+                    active_span.end()
+                    # Remove the span from the thread-local storage.
+                    del self._thread_local_storage.active_spans[self.run_id]
+                else:
+                    self.log.debug(f"No active span has been found for dag_id: {self.dag_id}, run_id: {self.run_id}, state: {self.state}")
 
-                s.set_attributes(attributes)
-                s.add_event(name="ended", timestamp=datetime_to_nano(self.end_date))
-
-                # detach(t)
-                s.end()
-                print(f"x: (4) s.trace_id: {s.get_span_context().trace_id} | is_recording: {s.is_recording()}")
-                print(f"x: shouldn't be empty: {self._thread_local_storage}")
-                # Remove the span from thread-local storage
-                del self._thread_local_storage.active_span
-
-                print(f"x: should be empty: {self._thread_local_storage}")
-            else:
-                print(f"x: dagrun-end: s is None | {self.dag_id}, {self.run_id}, {self.state}")
-            #######################################
+            # This is necessary to avoid an error in case of testing or running the dag with dag.test().
             if self.queued_at is None and self.start_date is not None:
                 self.queued_at = self.start_date
 
-            print(f"x: before dag_run span")
             with Trace.start_span_from_dagrun(dagrun=self) as span:
                 if self._state is DagRunState.FAILED:
                     span.set_attribute("error", True)
@@ -1108,22 +1094,22 @@ class DagRun(Base, LoggingMixin):
 
     @staticmethod
     @internal_api_call
-    def _set_context_carrier(dagrun: DagRun, context_carrier: dict, session: Session, with_commit: bool) -> bool:
-        if not isinstance(dagrun, DagRun):
-            dagrun = session.scalars(
+    def _set_context_carrier(dag_run: DagRun, context_carrier: dict, session: Session, with_commit: bool) -> bool:
+        if not isinstance(dag_run, DagRun):
+            dag_run = session.scalars(
                 select(DagRun).where(
-                    DagRun.dag_id == dagrun.dag_id,
-                    DagRun.run_id == dagrun.run_id,
+                    DagRun.dag_id == dag_run.dag_id,
+                    DagRun.run_id == dag_run.run_id,
                 )
             ).one()
 
-        if dagrun.context_carrier == context_carrier:
+        if dag_run.context_carrier == context_carrier:
             return False
 
-        dagrun.log.debug("Setting dagrun context_carrier for %s", dagrun.run_id)
-        dagrun.context_carrier = context_carrier
+        dag_run.log.debug("Setting dag_run context_carrier for run_id: %s", dag_run.run_id)
+        dag_run.context_carrier = context_carrier
 
-        session.merge(dagrun)
+        session.merge(dag_run)
 
         if with_commit:
             session.commit()
@@ -1135,12 +1121,12 @@ class DagRun(Base, LoggingMixin):
         """
         Set DagRun span context_carrier.
 
-        :param context_carrier: dict to set for the dagrun
+        :param context_carrier: dict with the injected carrier to set for the dag_run
         :param session: SQLAlchemy ORM Session
         :param with_commit: should the carrier be committed?
-        :return: Was the context_carrier changed
+        :return: has the context_carrier been changed?
         """
-        return self._set_context_carrier(dagrun=self, context_carrier=context_carrier, session=session, with_commit=with_commit)
+        return self._set_context_carrier(dag_run=self, context_carrier=context_carrier, session=session, with_commit=with_commit)
 
     def notify_dagrun_state_changed(self, msg: str = ""):
         if self.state == DagRunState.RUNNING:

@@ -1313,6 +1313,15 @@ traces:
       type: string
       example: ~
       default: "False"
+    otel_use_context_propagation:
+      description: |
+        If True, a separate trace with a new set of spans will be created. All the children spans will be
+        created using context propagation. This doesn't replace any of the existing spans, but it creates
+        additional ones. The default value is False.
+      version_added: 2.10.0
+      type: string
+      example: ~
+      default: "False"
 secrets:
   description: ~
   options:

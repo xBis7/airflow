@@ -20,12 +20,13 @@ import os
 
 @pytest.fixture(scope='session', autouse=True)
 def config_setup():
-    print(f"x: config_setup fixture")
     os.environ["AIRFLOW__TRACES__OTEL_ON"] = "True"
     os.environ["AIRFLOW__TRACES__OTEL_HOST"] = "localhost"
     os.environ["AIRFLOW__TRACES__OTEL_PORT"] = "4318"
     os.environ["AIRFLOW__TRACES__OTEL_DEBUGGING_ON"] = "True"
     os.environ["AIRFLOW__TRACES__OTEL_TASK_LOG_EVENT"] = "True"
+    os.environ["AIRFLOW__TRACES__OTEL_USE_CONTEXT_PROPAGATION"] = "True"
+
     os.environ["AIRFLOW__SCHEDULER__STANDALONE_DAG_PROCESSOR"] = "False"
     os.environ["AIRFLOW__SCHEDULER__PROCESSOR_POLL_INTERVAL"] = "2"
 

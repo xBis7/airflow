@@ -21,7 +21,6 @@ from __future__ import annotations
 import json
 import logging
 import sys
-import threading
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, List, Optional, Sequence, Tuple
@@ -39,6 +38,7 @@ from airflow.traces.tracer import Trace, add_span, gen_context
 from airflow.traces.utils import gen_span_id_from_ti_key, gen_trace_id
 from airflow.utils.log.logging_mixin import LoggingMixin
 from airflow.utils.state import TaskInstanceState
+from airflow.utils.thread_safe_dict import ThreadSafeDict
 
 PARALLELISM: int = conf.getint("core", "PARALLELISM")
 
@@ -114,7 +114,7 @@ class BaseExecutor(LoggingMixin):
     :param parallelism: how many jobs should run at one time. Set to ``0`` for infinity.
     """
 
-    _thread_local_storage = threading.local()
+    active_spans = ThreadSafeDict()
 
     supports_ad_hoc_ti_run: bool = False
     supports_pickling: bool = True
@@ -131,6 +131,11 @@ class BaseExecutor(LoggingMixin):
     name: None | ExecutorName = None
     callback_sink: BaseCallbackSink | None = None
 
+    otel_use_context_propagation = conf.get(
+        "traces",
+        "otel_use_context_propagation"
+    )
+
     def __init__(self, parallelism: int = PARALLELISM):
         super().__init__()
         self.parallelism: int = parallelism
@@ -138,7 +143,6 @@ class BaseExecutor(LoggingMixin):
         self.running: set[TaskInstanceKey] = set()
         self.event_buffer: dict[TaskInstanceKey, EventBufferValueType] = {}
         self._task_event_logs: deque[Log] = deque()
-        self._thread_local_storage.active_spans = {}
         """
         Deque for storing task event log messages.
 
@@ -339,25 +343,48 @@ class BaseExecutor(LoggingMixin):
         for _ in range(min((open_slots, len(self.queued_tasks)))):
             key, (command, _, queue, ti) = sorted_queue.pop(0)
 
-            parent_context = Trace.extract(ti.dag_run.context_carrier)
-            # If it's None, then the span hasn't been started.
-            if self._thread_local_storage.active_spans.get(key, None) is None:
-                # Start a new span.
-                span = Trace.start_child_span(span_name=f"{ti.task_id}{CTX_PROP_SUFFIX}",
-                                              parent_context=parent_context,
-                                              component=f"dag{CTX_PROP_SUFFIX}",
-                                              start_as_current=False)
-                # TODO: set attributes. Also, set events while the task state gets updated.
-                self._thread_local_storage.active_spans[key] = span
-                # Get the context.
-                carrier = Trace.inject()
-                # The carrier needs to be set on the ti, but it can't happen here because db calls are expensive.
-                # By the time the db update has finished, another heartbeat will have started
-                # and the tasks will have been triggered again.
-                # So set the carrier as an argument to the command.
-                # The command execution will set it on the ti, and it will be propagated to the task itself.
-                command.append("--carrier")
-                command.append(json.dumps(carrier))
+            if self.otel_use_context_propagation == "True":
+                # If it's None, then the span for the current TaskInstanceKey hasn't been started.
+                if self.active_spans.get(key) is None:
+                    parent_context = Trace.extract(ti.dag_run.context_carrier)
+                    # Start a new span using the context from the parent.
+                    if key.try_number > 1:
+                        span_name = f"{ti.task_id}_try_{key.try_number}{CTX_PROP_SUFFIX}"
+                    else:
+                        span_name = f"{ti.task_id}{CTX_PROP_SUFFIX}"
+                    span = Trace.start_child_span(span_name=span_name,
+                                                  parent_context=parent_context,
+                                                  component=f"task{CTX_PROP_SUFFIX}",
+                                                  start_as_current=False)
+                    self.active_spans.set(key, span)
+                    # Get the context.
+                    carrier = Trace.inject()
+                    # The carrier needs to be set on the ti, but it can't happen here because db calls are expensive.
+                    # By the time the db update has finished, another heartbeat will have started
+                    # and the tasks will have been triggered again.
+                    # So set the carrier as an argument to the command.
+                    # The command execution will set it on the ti, and it will be propagated to the task itself.
+                    command.append("--carrier")
+                    command.append(json.dumps(carrier))
+
+                    span.set_attribute("airflow.category", "base_executor")
+                    span.set_attribute("airflow.task.task_id", ti.task_id)
+                    span.set_attribute("airflow.task.dag_id", ti.dag_id)
+                    span.set_attribute("airflow.task.state", ti.state)
+                    span.set_attribute("airflow.task.start_date", str(ti.start_date))
+                    span.set_attribute("airflow.task.executor_config", str(ti.executor_config))
+                    span.set_attribute("airflow.task.execution_date", str(ti.execution_date))
+                    span.set_attribute("airflow.task.hostname", ti.hostname)
+                    span.set_attribute("airflow.task.log_url", ti.log_url)
+                    span.set_attribute("airflow.task.operator", str(ti.operator))
+                    span.set_attribute("airflow.task.try_number", ti.try_number)
+                    span.set_attribute("airflow.task.job_id", ti.job_id)
+                    span.set_attribute("airflow.task.pool", ti.pool)
+                    span.set_attribute("airflow.task.queue", ti.queue)
+                    span.set_attribute("airflow.task.priority_weight", ti.priority_weight)
+                    span.set_attribute("airflow.task.queued_dttm", str(ti.queued_dttm))
+                    span.set_attribute("airflow.task.queued_by_job_id", ti.queued_by_job_id)
+                    span.set_attribute("airflow.task.pid", ti.pid)
 
             # If a task makes it here but is still understood by the executor
             # to be running, it generally means that the task has been killed
@@ -446,11 +473,21 @@ class BaseExecutor(LoggingMixin):
         if remove_running:
             try:
                 self.running.remove(key)
-                span = self._thread_local_storage.active_spans.get(key, None)
-                if span is not None:
-                    span.end()
-                    # Remove span.
-                    del self._thread_local_storage.active_spans[key]
+                if self.otel_use_context_propagation == "True":
+                    span = self.active_spans.get(key)
+                    # The ti was running, and therefore it should have an active span.
+                    # If that's the case, end the span regardless of the ti state.
+                    # Even if the state is queued, the task will have to be triggered to run again
+                    # and a new span will start.
+                    if span is not None:
+                        if state == TaskInstanceState.FAILED:
+                            span.set_attribute("error", True)
+                        # span.set_attribute("airflow.task.end_date", str(ti.end_date))
+                        # span.set_attribute("airflow.task.duration", ti.duration)
+
+                        # End the span and remove it from the active_spans dict.
+                        span.end()
+                        self.active_spans.delete(key)
             except KeyError:
                 self.log.debug("Could not find key: %s", key)
         self.event_buffer[key] = state, info

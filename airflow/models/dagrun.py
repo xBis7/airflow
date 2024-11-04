@@ -73,6 +73,7 @@ from airflow.utils.log.logging_mixin import LoggingMixin
 from airflow.utils.session import NEW_SESSION, provide_session
 from airflow.utils.sqlalchemy import UtcDateTime, nulls_first, tuple_in_condition, with_row_locks
 from airflow.utils.state import DagRunState, State, TaskInstanceState
+from airflow.utils.thread_safe_dict import ThreadSafeDict
 from airflow.utils.types import NOTSET, DagRunTriggeredByType, DagRunType
 
 if TYPE_CHECKING:
@@ -121,8 +122,7 @@ class DagRun(Base, LoggingMixin):
     external trigger (i.e. manual runs).
     """
 
-    # Thread local storage to manage active dag_run spans.
-    _thread_local_storage = threading.local()
+    active_spans = ThreadSafeDict()
 
     __tablename__ = "dag_run"
 
@@ -259,8 +259,6 @@ class DagRun(Base, LoggingMixin):
         self.clear_number = 0
         self.triggered_by = triggered_by
         self.context_carrier = {}
-        # Initialize active_spans to empty dict.
-        self._thread_local_storage.active_spans = {}
         super().__init__()
 
     def __repr__(self):
@@ -913,34 +911,34 @@ class DagRun(Base, LoggingMixin):
         # finally, if the leaves aren't done, the dag is still running
         else:
             # If there is no value in active_spans, then the span hasn't already been started.
-            if self.otel_use_context_propagation and self._thread_local_storage.active_spans.get(self.run_id, None) is None:
+            if (self.otel_use_context_propagation == "True") and (self.active_spans.get(self.run_id) is None):
                 # This is necessary to avoid an error in case of testing or running the dag with dag.test().
                 if self.queued_at is None and self.start_date is not None:
                     self.queued_at = self.start_date
 
                 span = Trace.start_root_span(span_name=f"{self.dag_id}{CTX_PROP_SUFFIX}", component=f"dag{CTX_PROP_SUFFIX}", start_as_current=False)
                 attributes = {
-                    "category": "DAG runs",
-                    "dag_id": str(self.dag_id),
-                    "execution_date": str(self.execution_date),
-                    "run_id": str(self.run_id),
-                    "queued_at": str(self.queued_at),
-                    "run_start_date": str(self.start_date),
-                    "external_trigger": str(self.external_trigger),
-                    "run_type": str(self.run_type),
-                    "data_interval_start": str(self.data_interval_start),
-                    "data_interval_end": str(self.data_interval_end),
-                    "dag_hash": str(self.dag_hash),
-                    "conf": str(self.conf),
+                    "airflow.category": "DAG runs",
+                    "airflow.dag_run.dag_id": str(self.dag_id),
+                    "airflow.dag_run.execution_date": str(self.execution_date),
+                    "airflow.dag_run.run_id": str(self.run_id),
+                    "airflow.dag_run.queued_at": str(self.queued_at),
+                    "airflow.dag_run.run_start_date": str(self.start_date),
+                    "airflow.dag_run.external_trigger": str(self.external_trigger),
+                    "airflow.dag_run.run_type": str(self.run_type),
+                    "airflow.dag_run.data_interval_start": str(self.data_interval_start),
+                    "airflow.dag_run.data_interval_end": str(self.data_interval_end),
+                    "airflow.dag_run.dag_hash": str(self.dag_hash),
+                    "airflow.dag_run.conf": str(self.conf),
                 }
                 if span.is_recording():
-                    span.add_event(name="queued", timestamp=datetime_to_nano(self.queued_at))
-                    span.add_event(name="started", timestamp=datetime_to_nano(self.start_date))
+                    span.add_event(name="airflow.dag_run.queued", timestamp=datetime_to_nano(self.queued_at))
+                    span.add_event(name="airflow.dag_run.started", timestamp=datetime_to_nano(self.start_date))
                 span.set_attributes(attributes)
                 carrier = Trace.inject()
                 self.set_context_carrier(context_carrier=carrier, session=session, with_commit=False)
                 # Set the span in a thread local variable, so that the variable can be used to end the span.
-                self._thread_local_storage.active_spans[self.run_id] = span
+                self.active_spans.set(self.run_id, span)
 
                 self.log.debug(f"DagRun span has been started and the injected context_carrier is: {self.context_carrier}")
 
@@ -973,28 +971,28 @@ class DagRun(Base, LoggingMixin):
                 self.dag_hash,
             )
 
-            if self.otel_use_context_propagation:
-                active_span = self._thread_local_storage.active_spans.get(self.run_id, None)
+            if self.otel_use_context_propagation == "True":
+                active_span = self.active_spans.get(self.run_id)
                 if active_span is not None:
                     self.log.debug(f"Found active span with span_id: {active_span.get_span_context().span_id}, "
                                    f"for dag_id: {self.dag_id}, run_id: {self.run_id}, state: {self.state}")
 
                     attributes = {
-                        "run_end_date": str(self.end_date),
-                        "run_duration": str(
+                        "airflow.dag_run.run_end_date": str(self.end_date),
+                        "airflow.dag_run.run_duration": str(
                             (self.end_date - self.start_date).total_seconds()
                             if self.start_date and self.end_date
                             else 0
                         ),
-                        "state": str(self._state),
+                        "airflow.dag_run.state": str(self._state),
                     }
 
                     active_span.set_attributes(attributes)
-                    active_span.add_event(name="ended", timestamp=datetime_to_nano(self.end_date))
+                    active_span.add_event(name="airflow.dag_run.ended", timestamp=datetime_to_nano(self.end_date))
 
                     active_span.end()
-                    # Remove the span from the thread-local storage.
-                    del self._thread_local_storage.active_spans[self.run_id]
+                    # Remove the span from the dict.
+                    self.active_spans.delete(self.run_id)
                 else:
                     self.log.debug(f"No active span has been found for dag_id: {self.dag_id}, run_id: {self.run_id}, state: {self.state}")
 

@@ -172,19 +172,21 @@ def assert_parent_name_and_get_id(root_span_dict: dict, span_name: str):
     return parent_id
 
 def assert_span_name_belongs_to_root_span(root_span_dict: dict, span_name: str, should_succeed: bool):
+    log.info("Checking that '%s' is a root span.", span_name)
     # Check if any root span has the specified span_name
     name_exists = any(root_span.get("name", None) == span_name for root_span in root_span_dict.values())
 
     # Assert based on the should_succeed flag
     if should_succeed:
         assert name_exists, f"Expected span '{span_name}' to belong to a root span, but it does not."
-        log.info(f"Span '{span_name}' belongs to a root span")
+        log.info(f"Span '{span_name}' belongs to a root span, as expected.")
     else:
         assert not name_exists, f"Expected span '{span_name}' not to belong to a root span, but it does."
-        log.info(f"Span '{span_name}' doesn't belong to a root span")
+        log.info(f"Span '{span_name}' doesn't belong to a root span, as expected.")
 
 def assert_parent_children_spans(parent_child_dict: dict, root_span_dict: dict,
                                  parent_name: str, children_names: list[str]):
+    log.info("Checking that spans '%s' are children of root span '%s'.", children_names, parent_name)
     # Iterate the root_span_dict, to get the span_id for the parent_name.
     parent_id = assert_parent_name_and_get_id(root_span_dict=root_span_dict, span_name=parent_name)
 
@@ -202,6 +204,7 @@ def assert_parent_children_spans(parent_child_dict: dict, root_span_dict: dict,
         assert name in names_from_dict, f"Span name '{name}' wasn't found in children span names. It's not a child of span '{parent_name}'."
 
 def assert_parent_children_spans_for_non_root(span_dict: dict, parent_name: str, children_names: list[str]):
+    log.info("Checking that spans '%s' are children of span '%s'.", children_names, parent_name)
     child_span_list = get_child_list_for_non_root(span_dict=span_dict, span_name=parent_name)
 
     # For each children id, get the entry from the span_dict.
@@ -216,6 +219,7 @@ def assert_parent_children_spans_for_non_root(span_dict: dict, parent_name: str,
 
 def assert_span_not_in_children_spans(parent_child_dict: dict, root_span_dict: dict, span_dict: dict,
                                       parent_name: str, child_name: str, span_exists: bool):
+    log.info("Checking that span '%s' is not a child of span '%s'.", child_name, parent_name)
     # Iterate the root_span_dict, to get the span_id for the parent_name.
     parent_id = assert_parent_name_and_get_id(root_span_dict=root_span_dict, span_name=parent_name)
 

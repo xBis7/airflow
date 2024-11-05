@@ -352,6 +352,8 @@ class BaseExecutor(LoggingMixin):
                         span_name = f"{ti.task_id}_try_{key.try_number}{CTX_PROP_SUFFIX}"
                     else:
                         span_name = f"{ti.task_id}{CTX_PROP_SUFFIX}"
+                    # Just start the span here. Attributes will be set once the task has finished so that all
+                    # values will be available (end_time, duration, etc.).
                     span = Trace.start_child_span(span_name=span_name,
                                                   parent_context=parent_context,
                                                   component=f"task{CTX_PROP_SUFFIX}",
@@ -366,25 +368,6 @@ class BaseExecutor(LoggingMixin):
                     # The command execution will set it on the ti, and it will be propagated to the task itself.
                     command.append("--carrier")
                     command.append(json.dumps(carrier))
-
-                    span.set_attribute("airflow.category", "base_executor")
-                    span.set_attribute("airflow.task.task_id", ti.task_id)
-                    span.set_attribute("airflow.task.dag_id", ti.dag_id)
-                    span.set_attribute("airflow.task.state", ti.state)
-                    span.set_attribute("airflow.task.start_date", str(ti.start_date))
-                    span.set_attribute("airflow.task.executor_config", str(ti.executor_config))
-                    span.set_attribute("airflow.task.execution_date", str(ti.execution_date))
-                    span.set_attribute("airflow.task.hostname", ti.hostname)
-                    span.set_attribute("airflow.task.log_url", ti.log_url)
-                    span.set_attribute("airflow.task.operator", str(ti.operator))
-                    span.set_attribute("airflow.task.try_number", ti.try_number)
-                    span.set_attribute("airflow.task.job_id", ti.job_id)
-                    span.set_attribute("airflow.task.pool", ti.pool)
-                    span.set_attribute("airflow.task.queue", ti.queue)
-                    span.set_attribute("airflow.task.priority_weight", ti.priority_weight)
-                    span.set_attribute("airflow.task.queued_dttm", str(ti.queued_dttm))
-                    span.set_attribute("airflow.task.queued_by_job_id", ti.queued_by_job_id)
-                    span.set_attribute("airflow.task.pid", ti.pid)
 
             # If a task makes it here but is still understood by the executor
             # to be running, it generally means that the task has been killed
@@ -473,21 +456,6 @@ class BaseExecutor(LoggingMixin):
         if remove_running:
             try:
                 self.running.remove(key)
-                if self.otel_use_context_propagation == "True":
-                    span = self.active_spans.get(key)
-                    # The ti was running, and therefore it should have an active span.
-                    # If that's the case, end the span regardless of the ti state.
-                    # Even if the state is queued, the task will have to be triggered to run again
-                    # and a new span will start.
-                    if span is not None:
-                        if state == TaskInstanceState.FAILED:
-                            span.set_attribute("error", True)
-                        # span.set_attribute("airflow.task.end_date", str(ti.end_date))
-                        # span.set_attribute("airflow.task.duration", ti.duration)
-
-                        # End the span and remove it from the active_spans dict.
-                        span.end()
-                        self.active_spans.delete(key)
             except KeyError:
                 self.log.debug("Could not find key: %s", key)
         self.event_buffer[key] = state, info

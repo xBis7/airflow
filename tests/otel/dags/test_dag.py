@@ -18,13 +18,13 @@
 from airflow.traces import otel_tracer
 
 from airflow import DAG
-from airflow.operators.python import PythonOperator, PythonVirtualenvOperator
-# from airflow.traces.otel_tracer import CTX_PROP_SUFFIX
+from airflow.operators.python import PythonOperator
+from airflow.traces.otel_tracer import CTX_PROP_SUFFIX
 from airflow.traces.tracer import Trace
 from datetime import datetime
 from opentelemetry import trace
 
-CTX_PROP_SUFFIX="_ctx_prop"
+# CTX_PROP_SUFFIX="_ctx_prop"
 
 args = {
     'owner': 'airflow',

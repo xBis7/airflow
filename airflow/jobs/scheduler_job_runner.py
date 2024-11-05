@@ -30,6 +30,7 @@ from functools import lru_cache, partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Collection, Iterable, Iterator
 
+from opentelemetry.sdk.trace import Span
 from sqlalchemy import and_, delete, func, not_, or_, select, text, update
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import lazyload, load_only, make_transient, selectinload
@@ -733,6 +734,61 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
             executor=executor, dag_bag=self.dagbag, job_id=self.job.id, session=session
         )
 
+    @staticmethod
+    def _set_ti_span_metadata_and_logs(span: Span, ti: TaskInstance, executor_state: str):
+        span.set_attribute("airflow.category", "scheduler")
+        span.set_attribute("airflow.task.task_id", ti.task_id)
+        span.set_attribute("airflow.task.dag_id", ti.dag_id)
+        span.set_attribute("airflow.task.state", ti.state)
+        if ti.state == TaskInstanceState.FAILED:
+            span.set_attribute("airflow.task.error", True)
+        span.set_attribute("airflow.task.start_date", str(ti.start_date))
+        span.set_attribute("airflow.task.end_date", str(ti.end_date))
+        span.set_attribute("airflow.task.duration", ti.duration)
+        span.set_attribute("airflow.task.executor_config", str(ti.executor_config))
+        span.set_attribute("airflow.task.execution_date", str(ti.execution_date))
+        span.set_attribute("airflow.task.hostname", ti.hostname)
+        span.set_attribute("airflow.task.log_url", ti.log_url)
+        span.set_attribute("airflow.task.operator", str(ti.operator))
+        span.set_attribute("airflow.task.try_number", ti.try_number)
+        span.set_attribute("airflow.task.executor_state", executor_state)
+        span.set_attribute("airflow.task.job_id", ti.job_id)
+        span.set_attribute("airflow.task.pool", ti.pool)
+        span.set_attribute("airflow.task.queue", ti.queue)
+        span.set_attribute("airflow.task.priority_weight", ti.priority_weight)
+        span.set_attribute("airflow.task.queued_dttm", str(ti.queued_dttm))
+        span.set_attribute("airflow.task.queued_by_job_id", ti.queued_by_job_id)
+        span.set_attribute("airflow.task.pid", ti.pid)
+        if span.is_recording():
+            span.add_event(name="airflow.task.queued", timestamp=datetime_to_nano(ti.queued_dttm))
+            span.add_event(name="airflow.task.started", timestamp=datetime_to_nano(ti.start_date))
+            span.add_event(name="airflow.task.ended", timestamp=datetime_to_nano(ti.end_date))
+        if conf.has_option("traces", "otel_task_log_event") and conf.getboolean(
+            "traces", "otel_task_log_event"
+        ):
+            from airflow.utils.log.log_reader import TaskLogReader
+
+            task_log_reader = TaskLogReader()
+            if task_log_reader.supports_read:
+                metadata: dict[str, Any] = {}
+                logs, metadata = task_log_reader.read_log_chunks(ti, ti.try_number, metadata)
+                if ti.hostname in dict(logs[0]):
+                    message = str(dict(logs[0])[ti.hostname]).replace("\\n", "\n")
+                    while metadata["end_of_log"] is False:
+                        logs, metadata = task_log_reader.read_log_chunks(
+                            ti, ti.try_number - 1, metadata
+                        )
+                        if ti.hostname in dict(logs[0]):
+                            message = message + str(dict(logs[0])[ti.hostname]).replace("\\n", "\n")
+                    if span.is_recording():
+                        span.add_event(
+                            name="airflow.task.task_log",
+                            attributes={
+                                "message": message,
+                                "metadata": str(metadata),
+                            },
+                        )
+
     @classmethod
     def process_executor_events(
         cls, executor: BaseExecutor, dag_bag: DagBag, job_id: str | None, session: Session
@@ -814,59 +870,18 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                 ti.pid,
             )
 
-            with Trace.start_span_from_taskinstance(ti=ti) as span:
-                span.set_attribute("category", "scheduler")
-                span.set_attribute("task_id", ti.task_id)
-                span.set_attribute("dag_id", ti.dag_id)
-                span.set_attribute("state", ti.state)
-                if ti.state == TaskInstanceState.FAILED:
-                    span.set_attribute("error", True)
-                span.set_attribute("start_date", str(ti.start_date))
-                span.set_attribute("end_date", str(ti.end_date))
-                span.set_attribute("duration", ti.duration)
-                span.set_attribute("executor_config", str(ti.executor_config))
-                span.set_attribute("execution_date", str(ti.execution_date))
-                span.set_attribute("hostname", ti.hostname)
-                span.set_attribute("log_url", ti.log_url)
-                span.set_attribute("operator", str(ti.operator))
-                span.set_attribute("try_number", ti.try_number)
-                span.set_attribute("executor_state", state)
-                span.set_attribute("job_id", ti.job_id)
-                span.set_attribute("pool", ti.pool)
-                span.set_attribute("queue", ti.queue)
-                span.set_attribute("priority_weight", ti.priority_weight)
-                span.set_attribute("queued_dttm", str(ti.queued_dttm))
-                span.set_attribute("queued_by_job_id", ti.queued_by_job_id)
-                span.set_attribute("pid", ti.pid)
-                if span.is_recording():
-                    span.add_event(name="queued", timestamp=datetime_to_nano(ti.queued_dttm))
-                    span.add_event(name="started", timestamp=datetime_to_nano(ti.start_date))
-                    span.add_event(name="ended", timestamp=datetime_to_nano(ti.end_date))
-                if conf.has_option("traces", "otel_task_log_event") and conf.getboolean(
-                    "traces", "otel_task_log_event"
-                ):
-                    from airflow.utils.log.log_reader import TaskLogReader
+            active_ti_span = executor.active_spans.get(ti.key)
+            if (conf.has_option("traces", "otel_use_context_propagation") and
+                conf.getboolean("traces", "otel_use_context_propagation") and
+                active_ti_span is not None
+            ):
+                cls._set_ti_span_metadata_and_logs(span=active_ti_span, ti=ti, executor_state=state)
+                # End the span and remove it from the active_spans dict.
+                active_ti_span.end()
+                executor.active_spans.delete(ti.key)
 
-                    task_log_reader = TaskLogReader()
-                    if task_log_reader.supports_read:
-                        metadata: dict[str, Any] = {}
-                        logs, metadata = task_log_reader.read_log_chunks(ti, ti.try_number, metadata)
-                        if ti.hostname in dict(logs[0]):
-                            message = str(dict(logs[0])[ti.hostname]).replace("\\n", "\n")
-                            while metadata["end_of_log"] is False:
-                                logs, metadata = task_log_reader.read_log_chunks(
-                                    ti, ti.try_number - 1, metadata
-                                )
-                                if ti.hostname in dict(logs[0]):
-                                    message = message + str(dict(logs[0])[ti.hostname]).replace("\\n", "\n")
-                            if span.is_recording():
-                                span.add_event(
-                                    name="task_log",
-                                    attributes={
-                                        "message": message,
-                                        "metadata": str(metadata),
-                                    },
-                                )
+            with Trace.start_span_from_taskinstance(ti=ti) as span:
+                cls._set_ti_span_metadata_and_logs(span=span, ti=ti, executor_state=state)
 
             # There are two scenarios why the same TI with the same try_number is queued
             # after executor is finished with it:

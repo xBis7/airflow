@@ -174,7 +174,7 @@ def test_dag_spans_with_context_propagation(
     session):
     """Test that a DAG runs successfully using CeleryExecutor and external scheduler and worker."""
     # Uncomment to enable debug mode and get span and db dumps on the output.
-    # log.setLevel(logging.DEBUG)
+    log.setLevel(logging.DEBUG)
 
     celery_command_args = celery_worker_args
     celery_worker_process = None

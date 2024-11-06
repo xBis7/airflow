@@ -244,7 +244,7 @@ class OtelTrace:
         start_time=None,
         start_as_current: bool = True
     ):
-        """Creates a root span."""
+        """Start a root span."""
         # If no context is passed to the new span,
         # then it will try to get the context of the current active span.
         # Due to that, the context parameter can't be empty.
@@ -272,7 +272,7 @@ class OtelTrace:
         start_time=None,
         start_as_current: bool = True
     ):
-        """Creates a child span."""
+        """Start a child span."""
         if parent_context is None:
             # If no context is passed, then use the current.
             parent_span_context = trace.get_current_span().get_span_context()
@@ -343,11 +343,13 @@ class OtelTrace:
         return span
 
     def inject(self) -> dict:
+        """Inject the current span context into a carrier and return it."""
         carrier = {}
         TraceContextTextMapPropagator().inject(carrier)
         return carrier
 
     def extract(self, carrier: dict) -> Context:
+        """Extract the span context from a provided carrier."""
         return TraceContextTextMapPropagator().extract(carrier)
 
 def gen_context(trace_id: int, span_id: int):

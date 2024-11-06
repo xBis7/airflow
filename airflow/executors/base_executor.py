@@ -131,7 +131,7 @@ class BaseExecutor(LoggingMixin):
     name: None | ExecutorName = None
     callback_sink: BaseCallbackSink | None = None
 
-    otel_use_context_propagation = conf.get(
+    otel_use_context_propagation = conf.getboolean(
         "traces",
         "otel_use_context_propagation"
     )
@@ -343,7 +343,7 @@ class BaseExecutor(LoggingMixin):
         for _ in range(min((open_slots, len(self.queued_tasks)))):
             key, (command, _, queue, ti) = sorted_queue.pop(0)
 
-            if self.otel_use_context_propagation == "True":
+            if self.otel_use_context_propagation:
                 # If it's None, then the span for the current TaskInstanceKey hasn't been started.
                 if self.active_spans.get(key) is None:
                     parent_context = Trace.extract(ti.dag_run.context_carrier)

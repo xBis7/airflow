@@ -871,10 +871,7 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
             )
 
             active_ti_span = executor.active_spans.get(ti.key)
-            if (conf.has_option("traces", "otel_use_context_propagation") and
-                conf.getboolean("traces", "otel_use_context_propagation") and
-                active_ti_span is not None
-            ):
+            if conf.getboolean("traces", "otel_use_context_propagation") and active_ti_span is not None:
                 cls._set_ti_span_metadata_and_logs(span=active_ti_span, ti=ti, executor_state=state)
                 # End the span and remove it from the active_spans dict.
                 active_ti_span.end()

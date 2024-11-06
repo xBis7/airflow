@@ -206,8 +206,8 @@ class Tracer(Protocol):
         raise NotImplementedError()
 
     @classmethod
-    def inject(cls):
-        """Inject tracer into current context."""
+    def inject(cls) -> dict:
+        """Inject the current span context into a carrier and return it."""
         raise NotImplementedError()
 
     @classmethod
@@ -215,7 +215,7 @@ class Tracer(Protocol):
         cls,
         carrier
     ) -> EmptyContext:
-        """Extract tracer from current context."""
+        """Extract the span context from a provided carrier."""
         raise NotImplementedError()
 
 class EmptyTrace:
@@ -286,7 +286,7 @@ class EmptyTrace:
         start_time=None,
         start_as_current=True
     ) -> EmptySpan:
-        """Start a new child span."""
+        """Start a root span."""
         return EMPTY_SPAN
 
     @classmethod
@@ -299,12 +299,12 @@ class EmptyTrace:
         start_time=None,
         start_as_current=True
     ) -> EmptySpan:
-        """Start a new child span."""
+        """Start a child span."""
         return EMPTY_SPAN
 
     @classmethod
     def inject(cls):
-        """Inject tracer into current context."""
+        """Inject the current span context into a carrier and return it."""
         return {}
 
     @classmethod
@@ -312,7 +312,7 @@ class EmptyTrace:
         cls,
         carrier
     ) -> EmptyContext:
-        """Extract tracer from current context."""
+        """Extract the span context from a provided carrier."""
         raise EMPTY_CTX
 
 class _Trace(type):

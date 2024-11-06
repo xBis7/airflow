@@ -16,38 +16,28 @@
 # under the License.
 
 import logging
-
-import pytest
-import subprocess
-import pendulum
-import time
 import os
+import subprocess
+import time
 
+import pendulum
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, scoped_session
+from testcontainers.postgres import PostgresContainer
 from testcontainers.redis import RedisContainer
 
-from airflow.executors import executor_loader
-
-from airflow.models.serialized_dag import SerializedDagModel
-from sqlalchemy.orm import sessionmaker, scoped_session
-
 from airflow import settings
-from sqlalchemy import create_engine, inspect
-
-from airflow.traces.otel_tracer import CTX_PROP_SUFFIX
-from airflow.utils.session import create_session
-
-from testcontainers.postgres import PostgresContainer
-
-from airflow.utils.db import resetdb
-
-from airflow.executors.executor_utils import ExecutorName
-
 from airflow.configuration import conf
-from airflow.providers.celery.executors import celery_executor
-
-from airflow.utils.state import State
-
+from airflow.executors import executor_loader
+from airflow.executors.executor_utils import ExecutorName
 from airflow.models import DagBag, DagRun
+from airflow.models.serialized_dag import SerializedDagModel
+from airflow.providers.celery.executors import celery_executor
+from airflow.traces.otel_tracer import CTX_PROP_SUFFIX
+from airflow.utils.db import resetdb
+from airflow.utils.session import create_session
+from airflow.utils.state import State
 from tests.otel.test_utils import (
     extract_spans_from_output,
     get_parent_child_dict,
@@ -59,6 +49,7 @@ from tests.otel.test_utils import (
 )
 
 log = logging.getLogger("test_otel_integration")
+
 
 @pytest.fixture(scope='function')
 def redis_testcontainer():
@@ -75,6 +66,7 @@ def redis_testcontainer():
     broker_url = f"redis://{redis_host}:{redis_port}/0"
 
     yield broker_url
+
 
 @pytest.fixture(scope='function')
 def postgres_testcontainer(monkeypatch, redis_testcontainer):
@@ -128,6 +120,7 @@ def postgres_testcontainer(monkeypatch, redis_testcontainer):
     finally:
         postgres.stop()
 
+
 @pytest.fixture(scope='function')
 def airflow_scheduler_args(capfd):
     scheduler_command_args = [
@@ -136,6 +129,7 @@ def airflow_scheduler_args(capfd):
     ]
 
     yield scheduler_command_args
+
 
 @pytest.fixture(scope='function')
 def celery_worker_args(monkeypatch):
@@ -156,6 +150,7 @@ def celery_worker_args(monkeypatch):
 
     yield celery_command_args
 
+
 @pytest.fixture(scope="function")
 def dag_bag():
     """Load DAGs from the same directory as the test script."""
@@ -163,6 +158,7 @@ def dag_bag():
 
     # Load DAGs from that directory
     return DagBag(dag_folder=dag_folder, include_examples=False)
+
 
 def test_dag_spans_with_context_propagation(
     monkeypatch,
@@ -286,10 +282,12 @@ def test_dag_spans_with_context_propagation(
     parent_child_dict = get_parent_child_dict(root_span_dict, span_dict)
 
     dag_span_name = str(dag_id + CTX_PROP_SUFFIX)
-    assert_span_name_belongs_to_root_span(root_span_dict=root_span_dict, span_name=dag_span_name, should_succeed=True)
+    assert_span_name_belongs_to_root_span(root_span_dict=root_span_dict, span_name=dag_span_name,
+                                          should_succeed=True)
 
     non_existent_dag_span_name = str(dag_id + CTX_PROP_SUFFIX + "fail")
-    assert_span_name_belongs_to_root_span(root_span_dict=root_span_dict, span_name=non_existent_dag_span_name, should_succeed=False)
+    assert_span_name_belongs_to_root_span(root_span_dict=root_span_dict, span_name=non_existent_dag_span_name,
+                                          should_succeed=False)
 
     dag_children_span_names = []
     task_instance_ids = dag.task_ids
@@ -302,11 +300,14 @@ def test_dag_spans_with_context_propagation(
     assert_parent_children_spans(parent_child_dict=parent_child_dict, root_span_dict=root_span_dict,
                                  parent_name=dag_span_name, children_names=dag_children_span_names)
 
-    assert_span_not_in_children_spans(parent_child_dict=parent_child_dict, root_span_dict=root_span_dict, span_dict=span_dict,
+    assert_span_not_in_children_spans(parent_child_dict=parent_child_dict, root_span_dict=root_span_dict,
+                                      span_dict=span_dict,
                                       parent_name=dag_span_name, child_name=first_task_id, span_exists=True)
 
-    assert_span_not_in_children_spans(parent_child_dict=parent_child_dict, root_span_dict=root_span_dict, span_dict=span_dict,
-                                      parent_name=dag_span_name, child_name=f"{first_task_id}_fail", span_exists=False)
+    assert_span_not_in_children_spans(parent_child_dict=parent_child_dict, root_span_dict=root_span_dict,
+                                      span_dict=span_dict,
+                                      parent_name=dag_span_name, child_name=f"{first_task_id}_fail",
+                                      span_exists=False)
 
     # Any spans generated under a task, are children of the task span.
     # The span hierarchy for dag 'test_dag' is
@@ -322,15 +323,21 @@ def test_dag_spans_with_context_propagation(
         f"{first_task_id}_sub_span1{CTX_PROP_SUFFIX}",
         f"{first_task_id}_sub_span4{CTX_PROP_SUFFIX}"
     ]
-    assert_parent_children_spans_for_non_root(span_dict=span_dict, parent_name=f"{first_task_id}{CTX_PROP_SUFFIX}", children_names=first_task_children_span_names)
+    assert_parent_children_spans_for_non_root(span_dict=span_dict,
+                                              parent_name=f"{first_task_id}{CTX_PROP_SUFFIX}",
+                                              children_names=first_task_children_span_names)
 
     # Single element list.
     sub_span1_children_span_names = [
         f"{first_task_id}_sub_span2{CTX_PROP_SUFFIX}"
     ]
-    assert_parent_children_spans_for_non_root(span_dict=span_dict, parent_name=f"{first_task_id}_sub_span1{CTX_PROP_SUFFIX}", children_names=sub_span1_children_span_names)
+    assert_parent_children_spans_for_non_root(span_dict=span_dict,
+                                              parent_name=f"{first_task_id}_sub_span1{CTX_PROP_SUFFIX}",
+                                              children_names=sub_span1_children_span_names)
 
     sub_span2_children_span_names = [
         f"{first_task_id}_sub_span3{CTX_PROP_SUFFIX}"
     ]
-    assert_parent_children_spans_for_non_root(span_dict=span_dict, parent_name=f"{first_task_id}_sub_span2{CTX_PROP_SUFFIX}", children_names=sub_span2_children_span_names)
+    assert_parent_children_spans_for_non_root(span_dict=span_dict,
+                                              parent_name=f"{first_task_id}_sub_span2{CTX_PROP_SUFFIX}",
+                                              children_names=sub_span2_children_span_names)

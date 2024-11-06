@@ -25,6 +25,7 @@ from airflow.models import Base
 
 log = logging.getLogger("tests.otel.test_utils")
 
+
 def dump_airflow_metadata_db(session):
     inspector = inspect(session.bind)
     all_tables = inspector.get_table_names()
@@ -52,6 +53,7 @@ def dump_airflow_metadata_db(session):
 
     log.debug("\nAirflow metadata database dump complete.")
     log.debug("\n-----END_airflow_db_dump-----\n")
+
 
 # Example span from the ConsoleSpanExporter
 #     {
@@ -127,11 +129,13 @@ def extract_spans_from_output(output_lines):
 
     return root_span_dict, span_dict
 
+
 def get_id_for_a_given_name(span_dict: dict, span_name: str):
     for span_id, span in span_dict.items():
         if span['name'] == span_name:
             return span_id
     return None
+
 
 def get_parent_child_dict(root_span_dict, span_dict):
     parent_child_dict = {}
@@ -145,10 +149,12 @@ def get_parent_child_dict(root_span_dict, span_dict):
                 # It's the same span, skip.
                 continue
             # If the parent_id matches the root_span_id and if the trace_id is the same.
-            if span['parent_id'] == root_span_id and root_span['context']['trace_id'] == span['context']['trace_id']:
+            if span['parent_id'] == root_span_id and root_span['context']['trace_id'] == span['context'][
+                'trace_id']:
                 child_span_list.append(span)
         parent_child_dict[root_span_id] = child_span_list
     return parent_child_dict
+
 
 def get_child_list_for_non_root(span_dict: dict, span_name: str):
     parent_span_id = get_id_for_a_given_name(span_dict=span_dict, span_name=span_name)
@@ -159,10 +165,12 @@ def get_child_list_for_non_root(span_dict: dict, span_name: str):
         if span_id == parent_span_id:
             # It's the same span, skip.
             continue
-        if span['parent_id'] == parent_span_id and span['context']['trace_id'] == parent_span['context']['trace_id']:
+        if span['parent_id'] == parent_span_id and span['context']['trace_id'] == parent_span['context'][
+            'trace_id']:
             child_span_list.append(span)
 
     return child_span_list
+
 
 def assert_parent_name_and_get_id(root_span_dict: dict, span_name: str):
     parent_id = get_id_for_a_given_name(root_span_dict, span_name)
@@ -170,6 +178,7 @@ def assert_parent_name_and_get_id(root_span_dict: dict, span_name: str):
     assert parent_id is not None, f"Parent span '{span_name}' wasn't found."
 
     return parent_id
+
 
 def assert_span_name_belongs_to_root_span(root_span_dict: dict, span_name: str, should_succeed: bool):
     log.info("Checking that '%s' is a root span.", span_name)
@@ -183,6 +192,7 @@ def assert_span_name_belongs_to_root_span(root_span_dict: dict, span_name: str, 
     else:
         assert not name_exists, f"Expected span '{span_name}' not to belong to a root span, but it does."
         log.info(f"Span '{span_name}' doesn't belong to a root span, as expected.")
+
 
 def assert_parent_children_spans(parent_child_dict: dict, root_span_dict: dict,
                                  parent_name: str, children_names: list[str]):
@@ -203,6 +213,7 @@ def assert_parent_children_spans(parent_child_dict: dict, root_span_dict: dict,
     for name in children_names:
         assert name in names_from_dict, f"Span name '{name}' wasn't found in children span names. It's not a child of span '{parent_name}'."
 
+
 def assert_parent_children_spans_for_non_root(span_dict: dict, parent_name: str, children_names: list[str]):
     log.info("Checking that spans '%s' are children of span '%s'.", children_names, parent_name)
     child_span_list = get_child_list_for_non_root(span_dict=span_dict, span_name=parent_name)
@@ -216,6 +227,7 @@ def assert_parent_children_spans_for_non_root(span_dict: dict, parent_name: str,
     # Assert that all given children names match the names from the dictionary.
     for name in children_names:
         assert name in names_from_dict, f"Span name '{name}' wasn't found in children span names. It's not a child of span '{parent_name}'."
+
 
 def assert_span_not_in_children_spans(parent_child_dict: dict, root_span_dict: dict, span_dict: dict,
                                       parent_name: str, child_name: str, span_exists: bool):
@@ -233,4 +245,3 @@ def assert_span_not_in_children_spans(parent_child_dict: dict, root_span_dict: d
         assert child_id not in child_span_id_list, f"Span '{child_name}' shouldn't be a child of span '{parent_name}', but it is."
     else:
         assert child_id is None, f"Span '{child_name}' shouldn't exist but it does."
-

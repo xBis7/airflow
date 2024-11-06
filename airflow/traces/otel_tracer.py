@@ -25,7 +25,6 @@ from opentelemetry import trace
 from opentelemetry.context import create_key, attach
 from opentelemetry.context.context import Context
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.propagate import set_global_textmap, propagators
 from opentelemetry.sdk.resources import HOST_NAME, SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import Span, Tracer as OpenTelemetryTracer, TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter, SimpleSpanProcessor
@@ -73,9 +72,6 @@ class OtelTrace:
             self.span_processor = BatchSpanProcessor(self.span_exporter)
         self.tag_string = tag_string
         self.otel_service = conf.get("traces", "otel_service")
-        # Global propagator, W3C TraceContext.
-        set_global_textmap(TraceContextTextMapPropagator())
-        print(f"xbis: otel_tracer.py init")
         self.resource = Resource.create(attributes={HOST_NAME: get_hostname(), SERVICE_NAME: self.otel_service})
 
     def get_otel_tracer_provider(self, trace_id: int | None = None, span_id: int | None = None) -> TracerProvider:
@@ -248,47 +244,24 @@ class OtelTrace:
         start_time=None,
         start_as_current: bool = True
     ):
-        if component is None:
-            component = self.otel_service
-
-        """Produce a root span."""
-
-        tracer = self.get_tracer(component=component)
-
-        if start_time is None:
-            start_time = pendulum.now("UTC")
-
-        # There is always an active span. We need to set an invalid trace id for the context.
-        # trace_id = tracer.id_generator.generate_trace_id()
-        # span_id = tracer.id_generator.generate_span_id()
-
-        span_ctx = SpanContext(
+        """Creates a root span."""
+        # If no context is passed to the new span,
+        # then it will try to get the context of the current active span.
+        # Due to that, the context parameter can't be empty.
+        # It needs an invalid context in order to declare the new span as root.
+        invalid_span_ctx = SpanContext(
             trace_id=INVALID_TRACE_ID, span_id=INVALID_SPAN_ID, is_remote=True, trace_flags=TraceFlags(0x01)
         )
-        # 1. the ctx has to be invalid. If we pass None, then it will try to get the context of the current active span.
-        # There is always some active span due to auto-instrumentation.
-        # We need to pass a context, but the context also has to be invalid.
-        ctx = trace.set_span_in_context(NonRecordingSpan(span_ctx))
+        invalid_ctx = trace.set_span_in_context(NonRecordingSpan(invalid_span_ctx))
 
-        if start_as_current:
-            span = tracer.start_as_current_span(
-                name=span_name,
-                context=ctx,
-                start_time=datetime_to_nano(start_time),
-            )
-        else:
-            span = tracer.start_span(
-                name=span_name,
-                context=ctx,
-                start_time=datetime_to_nano(start_time),
-            )
-            current_span_ctx = trace.set_span_in_context(NonRecordingSpan(span.get_span_context()))
-            # We have to manually make the span context as the active context.
-            # Right after the span is created, we inject the context into the carrier.
-            # The injected context must point to this span context.
-            token = attach(current_span_ctx)
-            print(f"x: root_span: trace_id: {span.get_span_context().trace_id} | span_context: {span.get_span_context()}")
-        return span
+        return self._new_span(
+            span_name=span_name,
+            parent_context=invalid_ctx,
+            component=component,
+            links=None,
+            start_time=start_time,
+            start_as_current=start_as_current
+        )
 
     def start_child_span(
         self,
@@ -299,18 +272,9 @@ class OtelTrace:
         start_time=None,
         start_as_current: bool = True
     ):
-        """
-          Produce a child span.
-        """
-        if component is None:
-            component = self.otel_service
-
-        if start_time is None:
-            start_time = pendulum.now("UTC")
-
-        print(f"x: my.span.here: {parent_context}")
-
+        """Creates a child span."""
         if parent_context is None:
+            # If no context is passed, then use the current.
             parent_span_context = trace.get_current_span().get_span_context()
             parent_context = trace.set_span_in_context(NonRecordingSpan(parent_span_context))
         else:
@@ -327,34 +291,55 @@ class OtelTrace:
             )
         )
 
+        return self._new_span(
+            span_name=span_name,
+            parent_context=parent_context,
+            component=component,
+            links=_links,
+            start_time=start_time,
+            start_as_current=start_as_current
+        )
+
+    def _new_span(
+        self,
+        span_name: str,
+        parent_context: Context | None = None,
+        component: str | None = None,
+        links=None,
+        start_time=None,
+        start_as_current: bool = True
+    ):
+        if component is None:
+            component = self.otel_service
+
         tracer = self.get_tracer(component=component)
 
-        tag_string = self.tag_string if self.tag_string else ""
-        # This is dagrun.conf and not configuration.conf.
-        # tag_string = tag_string + ("," + conf.get(TRACESTATE) if (conf and conf.get(TRACESTATE)) else "")
+        if start_time is None:
+            start_time = pendulum.now("UTC")
 
+        if links is None:
+            links = []
 
         if start_as_current:
             span = tracer.start_as_current_span(
                 name=span_name,
                 context=parent_context,
-                links=_links,
+                links=links,
                 start_time=datetime_to_nano(start_time),
-                attributes=parse_tracestate(tag_string),
             )
         else:
             span = tracer.start_span(
                 name=span_name,
                 context=parent_context,
-                links=_links,
+                links=links,
                 start_time=datetime_to_nano(start_time),
-                attributes=parse_tracestate(tag_string),
             )
             current_span_ctx = trace.set_span_in_context(NonRecordingSpan(span.get_span_context()))
             # We have to manually make the span context as the active context.
-            # Right after the span is created, we inject the context into the carrier.
-            # The injected context must point to this span context.
-            token = attach(current_span_ctx)
+            # Right after this method is called and the span is created,
+            # we inject the context into the carrier. This will make sure that the injected context
+            # will point to this span context.
+            ignored_token = attach(current_span_ctx)
         return span
 
     def inject(self) -> dict:

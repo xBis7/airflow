@@ -131,10 +131,7 @@ class BaseExecutor(LoggingMixin):
     name: None | ExecutorName = None
     callback_sink: BaseCallbackSink | None = None
 
-    otel_use_context_propagation = conf.getboolean(
-        "traces",
-        "otel_use_context_propagation"
-    )
+    otel_use_context_propagation = conf.getboolean("traces", "otel_use_context_propagation")
 
     def __init__(self, parallelism: int = PARALLELISM):
         super().__init__()
@@ -348,18 +345,14 @@ class BaseExecutor(LoggingMixin):
                 if self.active_spans.get(key) is None:
                     parent_context = Trace.extract(ti.dag_run.context_carrier)
                     # Start a new span using the context from the parent.
-                    if key.try_number > 1:
-                        span_name = f"{ti.task_id}_try_{key.try_number}{CTX_PROP_SUFFIX}"
-                    else:
-                        span_name = f"{ti.task_id}{CTX_PROP_SUFFIX}"
-                    # Just start the span here. Attributes will be set once the task has finished so that all
+                    # Attributes will be set once the task has finished so that all
                     # values will be available (end_time, duration, etc.).
-                    span = Trace.start_child_span(span_name=span_name,
+                    span = Trace.start_child_span(span_name=f"{ti.task_id}{CTX_PROP_SUFFIX}",
                                                   parent_context=parent_context,
                                                   component=f"task{CTX_PROP_SUFFIX}",
                                                   start_as_current=False)
                     self.active_spans.set(key, span)
-                    # Get the context.
+                    # Inject the current context into the carrier.
                     carrier = Trace.inject()
                     # The carrier needs to be set on the ti, but it can't happen here because db calls are expensive.
                     # By the time the db update has finished, another heartbeat will have started

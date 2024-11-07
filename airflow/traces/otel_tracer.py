@@ -19,8 +19,8 @@ from __future__ import annotations
 
 import logging
 import random
-import pendulum
 
+import pendulum
 from opentelemetry import trace
 from opentelemetry.context import create_key, attach
 from opentelemetry.context.context import Context
@@ -54,6 +54,7 @@ _NEXT_ID = create_key("next_id")
 
 CTX_PROP_SUFFIX = "_ctx_prop"
 
+
 class OtelTrace:
     """
     Handle all tracing requirements such as getting the tracer, and starting a new span.
@@ -61,25 +62,36 @@ class OtelTrace:
     When OTEL is enabled, the Trace class will be replaced by this class.
     """
 
-    def __init__(self, span_exporter: ConsoleSpanExporter | OTLPSpanExporter, tag_string: str | None = None, use_simple_processor: bool = False):
+    def __init__(self, span_exporter: ConsoleSpanExporter | OTLPSpanExporter, tag_string: str | None = None,
+                 use_simple_processor: bool = False):
         self.span_exporter = span_exporter
         if use_simple_processor:
             # With a BatchSpanProcessor, spans are exported at an interval.
             # A task can run fast and finish before spans have enough time to get exported to the collector.
-            # A SimpleSpanProcessor exports the spans immediately after they are created.
+            # When creating spans from inside a task, a SimpleSpanProcessor needs to be used because
+            # it exports the spans immediately after they are created.
             self.span_processor = SimpleSpanProcessor(self.span_exporter)
         else:
             self.span_processor = BatchSpanProcessor(self.span_exporter)
         self.tag_string = tag_string
         self.otel_service = conf.get("traces", "otel_service")
-        self.resource = Resource.create(attributes={HOST_NAME: get_hostname(), SERVICE_NAME: self.otel_service})
+        self.resource = Resource.create(
+            attributes={HOST_NAME: get_hostname(), SERVICE_NAME: self.otel_service})
 
-    def get_otel_tracer_provider(self, trace_id: int | None = None, span_id: int | None = None) -> TracerProvider:
-        """Tracer that will use special AirflowOtelIdGenerator to control producing certain span and trace id."""
+    def get_otel_tracer_provider(
+        self,
+        trace_id: int | None = None,
+        span_id: int | None = None
+    ) -> TracerProvider:
+        """
+        Tracer that will use special AirflowOtelIdGenerator to control producing certain span and trace id.
+        It can be used to get a tracer and directly create spans, or for auto-instrumentation.
+        """
         if trace_id or span_id:
             # in case where trace_id or span_id was given
             tracer_provider = TracerProvider(
-                resource=self.resource, id_generator=AirflowOtelIdGenerator(span_id=span_id, trace_id=trace_id)
+                resource=self.resource,
+                id_generator=AirflowOtelIdGenerator(span_id=span_id, trace_id=trace_id)
             )
         else:
             tracer_provider = TracerProvider(resource=self.resource)
@@ -352,6 +364,7 @@ class OtelTrace:
         """Extract the span context from a provided carrier."""
         return TraceContextTextMapPropagator().extract(carrier)
 
+
 def gen_context(trace_id: int, span_id: int):
     """Generate a remote span context for given trace and span id."""
     span_ctx = SpanContext(trace_id=trace_id, span_id=span_id, is_remote=True, trace_flags=TraceFlags(0x01))
@@ -384,6 +397,7 @@ def gen_link_from_traceparent(traceparent: str):
     span_ctx = gen_context(int(trace_id, 16), int(span_id, 16))
     return Link(context=span_ctx, attributes={"meta.annotation_type": "link", "from": "traceparent"})
 
+
 def get_otel_tracer(cls, use_simple_processor: bool | None = None) -> OtelTrace:
     """Get OTEL tracer from airflow configuration."""
     host = conf.get("traces", "otel_host")
@@ -394,7 +408,8 @@ def get_otel_tracer(cls, use_simple_processor: bool | None = None) -> OtelTrace:
 
     if debug is True:
         log.info("[ConsoleSpanExporter] is being used")
-        return OtelTrace(span_exporter=ConsoleSpanExporter(), tag_string=tag_string, use_simple_processor=use_simple_processor)
+        return OtelTrace(span_exporter=ConsoleSpanExporter(), tag_string=tag_string,
+                         use_simple_processor=use_simple_processor)
     else:
         protocol = "https" if ssl_active else "http"
         endpoint = f"{protocol}://{host}:{port}/v1/traces"
@@ -404,8 +419,10 @@ def get_otel_tracer(cls, use_simple_processor: bool | None = None) -> OtelTrace:
             tag_string=tag_string, use_simple_processor=use_simple_processor,
         )
 
+
 def get_otel_tracer_for_task(cls) -> OtelTrace:
     return get_otel_tracer(cls, use_simple_processor=True)
+
 
 class AirflowOtelIdGenerator(IdGenerator):
     """

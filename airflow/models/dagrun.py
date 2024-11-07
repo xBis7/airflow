@@ -214,10 +214,7 @@ class DagRun(Base, LoggingMixin):
         fallback=20,
     )
 
-    otel_use_context_propagation = airflow_conf.getboolean(
-        "traces",
-        "otel_use_context_propagation"
-    )
+    otel_use_context_propagation = airflow_conf.getboolean("traces", "otel_use_context_propagation")
 
     def __init__(
         self,
@@ -775,7 +772,7 @@ class DagRun(Base, LoggingMixin):
 
     @staticmethod
     def _set_dagrun_span_metadata(span: Span, dag_run: DagRun):
-        # This is necessary to avoid an error in case of testing or running the dag with dag.test().
+        # This is necessary to avoid an error in case of testing a paused dag.
         if dag_run.queued_at is None and dag_run.start_date is not None:
             dag_run.queued_at = dag_run.start_date
 
@@ -948,13 +945,13 @@ class DagRun(Base, LoggingMixin):
         else:
             # If there is no value in active_spans, then the span hasn't already been started.
             if self.otel_use_context_propagation and (self.active_spans.get(self.run_id) is None):
-                print("x: here")
-                span = Trace.start_root_span(span_name=f"{self.dag_id}{CTX_PROP_SUFFIX}", component=f"dag{CTX_PROP_SUFFIX}", start_as_current=False)
+                span = Trace.start_root_span(span_name=f"{self.dag_id}{CTX_PROP_SUFFIX}",
+                                             component=f"dag{CTX_PROP_SUFFIX}",
+                                             start_as_current=False)
                 carrier = Trace.inject()
                 self.set_context_carrier(context_carrier=carrier, session=session, with_commit=False)
-                # Set the span in a thread local variable, so that the variable can be used to end the span.
+                # Set the span in a synchronized dictionary, so that the variable can be used to end the span.
                 self.active_spans.set(self.run_id, span)
-
                 self.log.debug(f"DagRun span has been started and the injected context_carrier is: {self.context_carrier}")
 
             self.set_state(DagRunState.RUNNING)

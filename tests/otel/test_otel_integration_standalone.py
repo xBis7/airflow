@@ -53,14 +53,13 @@ log = logging.getLogger("test_otel_integration")
 
 @pytest.fixture(scope='function')
 def redis_testcontainer():
-    # Start a Redis container for testing
     redis = RedisContainer()
 
     redis.with_bind_ports(6379, 6380)
 
     redis.start()
 
-    # Get the connection URL to use in Airflow
+    # Get the broker URL to set it later in Airflow config.
     redis_host = redis.get_container_host_ip()
     redis_port = redis.get_exposed_port(6379)
     broker_url = f"redis://{redis_host}:{redis_port}/0"
@@ -70,7 +69,6 @@ def redis_testcontainer():
 
 @pytest.fixture(scope='function')
 def postgres_testcontainer(monkeypatch, redis_testcontainer):
-    # Start a PostgreSQL container for testing
     postgres = PostgresContainer(
         image="postgres:latest",
         username="airflow",
@@ -94,10 +92,10 @@ def postgres_testcontainer(monkeypatch, redis_testcontainer):
 
         psql_engine = create_engine(
             postgres_url,
-            pool_size=5,  # Adjust pool size based on your needs
+            pool_size=5,
             max_overflow=10,
-            pool_pre_ping=True,  # Ensures the connection is alive
-            pool_timeout=180,  # Increase if the connection is slow to establish
+            pool_pre_ping=True,  # Ensure the connection is alive.
+            pool_timeout=180,
             pool_recycle=1800
         )
         psql_session = scoped_session(sessionmaker(bind=psql_engine))
@@ -105,34 +103,22 @@ def postgres_testcontainer(monkeypatch, redis_testcontainer):
         monkeypatch.setattr(settings, 'engine', psql_engine)
         monkeypatch.setattr(settings, 'Session', psql_session)
 
-        # Update the Celery app's configuration to use the PostgreSQL backend
-        # celery_executor.app.conf.result_backend = celery_backend_postgres_url
+        # Update the Celery app's configuration to use the PostgreSQL backend.
         celery_executor.app.conf.update(
             result_backend=celery_backend_postgres_url,
             broker_url=broker_url,
         )
 
-        # Initialize the Airflow database
+        # Initialize the Airflow database.
         resetdb()
 
-        # Yield control back to the test
         yield psql_engine, psql_session
     finally:
         postgres.stop()
 
 
 @pytest.fixture(scope='function')
-def airflow_scheduler_args(capfd):
-    scheduler_command_args = [
-        "airflow",
-        "scheduler",
-    ]
-
-    yield scheduler_command_args
-
-
-@pytest.fixture(scope='function')
-def celery_worker_args(monkeypatch):
+def celery_worker_env_vars_and_args(monkeypatch):
     os.environ["AIRFLOW__CORE__EXECUTOR"] = "CeleryExecutor"
     executor_name = ExecutorName(
         module_path="airflow.providers.celery.executors.celery_executor.CeleryExecutor",
@@ -163,16 +149,19 @@ def dag_bag():
 def test_dag_spans_with_context_propagation(
     monkeypatch,
     postgres_testcontainer,
-    airflow_scheduler_args,
-    celery_worker_args,
+    celery_worker_env_vars_and_args,
     dag_bag,
     capfd,
     session):
-    """Test that a DAG runs successfully using CeleryExecutor and external scheduler and worker."""
+    """
+    Test that a DAG runs successfully and exports the correct spans,
+    using a scheduler, a celery worker, a postgres db and a redis broker.
+    """
     # Uncomment to enable debug mode and get span and db dumps on the output.
     log.setLevel(logging.DEBUG)
 
-    celery_command_args = celery_worker_args
+    # The worker env variables need to be set before the test.
+    celery_command_args = celery_worker_env_vars_and_args
     celery_worker_process = None
     scheduler_process = None
     try:
@@ -185,7 +174,10 @@ def test_dag_spans_with_context_propagation(
         )
 
         # Start the processes here and not as fixtures, so that the test can capture their output.
-        scheduler_command_args = airflow_scheduler_args
+        scheduler_command_args = [
+            "airflow",
+            "scheduler",
+        ]
 
         scheduler_process = subprocess.Popen(
             scheduler_command_args,
@@ -194,20 +186,20 @@ def test_dag_spans_with_context_propagation(
             stderr=None,
         )
 
-        # Wait a bit to ensure both processes have started
+        # Wait to ensure both processes have started.
         time.sleep(10)
 
         execution_date = pendulum.now("UTC")
 
-        # Ensure the DAG is loaded
         dag_id = "test_dag"
         dag = dag_bag.get_dag(dag_id)
 
         assert dag is not None, f"DAG with ID {dag_id} not found."
 
         with create_session() as session:
-            # Sync the DAG to the database
+            # Sync the DAG to the database.
             dag.sync_to_db(session=session)
+            # Manually serialize the dag and write it to the db to avoid a db error.
             SerializedDagModel.write_dag(dag, session=session)
             session.commit()
 
@@ -218,11 +210,11 @@ def test_dag_spans_with_context_propagation(
             dag_id
         ]
 
+        # Unpause the dag using the cli.
         subprocess.run(unpause_command, check=True, env=os.environ.copy())
 
         run_id = f"manual__{execution_date.isoformat()}"
 
-        # Trigger the DAG run using the Airflow CLI
         trigger_command = [
             "airflow",
             "dags",
@@ -232,9 +224,10 @@ def test_dag_spans_with_context_propagation(
             "--exec-date", execution_date.isoformat(),
         ]
 
+        # Trigger the dag using the cli.
         subprocess.run(trigger_command, check=True, env=os.environ.copy())
 
-        # Wait until the DAG run completes
+        # Wait timeout for the DAG run to complete.
         max_wait_time = 60  # seconds
         start_time = time.time()
 
@@ -252,7 +245,7 @@ def test_dag_spans_with_context_propagation(
                     continue
 
                 dag_run_state = dag_run.state
-                log.info(f"DAG Run state: {dag_run_state}")
+                log.info(f"DAG Run state: {dag_run_state}.")
 
                 if dag_run_state in [State.SUCCESS, State.FAILED]:
                     break
@@ -263,7 +256,7 @@ def test_dag_spans_with_context_propagation(
             with create_session() as session:
                 dump_airflow_metadata_db(session)
 
-        assert dag_run_state == State.SUCCESS, f"DAG run did not complete successfully. Final state: {dag_run_state}"
+        assert dag_run_state == State.SUCCESS, f"DAG run did not complete successfully. Final state: {dag_run_state}."
     finally:
         # Terminate the processes.
         celery_worker_process.terminate()

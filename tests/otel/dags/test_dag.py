@@ -47,20 +47,20 @@ with DAG(
         ti = dag_context["ti"]
         context_carrier = ti.context_carrier
 
-        otel_airflow_tracer = otel_tracer.get_otel_tracer_for_task(Trace)
-        tracer_provider = otel_airflow_tracer.get_otel_tracer_provider()
+        otel_task_tracer = otel_tracer.get_otel_tracer_for_task(Trace)
+        tracer_provider = otel_task_tracer.get_otel_tracer_provider()
 
         if context_carrier is not None:
             logger.info(f"Found ti.context_carrier: {context_carrier}.")
             logger.info(f"Extracting the span context from the context_carrier.")
             parent_context = Trace.extract(context_carrier)
-            with otel_airflow_tracer.start_child_span(span_name=f"{ti.task_id}_sub_span1{CTX_PROP_SUFFIX}",
-                                                      parent_context=parent_context,
-                                                      component=f"dag{CTX_PROP_SUFFIX}") as s1:
+            with otel_task_tracer.start_child_span(span_name=f"{ti.task_id}_sub_span1{CTX_PROP_SUFFIX}",
+                                                   parent_context=parent_context,
+                                                   component=f"dag{CTX_PROP_SUFFIX}") as s1:
                 s1.set_attribute("attr1", "val1")
                 logger.info("From task sub_span1.")
 
-                with otel_airflow_tracer.start_child_span(f"{ti.task_id}_sub_span2{CTX_PROP_SUFFIX}") as s2:
+                with otel_task_tracer.start_child_span(f"{ti.task_id}_sub_span2{CTX_PROP_SUFFIX}") as s2:
                     s2.set_attribute("attr2", "val2")
                     logger.info("From task sub_span2.")
 
@@ -69,8 +69,9 @@ with DAG(
                         s3.set_attribute("attr3", "val3")
                         logger.info("From task sub_span3.")
 
-            with otel_airflow_tracer.start_child_span(span_name=f"{ti.task_id}_sub_span4{CTX_PROP_SUFFIX}",
-                                                      parent_context=parent_context, component=f"dag{CTX_PROP_SUFFIX}") as s4:
+            with otel_task_tracer.start_child_span(span_name=f"{ti.task_id}_sub_span4{CTX_PROP_SUFFIX}",
+                                                   parent_context=parent_context,
+                                                   component=f"dag{CTX_PROP_SUFFIX}") as s4:
                 s4.set_attribute("attr4", "val4")
                 logger.info("From task sub_span4.")
 

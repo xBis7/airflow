@@ -2378,7 +2378,7 @@ class TaskInstance(Base, LoggingMixin):
         if ti.context_carrier == context_carrier:
             return False
 
-        ti.log.info("Setting task context_carrier for %s", ti.task_id)
+        ti.log.debug("Setting task context_carrier for %s", ti.task_id)
         ti.context_carrier = context_carrier
 
         session.merge(ti)
@@ -2393,10 +2393,10 @@ class TaskInstance(Base, LoggingMixin):
         """
         Set TaskInstance span context_carrier.
 
-        :param context_carrier: dict to set for the TI
+        :param context_carrier: dict with the injected carrier to set for the TI
         :param session: SQLAlchemy ORM Session
-        :with_commit: whether to commit the change
-        :return: Was the context_carrier changed
+        :param with_commit: should the carrier be committed?
+        :return: has the context_carrier been changed?
         """
         return self._set_context_carrier(ti=self, context_carrier=context_carrier, session=session, with_commit=with_commit)
 
@@ -4043,7 +4043,6 @@ class SimpleTaskInstance:
             key=ti.key,
             run_as_user=ti.run_as_user if hasattr(ti, "run_as_user") else None,
             priority_weight=ti.priority_weight if hasattr(ti, "priority_weight") else None,
-            # Maybe this needs to be 'else {}', to be consistent and avoid bugs.
             context_carrier=ti.context_carrier if hasattr(ti, "context_carrier") else None,
         )
 

@@ -57,22 +57,22 @@ with DAG(
             with otel_airflow_tracer.start_child_span(span_name=f"{ti.task_id}_sub_span1{CTX_PROP_SUFFIX}",
                                                       parent_context=parent_context,
                                                       component=f"dag{CTX_PROP_SUFFIX}") as s1:
-                s1.set_attributes("attr1", "val1")
+                s1.set_attribute("attr1", "val1")
                 logger.info("From task sub_span1.")
 
                 with otel_airflow_tracer.start_child_span(f"{ti.task_id}_sub_span2{CTX_PROP_SUFFIX}") as s2:
-                    s2.set_attributes("attr2", "val2")
+                    s2.set_attribute("attr2", "val2")
                     logger.info("From task sub_span2.")
 
                     tracer = trace.get_tracer("trace_test.tracer", tracer_provider=tracer_provider)
                     with tracer.start_as_current_span(name=f"{ti.task_id}_sub_span3{CTX_PROP_SUFFIX}") as s3:
-                        s3.set_attributes("attr3", "val3")
+                        s3.set_attribute("attr3", "val3")
                         logger.info("From task sub_span3.")
 
             with otel_airflow_tracer.start_child_span(span_name=f"{ti.task_id}_sub_span4{CTX_PROP_SUFFIX}",
                                                       parent_context=parent_context, component=f"dag{CTX_PROP_SUFFIX}") as s4:
-                s4.set_attributes("attr4", "val4")
-                logger.info("From task sub_span.")
+                s4.set_attribute("attr4", "val4")
+                logger.info("From task sub_span4.")
 
         logger.info("Task_1 finished.")
 

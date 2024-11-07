@@ -947,6 +947,7 @@ class DagRun(Base, LoggingMixin):
             if self.otel_use_context_propagation and (self.active_spans.get(self.run_id) is None):
                 span = Trace.start_root_span(span_name=f"{self.dag_id}{CTX_PROP_SUFFIX}",
                                              component=f"dag{CTX_PROP_SUFFIX}",
+                                             start_time=self.queued_at,
                                              start_as_current=False)
                 carrier = Trace.inject()
                 self.set_context_carrier(context_carrier=carrier, session=session, with_commit=False)

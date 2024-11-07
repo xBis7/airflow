@@ -57,6 +57,7 @@ from sqlalchemy import (
     or_,
     text,
     update,
+    JSON,
 )
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -1840,6 +1841,7 @@ class TaskInstance(Base, LoggingMixin):
     executor_config = Column(ExecutorConfigType(pickler=dill))
     updated_at = Column(UtcDateTime, default=timezone.utcnow, onupdate=timezone.utcnow)
     rendered_map_index = Column(String(250))
+    context_carrier = Column(JSON)
 
     external_executor_id = Column(StringID())
 
@@ -1947,6 +1949,7 @@ class TaskInstance(Base, LoggingMixin):
         self.raw = False
         # can be changed when calling 'run'
         self.test_mode = False
+        self.context_carrier = {}
 
     def __hash__(self):
         return hash((self.task_id, self.dag_id, self.run_id, self.map_index))
@@ -2359,6 +2362,43 @@ class TaskInstance(Base, LoggingMixin):
         :return: Was the state changed
         """
         return self._set_state(ti=self, state=state, session=session)
+
+    @staticmethod
+    @internal_api_call
+    def _set_context_carrier(ti: TaskInstance | TaskInstancePydantic, context_carrier, session: Session, with_commit: bool) -> bool:
+        if not isinstance(ti, TaskInstance):
+            ti = session.scalars(
+                select(TaskInstance).where(
+                    TaskInstance.task_id == ti.task_id,
+                    TaskInstance.dag_id == ti.dag_id,
+                    TaskInstance.run_id == ti.run_id,
+                )
+            ).one()
+
+        if ti.context_carrier == context_carrier:
+            return False
+
+        ti.log.debug("Setting task context_carrier for %s", ti.task_id)
+        ti.context_carrier = context_carrier
+
+        session.merge(ti)
+
+        if with_commit:
+            session.commit()
+
+        return True
+
+    @provide_session
+    def set_context_carrier(self, context_carrier: dict, session: Session = NEW_SESSION, with_commit: bool = False) -> bool:
+        """
+        Set TaskInstance span context_carrier.
+
+        :param context_carrier: dict with the injected carrier to set for the TI
+        :param session: SQLAlchemy ORM Session
+        :param with_commit: should the carrier be committed?
+        :return: has the context_carrier been changed?
+        """
+        return self._set_context_carrier(ti=self, context_carrier=context_carrier, session=session, with_commit=with_commit)
 
     @property
     def is_premature(self) -> bool:
@@ -3961,6 +4001,7 @@ class SimpleTaskInstance:
         key: TaskInstanceKey,
         run_as_user: str | None = None,
         priority_weight: int | None = None,
+        context_carrier: dict | None = None,
     ):
         self.dag_id = dag_id
         self.task_id = task_id
@@ -3977,6 +4018,7 @@ class SimpleTaskInstance:
         self.priority_weight = priority_weight
         self.queue = queue
         self.key = key
+        self.context_carrier = context_carrier
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
@@ -4001,6 +4043,7 @@ class SimpleTaskInstance:
             key=ti.key,
             run_as_user=ti.run_as_user if hasattr(ti, "run_as_user") else None,
             priority_weight=ti.priority_weight if hasattr(ti, "priority_weight") else None,
+            context_carrier=ti.context_carrier if hasattr(ti, "context_carrier") else None,
         )
 
 

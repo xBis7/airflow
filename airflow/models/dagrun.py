@@ -42,10 +42,10 @@ from sqlalchemy import (
     or_,
     text,
     update,
-    JSON,
 )
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.associationproxy import association_proxy
+from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import declared_attr, joinedload, relationship, synonym, validates
 from sqlalchemy.sql.expression import case, false, select, true
 
@@ -71,7 +71,7 @@ from airflow.utils.dates import datetime_to_nano
 from airflow.utils.helpers import chunks, is_container, prune_dict
 from airflow.utils.log.logging_mixin import LoggingMixin
 from airflow.utils.session import NEW_SESSION, provide_session
-from airflow.utils.sqlalchemy import UtcDateTime, nulls_first, tuple_in_condition, with_row_locks
+from airflow.utils.sqlalchemy import UtcDateTime, nulls_first, tuple_in_condition, with_row_locks, ExtendedJSON
 from airflow.utils.state import DagRunState, State, TaskInstanceState
 from airflow.utils.thread_safe_dict import ThreadSafeDict
 from airflow.utils.types import NOTSET, DagRunTriggeredByType, DagRunType
@@ -161,7 +161,7 @@ class DagRun(Base, LoggingMixin):
     # when the DagRun is cleared.
     clear_number = Column(Integer, default=0, nullable=False, server_default="0")
     # Span context carrier, used for context propagation.
-    context_carrier = Column(JSON)
+    context_carrier = Column(MutableDict.as_mutable(ExtendedJSON))
 
     # Remove this `if` after upgrading Sphinx-AutoAPI
     if not TYPE_CHECKING and "BUILDING_AIRFLOW_DOCS" in os.environ:

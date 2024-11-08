@@ -940,6 +940,8 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
     def _execute(self) -> int | None:
         from airflow.dag_processing.manager import DagFileProcessorAgent
 
+        self.log.info("gross_v1")
+
         self.log.info("Starting the scheduler")
 
         executor_class, _ = ExecutorLoader.import_default_executor_cls()

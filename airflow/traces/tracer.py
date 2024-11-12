@@ -182,13 +182,7 @@ class Tracer(Protocol):
         raise NotImplementedError()
 
     @classmethod
-    def start_root_span(
-        cls,
-        span_name=None,
-        component=None,
-        start_time=None,
-        start_as_current=True
-    ):
+    def start_root_span(cls, span_name=None, component=None, start_time=None, start_as_current=True):
         """Start a root span."""
         raise NotImplementedError()
 
@@ -200,7 +194,7 @@ class Tracer(Protocol):
         component=None,
         links=None,
         start_time=None,
-        start_as_current=True
+        start_as_current=True,
     ):
         """Start a child span."""
         raise NotImplementedError()
@@ -211,12 +205,10 @@ class Tracer(Protocol):
         raise NotImplementedError()
 
     @classmethod
-    def extract(
-        cls,
-        carrier
-    ) -> EmptyContext:
+    def extract(cls, carrier) -> EmptyContext:
         """Extract the span context from a provided carrier."""
         raise NotImplementedError()
+
 
 class EmptyTrace:
     """If no Tracer is configured, EmptyTracer is used as a fallback."""
@@ -280,11 +272,7 @@ class EmptyTrace:
 
     @classmethod
     def start_root_span(
-        cls,
-        span_name=None,
-        component=None,
-        start_time=None,
-        start_as_current=True
+        cls, span_name=None, component=None, start_time=None, start_as_current=True
     ) -> EmptySpan:
         """Start a root span."""
         return EMPTY_SPAN
@@ -297,7 +285,7 @@ class EmptyTrace:
         component=None,
         links=None,
         start_time=None,
-        start_as_current=True
+        start_as_current=True,
     ) -> EmptySpan:
         """Start a child span."""
         return EMPTY_SPAN
@@ -308,12 +296,10 @@ class EmptyTrace:
         return {}
 
     @classmethod
-    def extract(
-        cls,
-        carrier
-    ) -> EmptyContext:
+    def extract(cls, carrier) -> EmptyContext:
         """Extract the span context from a provided carrier."""
         raise EMPTY_CTX
+
 
 class _Trace(type):
     factory: Callable

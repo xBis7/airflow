@@ -23,7 +23,6 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, Any, Callable, Iterable, Iterator, NamedTuple, Sequence, TypeVar, overload
 
 import re2
-from opentelemetry.sdk.trace import Span
 from sqlalchemy import (
     Boolean,
     Column,
@@ -42,10 +41,10 @@ from sqlalchemy import (
     or_,
     text,
     update,
-    JSON,
 )
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.associationproxy import association_proxy
+from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import declared_attr, joinedload, relationship, synonym, validates
 from sqlalchemy.sql.expression import case, false, select, true
 
@@ -71,7 +70,13 @@ from airflow.utils.dates import datetime_to_nano
 from airflow.utils.helpers import chunks, is_container, prune_dict
 from airflow.utils.log.logging_mixin import LoggingMixin
 from airflow.utils.session import NEW_SESSION, provide_session
-from airflow.utils.sqlalchemy import UtcDateTime, nulls_first, tuple_in_condition, with_row_locks
+from airflow.utils.sqlalchemy import (
+    ExtendedJSON,
+    UtcDateTime,
+    nulls_first,
+    tuple_in_condition,
+    with_row_locks,
+)
 from airflow.utils.state import DagRunState, State, TaskInstanceState
 from airflow.utils.thread_safe_dict import ThreadSafeDict
 from airflow.utils.types import NOTSET, DagRunTriggeredByType, DagRunType
@@ -79,6 +84,7 @@ from airflow.utils.types import NOTSET, DagRunTriggeredByType, DagRunType
 if TYPE_CHECKING:
     from datetime import datetime
 
+    from opentelemetry.sdk.trace import Span
     from sqlalchemy.orm import Query, Session
 
     from airflow.models.dag import DAG
@@ -161,7 +167,7 @@ class DagRun(Base, LoggingMixin):
     # when the DagRun is cleared.
     clear_number = Column(Integer, default=0, nullable=False, server_default="0")
     # Span context carrier, used for context propagation.
-    context_carrier = Column(JSON)
+    context_carrier = Column(MutableDict.as_mutable(ExtendedJSON))
 
     # Remove this `if` after upgrading Sphinx-AutoAPI
     if not TYPE_CHECKING and "BUILDING_AIRFLOW_DOCS" in os.environ:
@@ -805,7 +811,6 @@ class DagRun(Base, LoggingMixin):
             span.add_event(name="airflow.dag_run.ended", timestamp=datetime_to_nano(dag_run.end_date))
         span.set_attributes(attributes)
 
-
     @provide_session
     def update_state(
         self, session: Session = NEW_SESSION, execute_callbacks: bool = True
@@ -945,15 +950,20 @@ class DagRun(Base, LoggingMixin):
         else:
             # If there is no value in active_spans, then the span hasn't already been started.
             if self.otel_use_context_propagation and (self.active_spans.get(self.run_id) is None):
-                span = Trace.start_root_span(span_name=f"{self.dag_id}{CTX_PROP_SUFFIX}",
-                                             component=f"dag{CTX_PROP_SUFFIX}",
-                                             start_time=self.queued_at,
-                                             start_as_current=False)
+                span = Trace.start_root_span(
+                    span_name=f"{self.dag_id}{CTX_PROP_SUFFIX}",
+                    component=f"dag{CTX_PROP_SUFFIX}",
+                    start_time=self.queued_at,
+                    start_as_current=False,
+                )
                 carrier = Trace.inject()
                 self.set_context_carrier(context_carrier=carrier, session=session, with_commit=False)
                 # Set the span in a synchronized dictionary, so that the variable can be used to end the span.
                 self.active_spans.set(self.run_id, span)
-                self.log.debug(f"DagRun span has been started and the injected context_carrier is: {self.context_carrier}")
+                self.log.debug(
+                    "DagRun span has been started and the injected context_carrier is: %s",
+                    self.context_carrier,
+                )
 
             self.set_state(DagRunState.RUNNING)
 
@@ -987,15 +997,25 @@ class DagRun(Base, LoggingMixin):
             if self.otel_use_context_propagation:
                 active_span = self.active_spans.get(self.run_id)
                 if active_span is not None:
-                    self.log.debug(f"Found active span with span_id: {active_span.get_span_context().span_id}, "
-                                   f"for dag_id: {self.dag_id}, run_id: {self.run_id}, state: {self.state}")
+                    self.log.debug(
+                        "Found active span with span_id: %s, for dag_id: %s, run_id: %s, state: %s",
+                        active_span.get_span_context().span_id,
+                        self.dag_id,
+                        self.run_id,
+                        self.state,
+                    )
 
                     self._set_dagrun_span_metadata(span=active_span, dag_run=self)
                     active_span.end()
                     # Remove the span from the dict.
                     self.active_spans.delete(self.run_id)
                 else:
-                    self.log.debug(f"No active span has been found for dag_id: {self.dag_id}, run_id: {self.run_id}, state: {self.state}")
+                    self.log.debug(
+                        "No active span has been found for dag_id: %s, run_id: %s, state: %s",
+                        self.dag_id,
+                        self.run_id,
+                        self.state,
+                    )
 
             with Trace.start_span_from_dagrun(dagrun=self) as span:
                 self._set_dagrun_span_metadata(span=span, dag_run=self)
@@ -1062,7 +1082,9 @@ class DagRun(Base, LoggingMixin):
 
     @staticmethod
     @internal_api_call
-    def _set_context_carrier(dag_run: DagRun, context_carrier: dict, session: Session, with_commit: bool) -> bool:
+    def _set_context_carrier(
+        dag_run: DagRun, context_carrier: dict, session: Session, with_commit: bool
+    ) -> bool:
         if not isinstance(dag_run, DagRun):
             dag_run = session.scalars(
                 select(DagRun).where(
@@ -1085,7 +1107,9 @@ class DagRun(Base, LoggingMixin):
         return True
 
     @provide_session
-    def set_context_carrier(self, context_carrier: dict, session: Session = NEW_SESSION, with_commit: bool = False) -> bool:
+    def set_context_carrier(
+        self, context_carrier: dict, session: Session = NEW_SESSION, with_commit: bool = False
+    ) -> bool:
         """
         Set DagRun span context_carrier.
 
@@ -1094,7 +1118,9 @@ class DagRun(Base, LoggingMixin):
         :param with_commit: should the carrier be committed?
         :return: has the context_carrier been changed?
         """
-        return self._set_context_carrier(dag_run=self, context_carrier=context_carrier, session=session, with_commit=with_commit)
+        return self._set_context_carrier(
+            dag_run=self, context_carrier=context_carrier, session=session, with_commit=with_commit
+        )
 
     def notify_dagrun_state_changed(self, msg: str = ""):
         if self.state == DagRunState.RUNNING:

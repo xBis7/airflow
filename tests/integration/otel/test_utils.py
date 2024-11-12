@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
 
 import json
 import logging
@@ -36,7 +37,7 @@ def dump_airflow_metadata_db(session):
     log.debug("\n-----START_airflow_db_dump-----\n")
 
     for table_name in all_tables:
-        log.debug(f"\nDumping table: {table_name}")
+        log.debug("\nDumping table: %s", table_name)
         table = Base.metadata.tables.get(table_name)
         if table is not None:
             query = session.query(table)
@@ -44,12 +45,12 @@ def dump_airflow_metadata_db(session):
             db_dump[table_name] = results
             # Pretty-print the table contents
             if table_name == "connection":
-                filtered_results = [row for row in results if row.get('conn_id') == 'airflow_db']
+                filtered_results = [row for row in results if row.get("conn_id") == "airflow_db"]
                 pprint.pprint({table_name: filtered_results}, width=120)
             else:
                 pprint.pprint({table_name: results}, width=120)
         else:
-            log.debug(f"Table {table_name} not found in metadata.")
+            log.debug("Table %s not found in metadata.", table_name)
 
     log.debug("\nAirflow metadata database dump complete.")
     log.debug("\n-----END_airflow_db_dump-----\n")
@@ -85,6 +86,7 @@ def dump_airflow_metadata_db(session):
 #         }
 #     }
 
+
 def extract_spans_from_output(output_lines):
     span_dict = {}
     root_span_dict = {}
@@ -95,31 +97,31 @@ def extract_spans_from_output(output_lines):
         line = output_lines[index].strip()
         # The start and the end of the json object, don't have any indentation.
         # We can use that to identify them.
-        if line.startswith('{') and line == '{': # Json start.
+        if line.startswith("{") and line == "{":  # Json start.
             # Get all the lines and append them until we reach the end.
             json_lines = [line]
             index += 1
             while index < total_lines:
                 line = output_lines[index]
                 json_lines.append(line)
-                if line.strip().startswith('}') and line == '}': # Json end.
+                if line.strip().startswith("}") and line == "}":  # Json end.
                     # Since, this is the end of the object, break the loop.
                     break
                 index += 1
             # Create a formatted json string and then convert the string to a python dict.
-            json_str = '\n'.join(json_lines)
+            json_str = "\n".join(json_lines)
             try:
                 span = json.loads(json_str)
-                span_id = span['context']['span_id']
+                span_id = span["context"]["span_id"]
                 span_dict[span_id] = span
 
-                if span['parent_id'] is None:
+                if span["parent_id"] is None:
                     # This is a root span, add it to the root_span_map as well.
-                    root_span_id = span['context']['span_id']
+                    root_span_id = span["context"]["span_id"]
                     root_span_dict[root_span_id] = span
 
             except json.JSONDecodeError as e:
-                log.error(f"Failed to parse JSON span: {e}")
+                log.error("Failed to parse JSON span: %s", e)
                 log.error("Failed JSON string:")
                 log.error(json_str)
         else:
@@ -130,7 +132,7 @@ def extract_spans_from_output(output_lines):
 
 def get_id_for_a_given_name(span_dict: dict, span_name: str):
     for span_id, span in span_dict.items():
-        if span['name'] == span_name:
+        if span["name"] == span_name:
             return span_id
     return None
 
@@ -148,8 +150,10 @@ def get_parent_child_dict(root_span_dict, span_dict):
                 # It's the same span, skip.
                 continue
             # If the parent_id matches the root_span_id and if the trace_id is the same.
-            if (span['parent_id'] == root_span_id and
-                root_span['context']['trace_id'] == span['context']['trace_id']):
+            if (
+                span["parent_id"] == root_span_id
+                and root_span["context"]["trace_id"] == span["context"]["trace_id"]
+            ):
                 child_span_list.append(span)
         parent_child_dict[root_span_id] = child_span_list
     return parent_child_dict
@@ -168,8 +172,10 @@ def get_child_list_for_non_root(span_dict: dict, span_name: str):
         if span_id == parent_span_id:
             # It's the same span, skip.
             continue
-        if (span['parent_id'] == parent_span_id and
-            span['context']['trace_id'] == parent_span['context']['trace_id']):
+        if (
+            span["parent_id"] == parent_span_id
+            and span["context"]["trace_id"] == parent_span["context"]["trace_id"]
+        ):
             child_span_list.append(span)
 
     return child_span_list
@@ -192,14 +198,15 @@ def assert_span_name_belongs_to_root_span(root_span_dict: dict, span_name: str, 
     # Assert based on the should_succeed flag
     if should_succeed:
         assert name_exists, f"Expected span '{span_name}' to belong to a root span, but it does not."
-        log.info(f"Span '{span_name}' belongs to a root span, as expected.")
+        log.info("Span '%s' belongs to a root span, as expected.", span_name)
     else:
         assert not name_exists, f"Expected span '{span_name}' not to belong to a root span, but it does."
-        log.info(f"Span '{span_name}' doesn't belong to a root span, as expected.")
+        log.info("Span '%s' doesn't belong to a root span, as expected.", span_name)
 
 
-def assert_parent_children_spans(parent_child_dict: dict, root_span_dict: dict,
-                                 parent_name: str, children_names: list[str]):
+def assert_parent_children_spans(
+    parent_child_dict: dict, root_span_dict: dict, parent_name: str, children_names: list[str]
+):
     """Check that all spans in a given list are children of a given root span name."""
     log.info("Checking that spans '%s' are children of root span '%s'.", children_names, parent_name)
     # Iterate the root_span_dict, to get the span_id for the parent_name.
@@ -211,12 +218,14 @@ def assert_parent_children_spans(parent_child_dict: dict, root_span_dict: dict,
     # For each children id, get the entry from the span_dict.
     names_from_dict = []
     for child_span in child_span_list:
-        name = child_span['name']
+        name = child_span["name"]
         names_from_dict.append(name)
 
     # Assert that all given children names match the names from the dictionary.
     for name in children_names:
-        assert name in names_from_dict, f"Span name '{name}' wasn't found in children span names. It's not a child of span '{parent_name}'."
+        assert (
+            name in names_from_dict
+        ), f"Span name '{name}' wasn't found in children span names. It's not a child of span '{parent_name}'."
 
 
 def assert_parent_children_spans_for_non_root(span_dict: dict, parent_name: str, children_names: list[str]):
@@ -227,16 +236,24 @@ def assert_parent_children_spans_for_non_root(span_dict: dict, parent_name: str,
     # For each children id, get the entry from the span_dict.
     names_from_dict = []
     for child_span in child_span_list:
-        name = child_span['name']
+        name = child_span["name"]
         names_from_dict.append(name)
 
     # Assert that all given children names match the names from the dictionary.
     for name in children_names:
-        assert name in names_from_dict, f"Span name '{name}' wasn't found in children span names. It's not a child of span '{parent_name}'."
+        assert (
+            name in names_from_dict
+        ), f"Span name '{name}' wasn't found in children span names. It's not a child of span '{parent_name}'."
 
 
-def assert_span_not_in_children_spans(parent_child_dict: dict, root_span_dict: dict, span_dict: dict,
-                                      parent_name: str, child_name: str, span_exists: bool):
+def assert_span_not_in_children_spans(
+    parent_child_dict: dict,
+    root_span_dict: dict,
+    span_dict: dict,
+    parent_name: str,
+    child_name: str,
+    span_exists: bool,
+):
     """Check that a span for a given name, doesn't belong to the children of a given root span name."""
     log.info("Checking that span '%s' is not a child of span '%s'.", child_name, parent_name)
     # Iterate the root_span_dict, to get the span_id for the parent_name.
@@ -249,6 +266,8 @@ def assert_span_not_in_children_spans(parent_child_dict: dict, root_span_dict: d
 
     if span_exists:
         assert child_id is not None, f"Span '{child_name}' should exist but it doesn't."
-        assert child_id not in child_span_id_list, f"Span '{child_name}' shouldn't be a child of span '{parent_name}', but it is."
+        assert (
+            child_id not in child_span_id_list
+        ), f"Span '{child_name}' shouldn't be a child of span '{parent_name}', but it is."
     else:
         assert child_id is None, f"Span '{child_name}' shouldn't exist but it does."

@@ -19,11 +19,11 @@ from __future__ import annotations
 
 import logging
 import random
+from typing import TYPE_CHECKING
 
 import pendulum
 from opentelemetry import trace
-from opentelemetry.context import create_key, attach
-from opentelemetry.context.context import Context
+from opentelemetry.context import attach, create_key
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import HOST_NAME, SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import Span, Tracer as OpenTelemetryTracer, TracerProvider
@@ -48,6 +48,9 @@ from airflow.traces.utils import (
 from airflow.utils.dates import datetime_to_nano
 from airflow.utils.net import get_hostname
 
+if TYPE_CHECKING:
+    from opentelemetry.context.context import Context
+
 log = logging.getLogger(__name__)
 
 _NEXT_ID = create_key("next_id")
@@ -62,8 +65,12 @@ class OtelTrace:
     When OTEL is enabled, the Trace class will be replaced by this class.
     """
 
-    def __init__(self, span_exporter: ConsoleSpanExporter | OTLPSpanExporter, tag_string: str | None = None,
-                 use_simple_processor: bool = False):
+    def __init__(
+        self,
+        span_exporter: ConsoleSpanExporter | OTLPSpanExporter,
+        tag_string: str | None = None,
+        use_simple_processor: bool = False,
+    ):
         self.span_exporter = span_exporter
         if use_simple_processor:
             # With a BatchSpanProcessor, spans are exported at an interval.
@@ -76,22 +83,22 @@ class OtelTrace:
         self.tag_string = tag_string
         self.otel_service = conf.get("traces", "otel_service")
         self.resource = Resource.create(
-            attributes={HOST_NAME: get_hostname(), SERVICE_NAME: self.otel_service})
+            attributes={HOST_NAME: get_hostname(), SERVICE_NAME: self.otel_service}
+        )
 
     def get_otel_tracer_provider(
-        self,
-        trace_id: int | None = None,
-        span_id: int | None = None
+        self, trace_id: int | None = None, span_id: int | None = None
     ) -> TracerProvider:
         """
         Tracer that will use special AirflowOtelIdGenerator to control producing certain span and trace id.
+
         It can be used to get a tracer and directly create spans, or for auto-instrumentation.
         """
         if trace_id or span_id:
             # in case where trace_id or span_id was given
             tracer_provider = TracerProvider(
                 resource=self.resource,
-                id_generator=AirflowOtelIdGenerator(span_id=span_id, trace_id=trace_id)
+                id_generator=AirflowOtelIdGenerator(span_id=span_id, trace_id=trace_id),
             )
         else:
             tracer_provider = TracerProvider(resource=self.resource)
@@ -250,11 +257,7 @@ class OtelTrace:
         return span
 
     def start_root_span(
-        self,
-        span_name: str,
-        component: str | None = None,
-        start_time=None,
-        start_as_current: bool = True
+        self, span_name: str, component: str | None = None, start_time=None, start_as_current: bool = True
     ):
         """Start a root span."""
         # If no context is passed to the new span,
@@ -272,7 +275,7 @@ class OtelTrace:
             component=component,
             links=None,
             start_time=start_time,
-            start_as_current=start_as_current
+            start_as_current=start_as_current,
         )
 
     def start_child_span(
@@ -282,7 +285,7 @@ class OtelTrace:
         component: str | None = None,
         links=None,
         start_time=None,
-        start_as_current: bool = True
+        start_as_current: bool = True,
     ):
         """Start a child span."""
         if parent_context is None:
@@ -309,7 +312,7 @@ class OtelTrace:
             component=component,
             links=_links,
             start_time=start_time,
-            start_as_current=start_as_current
+            start_as_current=start_as_current,
         )
 
     def _new_span(
@@ -319,7 +322,7 @@ class OtelTrace:
         component: str | None = None,
         links=None,
         start_time=None,
-        start_as_current: bool = True
+        start_as_current: bool = True,
     ):
         if component is None:
             component = self.otel_service
@@ -351,7 +354,7 @@ class OtelTrace:
             # Right after this method is called and the span is created,
             # we inject the context into the carrier. This will make sure that the injected context
             # will point to this span context.
-            ignored_token = attach(current_span_ctx)
+            attach(current_span_ctx)
         return span
 
     def inject(self) -> dict:
@@ -408,15 +411,19 @@ def get_otel_tracer(cls, use_simple_processor: bool | None = None) -> OtelTrace:
 
     if debug is True:
         log.info("[ConsoleSpanExporter] is being used")
-        return OtelTrace(span_exporter=ConsoleSpanExporter(), tag_string=tag_string,
-                         use_simple_processor=use_simple_processor)
+        return OtelTrace(
+            span_exporter=ConsoleSpanExporter(),
+            tag_string=tag_string,
+            use_simple_processor=use_simple_processor,
+        )
     else:
         protocol = "https" if ssl_active else "http"
         endpoint = f"{protocol}://{host}:{port}/v1/traces"
         log.info("[OTLPSpanExporter] Connecting to OpenTelemetry Collector at %s", endpoint)
         return OtelTrace(
             span_exporter=OTLPSpanExporter(endpoint=endpoint, headers={"Content-Type": "application/json"}),
-            tag_string=tag_string, use_simple_processor=use_simple_processor,
+            tag_string=tag_string,
+            use_simple_processor=use_simple_processor,
         )
 
 

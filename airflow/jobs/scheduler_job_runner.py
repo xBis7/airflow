@@ -30,7 +30,6 @@ from functools import lru_cache, partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Collection, Iterable, Iterator
 
-from opentelemetry.sdk.trace import Span
 from sqlalchemy import and_, delete, func, not_, or_, select, text, update
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import lazyload, load_only, make_transient, selectinload
@@ -82,6 +81,7 @@ if TYPE_CHECKING:
     from datetime import datetime
     from types import FrameType
 
+    from opentelemetry.sdk.trace import Span
     from sqlalchemy.engine import Result
     from sqlalchemy.orm import Query, Session
 
@@ -775,9 +775,7 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                 if ti.hostname in dict(logs[0]):
                     message = str(dict(logs[0])[ti.hostname]).replace("\\n", "\n")
                     while metadata["end_of_log"] is False:
-                        logs, metadata = task_log_reader.read_log_chunks(
-                            ti, ti.try_number - 1, metadata
-                        )
+                        logs, metadata = task_log_reader.read_log_chunks(ti, ti.try_number - 1, metadata)
                         if ti.hostname in dict(logs[0]):
                             message = message + str(dict(logs[0])[ti.hostname]).replace("\\n", "\n")
                     if span.is_recording():

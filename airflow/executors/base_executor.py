@@ -347,10 +347,12 @@ class BaseExecutor(LoggingMixin):
                     # Start a new span using the context from the parent.
                     # Attributes will be set once the task has finished so that all
                     # values will be available (end_time, duration, etc.).
-                    span = Trace.start_child_span(span_name=f"{ti.task_id}{CTX_PROP_SUFFIX}",
-                                                  parent_context=parent_context,
-                                                  component=f"task{CTX_PROP_SUFFIX}",
-                                                  start_as_current=False)
+                    span = Trace.start_child_span(
+                        span_name=f"{ti.task_id}{CTX_PROP_SUFFIX}",
+                        parent_context=parent_context,
+                        component=f"task{CTX_PROP_SUFFIX}",
+                        start_as_current=False,
+                    )
                     self.active_spans.set(key, span)
                     # Inject the current context into the carrier.
                     carrier = Trace.inject()

@@ -57,7 +57,6 @@ from sqlalchemy import (
     or_,
     text,
     update,
-    JSON,
 )
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -1841,7 +1840,7 @@ class TaskInstance(Base, LoggingMixin):
     executor_config = Column(ExecutorConfigType(pickler=dill))
     updated_at = Column(UtcDateTime, default=timezone.utcnow, onupdate=timezone.utcnow)
     rendered_map_index = Column(String(250))
-    context_carrier = Column(JSON)
+    context_carrier = Column(MutableDict.as_mutable(ExtendedJSON))
 
     external_executor_id = Column(StringID())
 
@@ -2365,7 +2364,9 @@ class TaskInstance(Base, LoggingMixin):
 
     @staticmethod
     @internal_api_call
-    def _set_context_carrier(ti: TaskInstance | TaskInstancePydantic, context_carrier, session: Session, with_commit: bool) -> bool:
+    def _set_context_carrier(
+        ti: TaskInstance | TaskInstancePydantic, context_carrier, session: Session, with_commit: bool
+    ) -> bool:
         if not isinstance(ti, TaskInstance):
             ti = session.scalars(
                 select(TaskInstance).where(
@@ -2389,7 +2390,9 @@ class TaskInstance(Base, LoggingMixin):
         return True
 
     @provide_session
-    def set_context_carrier(self, context_carrier: dict, session: Session = NEW_SESSION, with_commit: bool = False) -> bool:
+    def set_context_carrier(
+        self, context_carrier: dict, session: Session = NEW_SESSION, with_commit: bool = False
+    ) -> bool:
         """
         Set TaskInstance span context_carrier.
 
@@ -2398,7 +2401,9 @@ class TaskInstance(Base, LoggingMixin):
         :param with_commit: should the carrier be committed?
         :return: has the context_carrier been changed?
         """
-        return self._set_context_carrier(ti=self, context_carrier=context_carrier, session=session, with_commit=with_commit)
+        return self._set_context_carrier(
+            ti=self, context_carrier=context_carrier, session=session, with_commit=with_commit
+        )
 
     @property
     def is_premature(self) -> bool:

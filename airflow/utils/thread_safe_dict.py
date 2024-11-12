@@ -14,10 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
 
 import threading
 
+
 class ThreadSafeDict:
+    """Dictionary that uses a lock during operations, to ensure thread safety."""
 
     def __init__(self):
         self.sync_dict = {}

@@ -25,7 +25,6 @@ import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from airflow.traces import TRACEPARENT, TRACESTATE, otel_tracer, utils
-from airflow.traces.otel_tracer import OtelTrace
 from airflow.traces.tracer import Trace
 from tests.test_utils.config import env_vars
 
@@ -177,7 +176,7 @@ class TestOtelTrace:
             #  - extracting the context
             #  - using the context to create a new span
             # The new span should be associated with the span from the injected context carrier.
-            def _task_func(otel_tr: OtelTrace, carrier: dict):
+            def _task_func(otel_tr: Trace, carrier: dict):
                 parent_context = otel_tr.extract(carrier)
 
                 with otel_tr.start_child_span(span_name="sub_span", parent_context=parent_context) as span:

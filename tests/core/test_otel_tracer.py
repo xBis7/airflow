@@ -172,7 +172,7 @@ class TestOtelTrace:
             in_mem_exporter = InMemorySpanExporter()
             exporter.return_value = in_mem_exporter
 
-            # Method that represent another service which is
+            # Method that represents another service which is
             #  - getting the carrier
             #  - extracting the context
             #  - using the context to create a new span

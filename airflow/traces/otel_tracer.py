@@ -351,9 +351,8 @@ class OtelTrace:
             )
             current_span_ctx = trace.set_span_in_context(NonRecordingSpan(span.get_span_context()))
             # We have to manually make the span context as the active context.
-            # Right after this method is called and the span is created,
-            # we inject the context into the carrier. This will make sure that the injected context
-            # will point to this span context.
+            # If the span needs to be injected into the carrier, then this is needed to make sure
+            # that the injected context will point to the span context that was just created.
             attach(current_span_ctx)
         return span
 

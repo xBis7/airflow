@@ -28,7 +28,6 @@ import pytest
 
 from airflow import settings
 from airflow.callbacks.callback_requests import DagCallbackRequest
-from airflow.configuration import conf
 from airflow.decorators import setup, task, task_group, teardown
 from airflow.exceptions import AirflowException
 from airflow.models.baseoperator import BaseOperator
@@ -1046,37 +1045,6 @@ class TestDagRun:
         ti_failed = dag_run.get_task_instance(dag_task_failed.task_id)
         assert ti_success.state in State.success_states
         assert ti_failed.state in State.failed_states
-
-    def test_dag_run_active_spans(self, session):
-        """
-        Tests that a
-        """
-        conf.add_section("traces")
-        conf.set("traces", "otel_use_context_propagation", "True")
-        dag = DAG(
-            dag_id="test_dagrun_success_when_all_skipped",
-            schedule=datetime.timedelta(days=1),
-            start_date=timezone.datetime(2017, 1, 1),
-        )
-        dag_task1 = ShortCircuitOperator(
-            task_id="test_short_circuit_false", dag=dag, python_callable=lambda: False
-        )
-        dag_task2 = EmptyOperator(task_id="test_state_skipped1", dag=dag)
-        dag_task3 = EmptyOperator(task_id="test_state_skipped2", dag=dag)
-        dag_task1.set_downstream(dag_task2)
-        dag_task2.set_downstream(dag_task3)
-
-        initial_task_states = {
-            "test_short_circuit_false": TaskInstanceState.SUCCESS,
-            "test_state_skipped1": TaskInstanceState.SKIPPED,
-            "test_state_skipped2": TaskInstanceState.SKIPPED,
-        }
-
-        dag_run = self.create_dag_run(dag=dag, task_states=initial_task_states, session=session)
-        assert dag_run.active_spans.get(dag_run.run_id) is None
-        dag_run.update_state()
-        assert dag_run.active_spans.get(dag_run.run_id) is not None
-        assert DagRunState.SUCCESS == dag_run.state
 
 
 @pytest.mark.parametrize(

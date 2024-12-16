@@ -1007,7 +1007,8 @@ def _get_template_context(
             # the object will be considered dirty by the session.
             # Trying to merge the dirty dag_run with load=False, will result to an SQLAlchemy error.
             # Regular merge, with the default load value.
-            dag_run = session.merge(dag_run)
+            # dag_run = session.merge(dag_run)
+            dag_run = session.merge(dag_run, load=False)
         asset_events = dag_run.consumed_asset_events
         triggering_events: dict[str, list[AssetEvent]] = defaultdict(list)
         for event in asset_events:

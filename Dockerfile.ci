@@ -36,7 +36,25 @@ ARG BASE_IMAGE="debian:bookworm-slim"
 # This is the script image where we keep all inlined bash scripts needed in other segments
 # We use BASE_IMAGE to make sure that the scripts are different for different platforms.
 ##############################################################################################
-FROM ${BASE_IMAGE} as scripts
+FROM ${BASE_IMAGE} as setup
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+COPY ./certs/ /usr/local/share/ca-certificates/
+RUN chmod 644 /usr/local/share/ca-certificates/*
+RUN update-ca-certificates --fresh
+
+# Checks to verify that the installation succeeded.
+# RUN ls -lah /usr/local/share/ca-certificates/
+# RUN ls -lah /etc/ssl/certs/ | grep 'outbound-cert'
+# RUN openssl x509 -text -noout -in /etc/ssl/certs/outbound-cert-2024.pem
+# Try to install a package with curl
+# RUN apt-get update && apt-get install -y curl
+# RUN curl -v https://download.docker.com/linux/debian/gpg \
+#   --output /tmp/docker.asc
+
+FROM setup as scripts
 
 ##############################################################################################
 # Please DO NOT modify the inlined scripts manually. The content of those files will be
@@ -1520,7 +1538,7 @@ COPY <<"EOF" /entrypoint_exec.sh
 exec /bin/bash "${@}"
 EOF
 
-FROM ${BASE_IMAGE} as main
+FROM setup as main
 
 # Nolog bash flag is currently ignored - but you can replace it with other flags (for example
 # xtrace - to show commands executed)
@@ -1731,6 +1749,10 @@ ARG DEPENDENCY_CACHE_EPOCH="2"
 # Install useful command line tools in their own virtualenv so that they do not clash with
 # dependencies installed in Airflow also reinstall PIP and UV to make sure they are installed
 # in the version specified above
+
+# 'install_packaging_tools.sh' is using pip. Pip needs these env variables.
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 
 RUN bash /scripts/docker/install_packaging_tools.sh
 

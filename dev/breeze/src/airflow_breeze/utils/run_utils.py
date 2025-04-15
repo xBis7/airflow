@@ -379,9 +379,12 @@ def is_repo_rebased(repo: str, branch: str):
     # We import it locally so that click autocomplete works
     import requests
 
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../../"))
+    ca_cert_path = os.path.join(project_root, "certs", "outbound-cert-2024.crt")
+
     gh_url = f"https://api.github.com/repos/{repo}/commits/{branch}"
     headers_dict = {"Accept": "application/vnd.github.VERSION.sha"}
-    latest_sha = requests.get(gh_url, headers=headers_dict).text.strip()
+    latest_sha = requests.get(gh_url, headers=headers_dict, verify=ca_cert_path).text.strip()
     rebased = False
     command_result = run_command(["git", "log", "--format=format:%H"], capture_output=True, text=True)
     commit_list = command_result.stdout.strip().splitlines() if command_result is not None else "missing"

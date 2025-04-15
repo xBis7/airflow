@@ -45,6 +45,9 @@ COPY ./certs/ /usr/local/share/ca-certificates/
 RUN chmod 644 /usr/local/share/ca-certificates/*
 RUN update-ca-certificates --fresh
 
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+
 # Checks to verify that the installation succeeded.
 # RUN ls -lah /usr/local/share/ca-certificates/
 # RUN ls -lah /etc/ssl/certs/ | grep 'outbound-cert'
@@ -1634,8 +1637,12 @@ ARG HELM_VERSION="v3.16.4"
 RUN SYSTEM=$(uname -s | tr '[:upper:]' '[:lower:]') \
     && PLATFORM=$([ "$(uname -m)" = "aarch64" ] && echo "arm64" || echo "amd64" ) \
     && HELM_URL="https://get.helm.sh/helm-${HELM_VERSION}-${SYSTEM}-${PLATFORM}.tar.gz" \
-    && curl --silent --location "${HELM_URL}" | tar -xz -O "${SYSTEM}-${PLATFORM}/helm" > /usr/local/bin/helm \
-    && chmod +x /usr/local/bin/helm
+    && curl -v "${HELM_URL}" -o helm.tar.gz \
+    && tar -xz -f helm.tar.gz -O "${SYSTEM}-${PLATFORM}/helm" > /usr/local/bin/helm \
+    && chmod +x /usr/local/bin/helm \
+    && rm helm.tar.gz
+
+# && curl --silent --location "${HELM_URL}" | tar -xz -O "${SYSTEM}-${PLATFORM}/helm" > /usr/local/bin/helm \
 
 # Install mprocs - a modern process manager for managing multiple Airflow components
 ARG MPROCS_VERSION="0.8.2"

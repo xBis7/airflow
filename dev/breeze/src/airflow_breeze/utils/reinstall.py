@@ -70,7 +70,7 @@ def reinstall_breeze(breeze_sources: Path, re_run: bool = True):
         sys.exit(1)
     elif breeze_installed_with_uv:
         subprocess.check_call(
-            ["uv", "tool", "install", "--force", "--reinstall", "-e", breeze_sources.as_posix()],
+            ["uv", "tool", "install", "--force", "--reinstall", "--native-tls", "-e", breeze_sources.as_posix()],
             stderr=subprocess.STDOUT,
         )
     elif breeze_installed_with_pipx:

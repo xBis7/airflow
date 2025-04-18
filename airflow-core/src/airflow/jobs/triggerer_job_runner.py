@@ -795,10 +795,8 @@ class TriggerRunner:
                     last_status = now
 
         except Exception:
-            try:
+            with suppress(BrokenPipeError):
                 await log.aexception("Trigger runner failed")
-            except BrokenPipeError:
-                pass
             self.stop = True
             raise
         # Wait for supporting tasks to complete

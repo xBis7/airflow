@@ -39,6 +39,7 @@ from sqlalchemy import func, select
 from structlog.contextvars import bind_contextvars as bind_log_contextvars
 
 from airflow.configuration import conf
+from airflow.dual_stats_manager import DualStatsManager
 from airflow.executors import workloads
 from airflow.jobs.base_job_runner import BaseJobRunner
 from airflow.jobs.job import perform_heartbeat
@@ -523,12 +524,20 @@ class TriggerRunnerSupervisor(WatchedSubprocess):
             Stats.incr("triggers.failed")
 
     def emit_metrics(self):
-        Stats.gauge(f"triggers.running.{self.job.hostname}", len(self.running_triggers))
-        Stats.gauge("triggers.running", len(self.running_triggers), tags={"hostname": self.job.hostname})
+        DualStatsManager.gauge(
+            f"triggers.running.{self.job.hostname}",
+            "triggers.running",
+            len(self.running_triggers),
+            tags={"hostname": self.job.hostname},
+        )
 
         capacity_left = self.capacity - len(self.running_triggers)
-        Stats.gauge(f"triggerer.capacity_left.{self.job.hostname}", capacity_left)
-        Stats.gauge("triggerer.capacity_left", capacity_left, tags={"hostname": self.job.hostname})
+        DualStatsManager.gauge(
+            f"triggerer.capacity_left.{self.job.hostname}",
+            "triggerer.capacity_left",
+            capacity_left,
+            tags={"hostname": self.job.hostname},
+        )
 
         span = Trace.get_current_span()
         span.set_attributes(

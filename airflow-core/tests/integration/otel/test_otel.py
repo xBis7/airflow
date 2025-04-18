@@ -621,6 +621,7 @@ class TestOtelIntegration:
         os.environ["AIRFLOW__METRICS__OTEL_HOST"] = "breeze-otel-collector"
         os.environ["AIRFLOW__METRICS__OTEL_PORT"] = "4318"
         os.environ["AIRFLOW__METRICS__OTEL_INTERVAL_MILLISECONDS"] = "30000"
+        os.environ["AIRFLOW__METRICS__LEGACY_NAMES_ON"] = "False"
 
         # System.
         os.environ["AIRFLOW__SCHEDULER__STANDALONE_DAG_PROCESSOR"] = "False"

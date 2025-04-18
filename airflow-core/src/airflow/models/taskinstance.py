@@ -76,6 +76,7 @@ from sqlalchemy_utils import UUIDType
 from airflow import settings
 from airflow.assets.manager import asset_manager
 from airflow.configuration import conf
+from airflow.dual_stats_manager import DualStatsManager
 from airflow.exceptions import (
     AirflowException,
     AirflowFailException,
@@ -1645,9 +1646,10 @@ class TaskInstance(Base, LoggingMixin):
         else:
             raise NotImplementedError("no metric emission setup for state %s", new_state)
 
-        # send metric twice, once (legacy) with tags in the name and once with tags as tags
-        Stats.timing(f"dag.{self.dag_id}.{self.task_id}.{metric_name}", timing)
-        Stats.timing(
+        # depending on the config, send metric twice,
+        # once (legacy) with tags in the name and once with tags as tags
+        DualStatsManager.timing(
+            f"dag.{self.dag_id}.{self.task_id}.{metric_name}",
             f"task.{metric_name}",
             timing,
             tags={"task_id": self.task_id, "dag_id": self.dag_id, "queue": self.queue},
@@ -1697,9 +1699,9 @@ class TaskInstance(Base, LoggingMixin):
         if not test_mode:
             TaskInstance.save_to_db(ti=self, session=session)
         actual_start_date = timezone.utcnow()
-        Stats.incr(f"ti.start.{self.task.dag_id}.{self.task.task_id}", tags=self.stats_tags)
-        # Same metric with tagging
-        Stats.incr("ti.start", tags=self.stats_tags)
+        DualStatsManager.incr(
+            f"ti.start.{self.task.dag_id}.{self.task.task_id}", "ti.start", tags=self.stats_tags
+        )
         # Initialize final state counters at zero
         for state in State.task_states:
             Stats.incr(
@@ -2013,8 +2015,9 @@ class TaskInstance(Base, LoggingMixin):
             self.clear_xcom_data()
 
         with (
-            Stats.timer(f"dag.{self.task.dag_id}.{self.task.task_id}.duration"),
-            Stats.timer("task.duration", tags=self.stats_tags),
+            DualStatsManager.timer(
+                f"dag.{self.task.dag_id}.{self.task.task_id}.duration", "task.duration", tags=self.stats_tags
+            ),
         ):
             # Set the validated/merged params on the task object.
             self.task.params = context["params"]
@@ -2104,9 +2107,11 @@ class TaskInstance(Base, LoggingMixin):
                 logger=self.log,
             ).run(context, result)
 
-        Stats.incr(f"operator_successes_{self.task.task_type}", tags=self.stats_tags)
-        # Same metric with tagging
-        Stats.incr("operator_successes", tags={**self.stats_tags, "task_type": self.task.task_type})
+        DualStatsManager.incr(
+            f"operator_successes_{self.task.task_type}",
+            "operator_successes",
+            tags={**self.stats_tags, "task_type": self.task.task_type},
+        )
         Stats.incr("ti_successes", tags=self.stats_tags)
 
     def _execute_task(self, context: Context, task_orig: Operator):
@@ -2463,9 +2468,11 @@ class TaskInstance(Base, LoggingMixin):
         ti.end_date = timezone.utcnow()
         ti.set_duration()
 
-        Stats.incr(f"operator_failures_{ti.operator}", tags=ti.stats_tags)
-        # Same metric with tagging
-        Stats.incr("operator_failures", tags={**ti.stats_tags, "operator": ti.operator})
+        DualStatsManager.incr(
+            f"operator_failures_{ti.operator}",
+            "operator_failures",
+            tags={**ti.stats_tags, "operator": ti.operator},
+        )
         Stats.incr("ti_failures", tags=ti.stats_tags)
 
         if not test_mode:

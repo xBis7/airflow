@@ -1151,6 +1151,8 @@ class DagRun(Base, LoggingMixin):
 
         start_dttm = timezone.utcnow()
         self.last_scheduling_decision = start_dttm
+        # If enabled on the config, publish metrics twice,
+        # once with backward compatible name, and then with tags.
         with DualStatsManager.timer(
             f"dagrun.dependency-check.{self.dag_id}", "dagrun.dependency-check", tags=self.stats_tags
         ):
@@ -1557,6 +1559,8 @@ class DagRun(Base, LoggingMixin):
 
         duration = self.end_date - self.start_date
         timer_params = {"dt": duration, "tags": self.stats_tags}
+        # If enabled on the config, publish metrics twice,
+        # once with backward compatible name, and then with tags.
         DualStatsManager.timing(
             f"dagrun.duration.{self.state}.{self.dag_id}", f"dagrun.duration.{self.state}", **timer_params
         )
@@ -1634,6 +1638,8 @@ class DagRun(Base, LoggingMixin):
                 should_restore_task = (task is not None) and ti.state == TaskInstanceState.REMOVED
                 if should_restore_task:
                     self.log.info("Restoring task '%s' which was previously removed from DAG '%s'", ti, dag)
+                    # If enabled on the config, publish metrics twice,
+                    # once with backward compatible name, and then with tags.
                     DualStatsManager.incr(
                         f"task_restored_to_dag.{dag.dag_id}",
                         "task_restored_to_dag",
@@ -1645,6 +1651,8 @@ class DagRun(Base, LoggingMixin):
                     pass  # ti has already been removed, just ignore it
                 elif self.state != DagRunState.RUNNING and not dag.partial:
                     self.log.warning("Failed to get task '%s' for dag '%s'. Marking it as removed.", ti, dag)
+                    # If enabled on the config, publish metrics twice,
+                    # once with backward compatible name, and then with tags.
                     DualStatsManager.incr(
                         f"task_removed_from_dag.{dag.dag_id}",
                         "task_removed_from_dag",
@@ -1811,6 +1819,8 @@ class DagRun(Base, LoggingMixin):
                 session.bulk_save_objects(tasks)
 
             for task_type, count in created_counts.items():
+                # If enabled on the config, publish metrics twice,
+                # once with backward compatible name, and then with tags.
                 DualStatsManager.incr(
                     f"task_instance_created_{task_type}",
                     "task_instance_created",

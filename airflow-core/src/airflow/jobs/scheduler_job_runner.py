@@ -653,6 +653,8 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
             )
 
         for pool_name, num_starving_tasks in pool_num_starving_tasks.items():
+            # If enabled on the config, publish metrics twice,
+            # once with backward compatible name, and then with tags.
             DualStatsManager.gauge(
                 f"pool.starving_tasks.{pool_name}",
                 "pool.starving_tasks",
@@ -1709,7 +1711,8 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                 # when ``run_type`` is *MANUAL* and ``clear_number`` is 0.
                 expected_start_date = dag.get_run_data_interval(dag_run).end
                 schedule_delay = dag_run.start_date - expected_start_date
-                # Publish metrics twice with backward compatible name, and then with tags
+                # If enabled on the config, publish metrics twice,
+                # once with backward compatible name, and then with tags.
                 DualStatsManager.timing(
                     f"dagrun.schedule_delay.{dag.dag_id}",
                     "dagrun.schedule_delay",
@@ -1856,6 +1859,8 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
 
                 dag_run.notify_dagrun_state_changed()
                 duration = dag_run.end_date - dag_run.start_date
+                # If enabled on the config, publish metrics twice,
+                # once with backward compatible name, and then with tags.
                 DualStatsManager.timing(
                     f"dagrun.duration.failed.{dag_run.dag_id}",
                     "dagrun.duration.failed",
@@ -2070,6 +2075,8 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
         ti_running_metrics = {(row.dag_id, row.task_id, row.queue): row.running_count for row in running}
 
         for (dag_id, task_id, queue), count in ti_running_metrics.items():
+            # If enabled on the config, publish metrics twice,
+            # once with backward compatible name, and then with tags.
             DualStatsManager.gauge(
                 f"ti.running.{queue}.{dag_id}.{task_id}",
                 "ti.running",
@@ -2097,6 +2104,8 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
         with DebugTrace.start_span(span_name="emit_pool_metrics", component="SchedulerJobRunner") as span:
             pools = Pool.slots_stats(session=session)
             for pool_name, slot_stats in pools.items():
+                # If enabled on the config, publish metrics twice,
+                # once with backward compatible name, and then with tags.
                 DualStatsManager.gauge(
                     f"pool.open_slots.{pool_name}",
                     "pool.open_slots",

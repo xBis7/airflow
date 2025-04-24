@@ -165,6 +165,8 @@ def set_metrics(
         EdgeWorkerState.OFFLINE_MAINTENANCE,
     )
 
+    # If enabled on the config, publish metrics twice,
+    # once with backward compatible name, and then with tags.
     DualStatsManager.gauge(
         f"edge_worker.connected.{worker_name}",
         "edge_worker.connected",

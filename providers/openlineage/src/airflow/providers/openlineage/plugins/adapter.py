@@ -157,6 +157,8 @@ class OpenLineageAdapter(LoggingMixin):
         transport_type = f"{self._client.transport.kind}".lower()
 
         try:
+            # If enabled on the config, publish metrics twice,
+            # once with backward compatible name, and then with tags.
             with DualStatsManager.timer(
                 f"ol.emit.attempts.{event_type}.{transport_type}", "ol.emit.attempts"
             ):

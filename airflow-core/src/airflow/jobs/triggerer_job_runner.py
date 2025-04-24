@@ -524,6 +524,8 @@ class TriggerRunnerSupervisor(WatchedSubprocess):
             Stats.incr("triggers.failed")
 
     def emit_metrics(self):
+        # If enabled on the config, publish metrics twice,
+        # once with backward compatible name, and then with tags.
         DualStatsManager.gauge(
             f"triggers.running.{self.job.hostname}",
             "triggers.running",

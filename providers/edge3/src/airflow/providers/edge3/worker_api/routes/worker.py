@@ -203,6 +203,8 @@ def set_state(
     worker.sysinfo = json.dumps(body.sysinfo)
     worker.last_update = timezone.utcnow()
     session.commit()
+    # If enabled on the config, publish metrics twice,
+    # once with backward compatible name, and then with tags.
     DualStatsManager.incr(
         f"edge_worker.heartbeat_count.{worker_name}",
         "edge_worker.heartbeat_count",

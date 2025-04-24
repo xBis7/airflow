@@ -1027,8 +1027,9 @@ metrics:
       default: ""
     legacy_names_on:
       description: |
-        If true, it exports legacy metric names as well.
-        Legacy names contain the tags which increases cardinality.
+        If true, it exports both new and legacy metric names.
+        Legacy names contain variables such as dag_id or task_id which increases cardinality.
+        The new names set these variables inside tags.
       version_added: 3.0.0
       type: string
       example: ~

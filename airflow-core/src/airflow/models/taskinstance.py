@@ -1646,8 +1646,8 @@ class TaskInstance(Base, LoggingMixin):
         else:
             raise NotImplementedError("no metric emission setup for state %s", new_state)
 
-        # depending on the config, send metric twice,
-        # once (legacy) with tags in the name and once with tags as tags
+        # If enabled on the config, publish metrics twice,
+        # once with backward compatible name, and then with tags.
         DualStatsManager.timing(
             f"dag.{self.dag_id}.{self.task_id}.{metric_name}",
             f"task.{metric_name}",
@@ -1699,6 +1699,8 @@ class TaskInstance(Base, LoggingMixin):
         if not test_mode:
             TaskInstance.save_to_db(ti=self, session=session)
         actual_start_date = timezone.utcnow()
+        # If enabled on the config, publish metrics twice,
+        # once with backward compatible name, and then with tags.
         DualStatsManager.incr(
             f"ti.start.{self.task.dag_id}.{self.task.task_id}", "ti.start", tags=self.stats_tags
         )
@@ -2014,6 +2016,8 @@ class TaskInstance(Base, LoggingMixin):
         if not self.next_method:
             self.clear_xcom_data()
 
+        # If enabled on the config, publish metrics twice,
+        # once with backward compatible name, and then with tags.
         with (
             DualStatsManager.timer(
                 f"dag.{self.task.dag_id}.{self.task.task_id}.duration", "task.duration", tags=self.stats_tags
@@ -2107,6 +2111,8 @@ class TaskInstance(Base, LoggingMixin):
                 logger=self.log,
             ).run(context, result)
 
+        # If enabled on the config, publish metrics twice,
+        # once with backward compatible name, and then with tags.
         DualStatsManager.incr(
             f"operator_successes_{self.task.task_type}",
             "operator_successes",
@@ -2468,6 +2474,8 @@ class TaskInstance(Base, LoggingMixin):
         ti.end_date = timezone.utcnow()
         ti.set_duration()
 
+        # If enabled on the config, publish metrics twice,
+        # once with backward compatible name, and then with tags.
         DualStatsManager.incr(
             f"operator_failures_{ti.operator}",
             "operator_failures",

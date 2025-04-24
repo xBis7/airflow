@@ -647,14 +647,12 @@ class TestOtelIntegration:
 
     @classmethod
     def setup_class(cls):
-        # Traces.
         os.environ["AIRFLOW__TRACES__OTEL_ON"] = "True"
         os.environ["AIRFLOW__TRACES__OTEL_HOST"] = "breeze-otel-collector"
         os.environ["AIRFLOW__TRACES__OTEL_PORT"] = "4318"
         if cls.use_otel != "true":
             os.environ["AIRFLOW__TRACES__OTEL_DEBUGGING_ON"] = "True"
 
-        # System.
         os.environ["AIRFLOW__SCHEDULER__STANDALONE_DAG_PROCESSOR"] = "False"
         os.environ["AIRFLOW__SCHEDULER__PROCESSOR_POLL_INTERVAL"] = "2"
 

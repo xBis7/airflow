@@ -61,6 +61,7 @@ POSSIBLE_TEST_FOLDERS = [
     "otel",
     "plugins",
     "providers",
+    "redis_ha",
     "secrets",
     "security",
     "sensors",

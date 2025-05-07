@@ -349,6 +349,7 @@ class ShellParams:
                     )
 
         compose_file_list.append(DOCKER_COMPOSE_DIR / "base.yml")
+        compose_file_list.append(DOCKER_COMPOSE_DIR / "celery.yml")
         self.add_docker_in_docker(compose_file_list)
         compose_file_list.extend(backend_files)
         compose_file_list.append(DOCKER_COMPOSE_DIR / "files.yml")

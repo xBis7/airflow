@@ -33,14 +33,13 @@ services:
     restart: "on-failure"
   redis:
     extends:
-      file: integration-redis-ha.yml
+      file: integration-redis.yml
       service: redis
   airflow:
     environment:
       - INTEGRATION_CELERY=true
-      - CELERY_FLOWER=true
-      - AIRFLOW__CELERY__BROKER_URL=sentinel://sentinel-1:26379;sentinel://sentinel-2:26379;sentinel://sentinel-3:26379/0
-      - AIRFLOW__CELERY_BROKER_TRANSPORT_OPTIONS__MASTER_NAME=test-cluster
+      - CELERY_FLOWER=${CELERY_FLOWER}
+      - AIRFLOW__CELERY__BROKER_URL=${AIRFLOW__CELERY__BROKER_URL}
     depends_on:
       redis:
         condition: service_healthy

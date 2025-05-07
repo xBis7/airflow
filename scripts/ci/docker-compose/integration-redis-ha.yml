@@ -25,6 +25,7 @@ x-redis-primary: &redis-primary
   image: bitnami/redis:7.2
   environment:
     <<: *redis-env
+    REDIS_ANNOUNCE_HOSTNAME: "redis"
   volumes:
     - redis-db-volume:/data/redis
   healthcheck:
@@ -38,33 +39,38 @@ x-redis-replica: &redis-replica
   image: bitnami/redis:7.2
   environment:
     <<: *redis-env
-    REDIS_MASTER_HOST: redis-primary
+    REDIS_REPLICATION_MODE: replica
+    REDIS_MASTER_HOST: redis
     REDIS_MASTER_PORT_NUMBER: 6379
-  depends_on: [redis-primary]
+    REDIS_ANNOUNCE_HOSTNAME: "redis-replica"
+  depends_on: [redis]
 
 x-sentinel: &sentinel-common
   image: bitnami/redis-sentinel:7.2
   environment:
     <<: *redis-env
     REDIS_MASTER_SET: test-cluster
-    REDIS_MASTER_HOST: redis-primary
+    REDIS_MASTER_HOST: redis
     REDIS_MASTER_PORT_NUMBER: 6379
     REDIS_SENTINEL_QUORUM: 2          # 3 sentinels → quorum of 2
   depends_on:
-    - redis-primary
+    - redis
     - redis-replica-1
     - redis-replica-2
 
 # Services
 services:
-  redis-primary:
+  redis:
     <<: *redis-primary
+    hostname: redis
 
   redis-replica-1:
     <<: *redis-replica
+    hostname: redis-replica-1
 
   redis-replica-2:
     <<: *redis-replica
+    hostname: redis-replica-2
 
   sentinel-1:
     <<: *sentinel-common
@@ -80,14 +86,48 @@ services:
     <<: *sentinel-common
     hostname: sentinel-3
 
+  worker:
+    build:
+      context: ..
+      dockerfile: dockerfiles/Dockerfile.celery
+      args:
+        AIRFLOW_BASE_CI_IMAGE: ${AIRFLOW_CI_IMAGE}
+    entrypoint: ["airflow-worker-entry"]
+    environment:
+      AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+      AIRFLOW__CELERY__BROKER_URL: >
+        sentinel://sentinel-1:26379;sentinel://sentinel-2:26379;sentinel://sentinel-3:26379/0
+      AIRFLOW__CELERY_BROKER_TRANSPORT_OPTIONS__MASTER_NAME: test-cluster
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:postgres@postgres/airflow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@postgres/airflow
+    depends_on:
+      sentinel-1:
+        condition: service_started
+      airflow:
+        condition: service_started
+
+  #  flower:
+  #    command: >
+  #      celery --app airflow.providers.celery.executors.celery_executor.app
+  #             flower --port=5555
+  #    depends_on:
+  #      - celery-worker
+
   airflow:
     depends_on:
       sentinel-1:
         condition: service_started
+      sentinel-2:
+        condition: service_started
+      sentinel-3:
+        condition: service_started
+    #      worker:
+    #        condition: service_started
     environment:
       - INTEGRATION_REDIS_HA=true
+      - INTEGRATION_CELERY=true
+      - CELERY_FLOWER=true
       - AIRFLOW__CELERY__BROKER_URL=sentinel://sentinel-1:26379;sentinel://sentinel-2:26379;sentinel://sentinel-3:26379/0
-      - AIRFLOW__CELERY__BROKER_TRANSPORT_OPTIONS={"master_name":"test-cluster"}
-
+      - AIRFLOW__CELERY_BROKER_TRANSPORT_OPTIONS__MASTER_NAME=test-cluster
 volumes:
   redis-db-volume:

@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime
 
 from airflow import DAG
@@ -34,8 +35,9 @@ args = {
 @task
 def task1():
     logger.info("Starting Task_1.")
-    for i in range(3):
+    for i in range(50):
         logger.info("Task_1, iteration '%d'.", i)
+        time.sleep(5)
     logger.info("Task_1 finished.")
 
 

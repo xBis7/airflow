@@ -1,0 +1,32 @@
+ARG AIRFLOW_BASE_CI_IMAGE="ghcr.io/apache/airflow/main/ci/python3.9:latest"
+
+FROM ${AIRFLOW_BASE_CI_IMAGE}
+
+# -----------------------------------------------------------------------------
+# tiny launcher that:
+#   1) finds the real CPython that pyenv put in the image,
+#   2) waits until "airflow db check" succeeds,
+#   3) execs "python -m airflow celery worker".
+# -----------------------------------------------------------------------------
+RUN cat >/usr/local/bin/airflow-worker-entry <<'WRAP' \
+ && chmod +x /usr/local/bin/airflow-worker-entry
+#!/usr/bin/env bash
+set -euo pipefail
+
+# 1) real interpreter
+PYTHON=$(find /opt/airflow/.pyenv/versions -type f -name python -maxdepth 2 | head -1)
+
+# 2) wait for the core to finish DB migration
+echo "[worker] waiting for Airflow metadata DB ..."
+until "$PYTHON" -m airflow db check >/dev/null 2>&1 ; do
+  sleep 5
+done
+echo "[worker] DB ready."
+
+# 3) run the Celery worker
+exec "$PYTHON" -m airflow celery worker --loglevel=INFO "$@"
+WRAP
+
+# optional: pin Celery itself
+ARG CELERY_VERSION=5.3.6
+RUN pip install --no-cache-dir "celery==${CELERY_VERSION}"

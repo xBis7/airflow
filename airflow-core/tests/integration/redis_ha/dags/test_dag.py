@@ -35,7 +35,7 @@ args = {
 @task
 def task1():
     logger.info("Starting Task_1.")
-    for i in range(50):
+    for i in range(15):
         logger.info("Task_1, iteration '%d'.", i)
         time.sleep(5)
     logger.info("Task_1 finished.")

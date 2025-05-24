@@ -125,7 +125,7 @@ services:
     #        condition: service_started
     environment:
       - INTEGRATION_REDIS_HA=true
-      - INTEGRATION_CELERY=true
+#      - INTEGRATION_CELERY=true
       - CELERY_FLOWER=true
       - AIRFLOW__CELERY__BROKER_URL=sentinel://sentinel-1:26379;sentinel://sentinel-2:26379;sentinel://sentinel-3:26379/0
       - AIRFLOW__CELERY_BROKER_TRANSPORT_OPTIONS__MASTER_NAME=test-cluster

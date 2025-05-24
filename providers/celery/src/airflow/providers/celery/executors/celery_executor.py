@@ -291,6 +291,10 @@ class CeleryExecutor(BaseExecutor):
         self.log.debug("Sent all tasks.")
         from airflow.providers.celery.executors.celery_executor_utils import ExceptionWithTraceback
 
+        # import pydevd_pycharm
+        #
+        # pydevd_pycharm.settrace('host.docker.internal', port=3003, stdoutToServer=True, stderrToServer=True)
+
         for key, _, result in key_and_async_results:
             if isinstance(result, ExceptionWithTraceback) and isinstance(
                 result.exception, AirflowTaskTimeout

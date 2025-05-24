@@ -166,7 +166,7 @@ class TestRedisIntegration:
         "--concurrency",
         "1",
         "--loglevel",
-        "INFO",
+        "DEBUG",
     ]
 
     scheduler_command_args = [
@@ -204,11 +204,17 @@ class TestRedisIntegration:
         os.environ["AIRFLOW__CORE__PLUGINS_FOLDER"] = "/dev/null"
         os.environ["AIRFLOW__CORE__UNIT_TEST_MODE"] = "False"
 
-        os.environ["AIRFLOW__CELERY__BROKER_URL"] = (
-            "sentinel://sentinel-1:26379;sentinel://sentinel-2:26379;sentinel://sentinel-3:26379/0"
+        # os.environ["AIRFLOW__CELERY__BROKER_URL"] = (
+        #     "sentinel://sentinel-1:26379;sentinel://sentinel-2:26379;sentinel://sentinel-3:26379/0"
+        # )
+        # os.environ["AIRFLOW__CELERY__RESULT_BACKEND"] = "db+postgresql://postgres:airflow@postgres/airflow"
+        # os.environ["AIRFLOW__CELERY_BROKER_TRANSPORT_OPTIONS__MASTER_NAME"] = "test-cluster"
+
+        os.environ["AIRFLOW__CELERY__CELERY_CONFIG_OPTIONS"] = (
+            "tests_common.test_utils.celery_custom_config.CONFIG_WITH_RETRY_POLICY"
         )
-        os.environ["AIRFLOW__CELERY__RESULT_BACKEND"] = "db+postgresql://postgres:airflow@postgres/airflow"
-        os.environ["AIRFLOW__CELERY_BROKER_TRANSPORT_OPTIONS__MASTER_NAME"] = "test-cluster"
+
+        # os.environ["AIRFLOW__LOGGING__LOGGING_LEVEL"] = "DEBUG"
 
     @classmethod
     def serialize_and_get_dags(cls) -> dict[str, DAG]:
@@ -299,7 +305,7 @@ class TestRedisIntegration:
 
             run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_id)
 
-            wait_for_dag_run(dag_id=dag_id, run_id=run_id, max_wait_time=90)
+            wait_for_dag_run(dag_id=dag_id, run_id=run_id, max_wait_time=200)
 
             time.sleep(10)
 

@@ -276,10 +276,31 @@ def send_task_to_executor(
     try:
         with timeout(seconds=OPERATION_TIMEOUT):
             result = task_to_run.apply_async(args=args, queue=queue)
+
+            # import redis
+            # import pydevd_pycharm
+            #
+            # pydevd_pycharm.settrace('host.docker.internal', port=3003, stdoutToServer=True,
+            #                         stderrToServer=True)
+
+            # result = task_to_run.apply_async(args=args, queue=queue, retry=True, retry_policy={
+            #     'max_retries': 20,
+            #     'interval_start': 10,
+            #     'interval_step': 2,
+            #     'interval_max': 20,
+            #     'retry_errors': (
+            #         Exception,
+            #         redis.exceptions.ConnectionError,
+            #         OperationalError,
+            #         airflow.exceptions.AirflowTaskTimeout,
+            #         MasterNotFoundError,
+            #     ),
+            # })
     except (Exception, AirflowTaskTimeout) as e:
         exception_traceback = f"Celery Task ID: {key}\n{traceback.format_exc()}"
         result = ExceptionWithTraceback(e, exception_traceback)
-
+    # finally:
+    # log.info(f"x: retries: {result.retries}")
     # The type is right for the version, but the type cannot be defined correctly for Airflow 2 and 3
     # concurrently;
     return key, args, result  # type: ignore[return-value]

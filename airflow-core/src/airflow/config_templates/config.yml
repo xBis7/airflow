@@ -679,6 +679,15 @@ database:
       type: integer
       example: ~
       default: "10000"
+    check_db_connectivity:
+      description: |
+        Whether to check the db connectivity before creating a new session.
+        If enabled, the connection to the db hostname will be checked with retries.
+        Accepts ``True`` or ``False``.
+      version_added: 3.1.0
+      type: string
+      example: ~
+      default: "False"
 logging:
   description: ~
   options:

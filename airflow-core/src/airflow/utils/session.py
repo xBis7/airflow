@@ -23,7 +23,10 @@ from inspect import signature
 from typing import TYPE_CHECKING, Callable, TypeVar, cast
 
 from airflow import settings
+from airflow.configuration import conf
 from airflow.typing_compat import ParamSpec
+from airflow.utils import retries
+from airflow.utils.db_connection_status import check_db_connectivity_if_needed
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session as SASession
@@ -38,6 +41,15 @@ def create_session(scoped: bool = True) -> Generator[SASession, None, None]:
         Session = getattr(settings, "NonScopedSession", None)
     if Session is None:
         raise RuntimeError("Session must be set before!")
+
+    check_db_connectivity = conf.getboolean("database", "check_db_connectivity")
+    # It will raise an exception if there is any,
+    # in order to prevent the session from unnecessarily being created.
+    if check_db_connectivity:
+        check_db_connectivity_if_needed(dns_retries=retries.MAX_DB_RETRIES)
+
+    # TODO: what about a scenario where there is any other kind of failure??
+
     session = Session()
     try:
         yield session

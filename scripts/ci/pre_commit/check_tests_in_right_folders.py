@@ -74,7 +74,6 @@ POSSIBLE_TEST_FOLDERS = [
     "triggers",
     "utils",
     "www",
-    "db",
 ]
 
 EXCEPTIONS = [

@@ -17,9 +17,12 @@
 # under the License.
 from __future__ import annotations
 
+import socket
+
 import pytest
 
 from airflow.utils import db_discovery_status
+from airflow.utils.db_discovery_status import DbDiscoveryStatus
 
 
 class TestDbDiscoveryStatus:
@@ -38,3 +41,28 @@ class TestDbDiscoveryStatus:
     def test_get_sleep_time(self, retry: int, expected_sleep_time: float):
         sleep = db_discovery_status.get_sleep_time(retry, 0.5, 15)
         assert sleep == expected_sleep_time
+
+    @pytest.mark.parametrize(
+        "errno, expected",
+        [
+            (socket.EAI_FAIL, DbDiscoveryStatus.PERMANENT_ERROR),
+            (socket.EAI_AGAIN, DbDiscoveryStatus.TEMPORARY_ERROR),
+            (socket.EAI_NONAME, DbDiscoveryStatus.UNKNOWN_HOSTNAME),
+            (socket.EAI_SYSTEM, DbDiscoveryStatus.UNKNOWN_ERROR),
+        ],
+    )
+    def test_check_dns_resolution_with_retries(self, monkeypatch, errno, expected):
+        def raise_exc(*args, **kwargs):
+            # The error message isn't important because the validation is based on the error code.
+            raise socket.gaierror(errno, "patched failure")
+
+        monkeypatch.setattr(socket, "getaddrinfo", raise_exc)
+
+        status, exc = db_discovery_status._check_dns_resolution_with_retries("some_host", 3, 0.5, 5)
+
+        assert status == expected
+        assert isinstance(exc, socket.gaierror)
+        assert exc.errno == errno
+
+        if errno == socket.EAI_AGAIN:
+            assert db_discovery_status.db_retry_count > 1

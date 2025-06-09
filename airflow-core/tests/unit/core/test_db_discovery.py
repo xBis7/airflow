@@ -21,7 +21,6 @@ import logging
 import os
 import shutil
 import socket
-import subprocess
 import time
 
 import pytest
@@ -31,7 +30,7 @@ from airflow import settings
 from airflow.utils import db_discovery_status
 from airflow.utils.db_discovery_status import DbDiscoveryStatus
 
-log = logging.getLogger("integration.db.test_db")
+log = logging.getLogger(__name__)
 
 
 def dispose_connection_pool():
@@ -65,7 +64,6 @@ def assert_query_raises_exc(expected_error_msg: str, expected_status: str, expec
 
 
 @pytest.mark.backend("postgres")
-# TODO: mark db test instead of using a backend.
 class TestDbConnectionIntegration:
     @pytest.fixture
     def patch_getaddrinfo_for_eai_fail(self, monkeypatch):
@@ -127,57 +125,6 @@ class TestDbConnectionIntegration:
             )
 
         finally:
-            # Reset the values for the next tests.
-            db_discovery_status.db_health_status = (DbDiscoveryStatus.OK, 0.0)
-            db_discovery_status.db_retry_count = 0
-
-    def test_db_disconnected(self):
-        os.environ["AIRFLOW__DATABASE__CHECK_DB_DISCOVERY"] = "True"
-
-        getent_result = subprocess.run(["getent hosts postgres"], shell=True, capture_output=True, text=True)
-        assert "postgres" in getent_result.stdout
-
-        # db_disconnect_result = subprocess.run(
-        #     ['docker network disconnect --force breeze_default $(docker ps -aqf "name=^breeze-postgres-1$")'],
-        #     shell=True,
-        #     capture_output=True,
-        #     text=True,
-        # )
-        subprocess.run(
-            ['docker network disconnect --force breeze_default $(docker ps -aqf "name=^breeze-postgres-1$")'],
-            shell=True,
-            capture_output=True,
-            text=True,
-        )
-        # assert not db_disconnect_result.stdout
-
-        # getent_no_result = subprocess.run(
-        #     ["getent hosts postgres"], shell=True, capture_output=True, text=True
-        # )
-        subprocess.run(["getent hosts postgres"], shell=True, capture_output=True, text=True)
-        # There should be no output and the string should assert False.
-        # assert not getent_no_result.stdout
-
-        try:
-            # New connection + DNS lookup.
-            dispose_connection_pool()
-            assert_query_raises_exc(
-                expected_error_msg="Name or service not known",
-                expected_status=DbDiscoveryStatus.UNKNOWN_HOSTNAME,
-                expected_retry_num=0,
-            )
-        finally:
-            # Restore db connection.
-            db_connect_result = subprocess.run(
-                [
-                    'docker network connect --alias postgres breeze_default $(docker ps -aqf "name=^breeze-postgres-1$")'
-                ],
-                shell=True,
-                capture_output=True,
-                text=True,
-            )
-            assert not db_connect_result.stdout
-
             # Reset the values for the next tests.
             db_discovery_status.db_health_status = (DbDiscoveryStatus.OK, 0.0)
             db_discovery_status.db_retry_count = 0

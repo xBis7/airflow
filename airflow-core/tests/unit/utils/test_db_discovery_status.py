@@ -43,7 +43,7 @@ class TestDbDiscoveryStatus:
         assert sleep == expected_sleep_time
 
     @pytest.mark.parametrize(
-        "errno, expected",
+        "error_code, expected_status",
         [
             (socket.EAI_FAIL, DbDiscoveryStatus.PERMANENT_ERROR),
             (socket.EAI_AGAIN, DbDiscoveryStatus.TEMPORARY_ERROR),
@@ -51,18 +51,20 @@ class TestDbDiscoveryStatus:
             (socket.EAI_SYSTEM, DbDiscoveryStatus.UNKNOWN_ERROR),
         ],
     )
-    def test_check_dns_resolution_with_retries(self, monkeypatch, errno, expected):
+    def test_check_dns_resolution_with_retries(self, monkeypatch, error_code, expected_status):
         def raise_exc(*args, **kwargs):
             # The error message isn't important because the validation is based on the error code.
-            raise socket.gaierror(errno, "patched failure")
+            raise socket.gaierror(error_code, "patched failure")
 
         monkeypatch.setattr(socket, "getaddrinfo", raise_exc)
 
-        status, exc = db_discovery_status._check_dns_resolution_with_retries("some_host", 3, 0.5, 5)
+        status, err = db_discovery_status._check_dns_resolution_with_retries("some_host", 3, 0.5, 5)
 
-        assert status == expected
-        assert isinstance(exc, socket.gaierror)
-        assert exc.errno == errno
+        assert status == expected_status
+        assert isinstance(err, socket.gaierror)
+        assert err.errno == error_code
 
-        if errno == socket.EAI_AGAIN:
+        if error_code == socket.EAI_AGAIN:
             assert db_discovery_status.db_retry_count > 1
+        else:
+            assert db_discovery_status.db_retry_count == 0

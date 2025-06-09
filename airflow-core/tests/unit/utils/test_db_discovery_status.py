@@ -15,3 +15,26 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
+import pytest
+
+from airflow.utils import db_discovery_status
+
+
+class TestDbDiscoveryStatus:
+    @pytest.mark.parametrize(
+        "retry, expected_sleep_time",
+        [
+            pytest.param(0, 0.5, id="attempt-1"),
+            pytest.param(1, 1, id="attempt-2"),
+            pytest.param(2, 2, id="attempt-3"),
+            pytest.param(3, 4, id="attempt-4"),
+            pytest.param(4, 8, id="attempt-5"),
+            pytest.param(5, 15, id="attempt-6"),
+            pytest.param(6, 15, id="attempt-7"),
+        ],
+    )
+    def test_get_sleep_time(self, retry: int, expected_sleep_time: float):
+        sleep = db_discovery_status.get_sleep_time(retry, 0.5, 15)
+        assert sleep == expected_sleep_time

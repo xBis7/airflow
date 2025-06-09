@@ -28,8 +28,8 @@ import pytest
 from sqlalchemy import text
 
 from airflow import settings
-from airflow.utils import db_connection_status
-from airflow.utils.db_connection_status import DbConnectionStatus
+from airflow.utils import db_discovery_status
+from airflow.utils.db_discovery_status import DbDiscoveryStatus
 
 log = logging.getLogger("integration.db.test_db")
 
@@ -55,25 +55,35 @@ def make_db_test_call():
 
 
 def assert_query_raises_exc(expected_error_msg: str, expected_status: str, expected_retry_num: int):
-    db_connection_status.force_refresh = True
     with pytest.raises(socket.gaierror, match=expected_error_msg):
         make_db_test_call()
 
-    assert len(db_connection_status.db_health_status) == 2
+    assert len(db_discovery_status.db_health_status) == 2
 
-    assert db_connection_status.db_health_status[0] == expected_status
-    assert db_connection_status.db_retry_count == expected_retry_num
+    assert db_discovery_status.db_health_status[0] == expected_status
+    assert db_discovery_status.db_retry_count == expected_retry_num
 
 
 @pytest.mark.backend("postgres")
+# TODO: mark db test instead of using a backend.
 class TestDbConnectionIntegration:
+    @pytest.fixture
+    def patch_getaddrinfo_for_eai_fail(self, monkeypatch):
+        import socket
+
+        def always_fail(*args, **kwargs):
+            # The error message isn't important, as long as the error code is EAI_FAIL.
+            raise socket.gaierror(socket.EAI_FAIL, "permanent failure")
+
+        monkeypatch.setattr(socket, "getaddrinfo", always_fail)
+
     def test_dns_resolution_blip(self):
         """
         Overwrite /etc/resolv.conf with a black-hole nameserver so that
         getaddrinfo() yields EAI_AGAIN → psycopg2 prints
         'Temporary failure in name resolution'.
         """
-        os.environ["AIRFLOW__DATABASE__CHECK_DB_CONNECTIVITY"] = "True"
+        os.environ["AIRFLOW__DATABASE__CHECK_DB_DISCOVERY"] = "True"
 
         resolv_file = "/etc/resolv.conf"
         resolv_backup = "/tmp/resolv.conf.bak"
@@ -90,21 +100,39 @@ class TestDbConnectionIntegration:
             dispose_connection_pool()
             assert_query_raises_exc(
                 expected_error_msg="Temporary failure in name resolution",
-                expected_status=DbConnectionStatus.TRANSIENT_DNS,
+                expected_status=DbDiscoveryStatus.TEMPORARY_ERROR,
                 expected_retry_num=3,
             )
 
         finally:
             # Reset the values for the next tests.
-            db_connection_status.db_health_status = (DbConnectionStatus.OK, 0.0)
-            db_connection_status.db_retry_count = 0
+            db_discovery_status.db_health_status = (DbDiscoveryStatus.OK, 0.0)
+            db_discovery_status.db_retry_count = 0
 
             # Restore the original file.
             with contextlib.suppress(Exception):
                 shutil.copy(resolv_backup, resolv_file)
 
+    def test_permanent_dns_failure(self, patch_getaddrinfo_for_eai_fail):
+        os.environ["AIRFLOW__DATABASE__CHECK_DB_DISCOVERY"] = "True"
+
+        try:
+            # New connection + DNS lookup.
+            dispose_connection_pool()
+            assert_query_raises_exc(
+                # The error code is more important than the message.
+                expected_error_msg="permanent failure",
+                expected_status=DbDiscoveryStatus.PERMANENT_ERROR,
+                expected_retry_num=0,
+            )
+
+        finally:
+            # Reset the values for the next tests.
+            db_discovery_status.db_health_status = (DbDiscoveryStatus.OK, 0.0)
+            db_discovery_status.db_retry_count = 0
+
     def test_db_disconnected(self):
-        os.environ["AIRFLOW__DATABASE__CHECK_DB_CONNECTIVITY"] = "True"
+        os.environ["AIRFLOW__DATABASE__CHECK_DB_DISCOVERY"] = "True"
 
         getent_result = subprocess.run(["getent hosts postgres"], shell=True, capture_output=True, text=True)
         assert "postgres" in getent_result.stdout
@@ -128,7 +156,7 @@ class TestDbConnectionIntegration:
             dispose_connection_pool()
             assert_query_raises_exc(
                 expected_error_msg="Name or service not known",
-                expected_status=DbConnectionStatus.PERMANENT_DNS,
+                expected_status=DbDiscoveryStatus.UNKNOWN_HOSTNAME,
                 expected_retry_num=0,
             )
         finally:
@@ -144,11 +172,11 @@ class TestDbConnectionIntegration:
             assert not db_connect_result.stdout
 
             # Reset the values for the next tests.
-            db_connection_status.db_health_status = (DbConnectionStatus.OK, 0.0)
-            db_connection_status.db_retry_count = 0
+            db_discovery_status.db_health_status = (DbDiscoveryStatus.OK, 0.0)
+            db_discovery_status.db_retry_count = 0
 
     def test_invalid_hostname_in_config(self):
-        os.environ["AIRFLOW__DATABASE__CHECK_DB_CONNECTIVITY"] = "True"
+        os.environ["AIRFLOW__DATABASE__CHECK_DB_DISCOVERY"] = "True"
         os.environ["AIRFLOW__DATABASE__SQL_ALCHEMY_CONN"] = (
             "postgresql+psycopg2://postgres:airflow@invalid/airflow"
         )
@@ -158,7 +186,7 @@ class TestDbConnectionIntegration:
             dispose_connection_pool()
             assert_query_raises_exc(
                 expected_error_msg="Name or service not known",
-                expected_status=DbConnectionStatus.PERMANENT_DNS,
+                expected_status=DbDiscoveryStatus.UNKNOWN_HOSTNAME,
                 expected_retry_num=0,
             )
         finally:
@@ -167,15 +195,22 @@ class TestDbConnectionIntegration:
             )
 
             # Reset the values for the next tests.
-            db_connection_status.db_health_status = (DbConnectionStatus.OK, 0.0)
-            db_connection_status.db_retry_count = 0
+            db_discovery_status.db_health_status = (DbDiscoveryStatus.OK, 0.0)
+            db_discovery_status.db_retry_count = 0
 
-    def test_check_not_enabled(self):
-        os.environ["AIRFLOW__DATABASE__CHECK_DB_CONNECTIVITY"] = "False"
+    @pytest.mark.parametrize(
+        "check_enabled",
+        [
+            pytest.param(True, id="check-enabled"),
+            pytest.param(False, id="check-disabled"),
+        ],
+    )
+    def test_no_errors(self, check_enabled: bool):
+        os.environ["AIRFLOW__DATABASE__CHECK_DB_DISCOVERY"] = str(check_enabled)
 
         dispose_connection_pool()
         make_db_test_call()
 
         # No status checks and no retries.
-        assert db_connection_status.db_health_status[0] == DbConnectionStatus.OK
-        assert db_connection_status.db_retry_count == 0
+        assert db_discovery_status.db_health_status[0] == DbDiscoveryStatus.OK
+        assert db_discovery_status.db_retry_count == 0

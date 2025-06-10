@@ -27,8 +27,8 @@ import pytest
 from sqlalchemy import text
 
 from airflow import settings
-from airflow.utils import db_discovery_status
-from airflow.utils.db_discovery_status import DbDiscoveryStatus
+from airflow.utils import db_discovery
+from airflow.utils.db_discovery import DbDiscoveryStatus
 
 log = logging.getLogger(__name__)
 
@@ -57,10 +57,10 @@ def assert_query_raises_exc(expected_error_msg: str, expected_status: str, expec
     with pytest.raises(socket.gaierror, match=expected_error_msg):
         make_db_test_call()
 
-    assert len(db_discovery_status.db_health_status) == 2
+    assert len(db_discovery.db_health_status) == 2
 
-    assert db_discovery_status.db_health_status[0] == expected_status
-    assert db_discovery_status.db_retry_count == expected_retry_num
+    assert db_discovery.db_health_status[0] == expected_status
+    assert db_discovery.db_retry_count == expected_retry_num
 
 
 @pytest.mark.backend("postgres")
@@ -99,8 +99,8 @@ class TestDbDiscoveryIntegration:
 
         finally:
             # Reset the values for the next tests.
-            db_discovery_status.db_health_status = (DbDiscoveryStatus.OK, 0.0)
-            db_discovery_status.db_retry_count = 0
+            db_discovery.db_health_status = (DbDiscoveryStatus.OK, 0.0)
+            db_discovery.db_retry_count = 0
 
             # Restore the original file.
             with contextlib.suppress(Exception):
@@ -120,8 +120,8 @@ class TestDbDiscoveryIntegration:
 
         finally:
             # Reset the values for the next tests.
-            db_discovery_status.db_health_status = (DbDiscoveryStatus.OK, 0.0)
-            db_discovery_status.db_retry_count = 0
+            db_discovery.db_health_status = (DbDiscoveryStatus.OK, 0.0)
+            db_discovery.db_retry_count = 0
 
     def test_invalid_hostname_in_config(self):
         os.environ["AIRFLOW__DATABASE__CHECK_DB_DISCOVERY"] = "True"
@@ -143,8 +143,8 @@ class TestDbDiscoveryIntegration:
             )
 
             # Reset the values for the next tests.
-            db_discovery_status.db_health_status = (DbDiscoveryStatus.OK, 0.0)
-            db_discovery_status.db_retry_count = 0
+            db_discovery.db_health_status = (DbDiscoveryStatus.OK, 0.0)
+            db_discovery.db_retry_count = 0
 
     @pytest.mark.parametrize(
         "check_enabled",
@@ -160,5 +160,5 @@ class TestDbDiscoveryIntegration:
         make_db_test_call()
 
         # No status checks and no retries.
-        assert db_discovery_status.db_health_status[0] == DbDiscoveryStatus.OK
-        assert db_discovery_status.db_retry_count == 0
+        assert db_discovery.db_health_status[0] == DbDiscoveryStatus.OK
+        assert db_discovery.db_retry_count == 0

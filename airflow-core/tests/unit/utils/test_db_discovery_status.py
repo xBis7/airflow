@@ -21,8 +21,8 @@ import socket
 
 import pytest
 
-from airflow.utils import db_discovery_status
-from airflow.utils.db_discovery_status import DbDiscoveryStatus
+from airflow.utils import db_discovery
+from airflow.utils.db_discovery import DbDiscoveryStatus
 
 
 class TestDbDiscoveryStatus:
@@ -39,7 +39,7 @@ class TestDbDiscoveryStatus:
         ],
     )
     def test_get_sleep_time(self, retry: int, expected_sleep_time: float):
-        sleep = db_discovery_status.get_sleep_time(retry, 0.5, 15)
+        sleep = db_discovery.get_sleep_time(retry, 0.5, 15)
         assert sleep == expected_sleep_time
 
     @pytest.mark.parametrize(
@@ -58,7 +58,7 @@ class TestDbDiscoveryStatus:
 
         monkeypatch.setattr(socket, "getaddrinfo", raise_exc)
 
-        status, err = db_discovery_status._check_dns_resolution_with_retries("some_host", 3, 0.5, 5)
+        status, err = db_discovery._check_dns_resolution_with_retries("some_host", 3, 0.5, 5)
 
         assert status == expected_status
         assert isinstance(err, socket.gaierror)
@@ -66,6 +66,6 @@ class TestDbDiscoveryStatus:
 
         # If the failure is temporary, then there must be retries.
         if error_code == socket.EAI_AGAIN:
-            assert db_discovery_status.db_retry_count > 1
+            assert db_discovery.db_retry_count > 1
         else:
-            assert db_discovery_status.db_retry_count == 0
+            assert db_discovery.db_retry_count == 0

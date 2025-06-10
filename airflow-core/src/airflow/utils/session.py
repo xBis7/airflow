@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, Callable, TypeVar, cast
 from airflow import settings
 from airflow.configuration import conf
 from airflow.typing_compat import ParamSpec
-from airflow.utils.db_discovery_status import check_db_discovery_with_retries
+from airflow.utils.db_discovery import check_db_discovery_with_retries
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session as SASession

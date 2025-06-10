@@ -705,7 +705,7 @@ database:
     db_discov_max_wait_time:
       description: |
         The sleep between db discovery check retries increases exponentially.
-        The maximum number of seconds that the sleep can be.
+        Set the maximum number of seconds that the sleep can be.
         Once this number is reached, the interval won't grow any more.
         The value should preferably be short.
       version_added: 3.1.0

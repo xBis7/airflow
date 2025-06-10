@@ -59,9 +59,10 @@ def get_sleep_time(retry_attempt: int, initial_wait: float, max_wait: float) -> 
 
 
 def _retry_exponential_backoff(retry_attempt: int, initial_wait: float, max_wait: float) -> None:
-    delay = get_sleep_time(retry_attempt, initial_wait, max_wait)
-    print(f"Sleeping for {delay} seconds.")
-    time.sleep(delay)
+    sleep_time = get_sleep_time(retry_attempt, initial_wait, max_wait)
+    unit_str = "second" if sleep_time == float(1) else "seconds"
+    logger.info("Sleeping for %.2f %s.", sleep_time, unit_str)
+    time.sleep(sleep_time)
 
 
 def _check_dns_resolution_with_retries(
@@ -98,7 +99,7 @@ def _check_dns_resolution_with_retries(
     return DbDiscoveryStatus.OK, None
 
 
-def check_db_discovery_if_needed(retry_num: int, initial_retry_wait: float, max_retry_wait: float):
+def check_db_discovery_with_retries(retry_num: int, initial_retry_wait: float, max_retry_wait: float):
     global db_health_status
 
     # DNS check.
@@ -109,7 +110,7 @@ def check_db_discovery_if_needed(retry_num: int, initial_retry_wait: float, max_
     )
 
     if dns_status != DbDiscoveryStatus.OK and dns_exc:
-        logger.error("Database hostname %s failed DNS resolution: %s", host, dns_status)
+        logger.error("Database hostname '%s' failed DNS resolution: %s", host, dns_status)
         db_health_status = (dns_status, time.time())
         raise dns_exc
 

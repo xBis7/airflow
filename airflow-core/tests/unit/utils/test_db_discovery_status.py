@@ -64,6 +64,7 @@ class TestDbDiscoveryStatus:
         assert isinstance(err, socket.gaierror)
         assert err.errno == error_code
 
+        # If the failure is temporary, then there must be retries.
         if error_code == socket.EAI_AGAIN:
             assert db_discovery_status.db_retry_count > 1
         else:

@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, Callable, TypeVar, cast
 from airflow import settings
 from airflow.configuration import conf
 from airflow.typing_compat import ParamSpec
-from airflow.utils.db_discovery_status import check_db_discovery_if_needed
+from airflow.utils.db_discovery_status import check_db_discovery_with_retries
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session as SASession
@@ -48,7 +48,7 @@ def create_session(scoped: bool = True) -> Generator[SASession, None, None]:
     # If there is an exception, it will be raised
     # in order to prevent the session from unnecessarily being created.
     if check_db_discovery:
-        check_db_discovery_if_needed(
+        check_db_discovery_with_retries(
             retry_num=db_discov_retries,
             initial_retry_wait=db_discov_initial_wait,
             max_retry_wait=db_discov_max_wait,

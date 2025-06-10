@@ -64,7 +64,7 @@ def assert_query_raises_exc(expected_error_msg: str, expected_status: str, expec
 
 
 @pytest.mark.backend("postgres")
-class TestDbConnectionIntegration:
+class TestDbDiscoveryIntegration:
     @pytest.fixture
     def patch_getaddrinfo_for_eai_fail(self, monkeypatch):
         import socket
@@ -76,11 +76,6 @@ class TestDbConnectionIntegration:
         monkeypatch.setattr(socket, "getaddrinfo", always_fail)
 
     def test_dns_resolution_blip(self):
-        """
-        Overwrite /etc/resolv.conf with a black-hole nameserver so that
-        getaddrinfo() yields EAI_AGAIN → psycopg2 prints
-        'Temporary failure in name resolution'.
-        """
         os.environ["AIRFLOW__DATABASE__CHECK_DB_DISCOVERY"] = "True"
 
         resolv_file = "/etc/resolv.conf"
@@ -118,7 +113,6 @@ class TestDbConnectionIntegration:
             # New connection + DNS lookup.
             dispose_connection_pool()
             assert_query_raises_exc(
-                # The error code is more important than the message.
                 expected_error_msg="permanent failure",
                 expected_status=DbDiscoveryStatus.PERMANENT_ERROR,
                 expected_retry_num=0,

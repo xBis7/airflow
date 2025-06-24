@@ -32,7 +32,7 @@ from functools import lru_cache, partial
 from itertools import groupby
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import and_, delete, desc, exists, func, or_, select, text, tuple_, update
+from sqlalchemy import and_, delete, desc, exists, func, lateral, literal_column, not_, or_, select, text, tuple_, update
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import joinedload, lazyload, load_only, make_transient, selectinload
 from sqlalchemy.sql import expression
@@ -331,6 +331,17 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
             self.log.info("\n\t".join(map(repr, callstack)))
             self.log.info("-" * 80)
 
+    def __print_tis_selection(self, tis: list[TI]) -> None:
+        self.log.info(f"TaskInstance selection is: {dict(Counter(ti.dag_id for ti in tis))}")
+
+    def __get_current_dag_concurrency(self, states: Iterable[TaskInstanceState]) -> Query:
+        return (
+            select(TI.dag_id, func.count("*").label("dag_count"))
+            .where(TI.state.in_(states))
+            .group_by(TI.dag_id)
+            .subquery()
+        )
+
     def _executable_task_instances_to_queued(self, max_tis: int, session: Session) -> list[TI]:
         """
         Find TIs that are ready for execution based on conditions.
@@ -385,6 +396,7 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
         # dag_id to # of running tasks and (dag_id, task_id) to # of running tasks.
         concurrency_map = ConcurrencyMap()
         concurrency_map.load(session=session)
+        dag_concurrency_subquery = self.__get_current_dag_concurrency(states=EXECUTION_STATES)
 
         # Number of tasks that cannot be scheduled because of no open slot in pool
         num_starving_tasks_total = 0
@@ -402,18 +414,68 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
             num_starved_tasks = len(starved_tasks)
             num_starved_tasks_task_dagrun_concurrency = len(starved_tasks_task_dagrun_concurrency)
 
-            query = (
-                select(TI)
-                .with_hint(TI, "USE INDEX (ti_state)", dialect_name="mysql")
-                .join(TI.dag_run)
-                .where(DR.state == DagRunState.RUNNING)
-                .join(TI.dag_model)
-                .where(~DM.is_paused)
-                .where(TI.state == TaskInstanceState.SCHEDULED)
-                .where(DM.bundle_name.is_not(None))
-                .options(selectinload(TI.dag_model))
-                .order_by(-TI.priority_weight, DR.logical_date, TI.map_index)
-            )
+            if conf.getboolean("scheduler", "enable_task_fail_selection"):
+                query = (
+                    select(TI)
+                    .with_hint(TI, "USE INDEX (ti_state)", dialect_name="mysql")
+                    .join(TI.dag_run)
+                    .where(DR.state == DagRunState.RUNNING)
+                    .join(TI.dag_model)
+                    .where(~DM.is_paused)
+                    .where(TI.state == TaskInstanceState.SCHEDULED)
+                    .where(DM.bundle_name.is_not(None))
+                    .join(
+                        dag_concurrency_subquery, TI.dag_id == dag_concurrency_subquery.c.dag_id, isouter=True
+                    )
+                    .where(func.coalesce(dag_concurrency_subquery.c.dag_count, 0) < DM.max_active_tasks)
+                    .options(selectinload(TI.dag_model))
+                    .order_by(-TI.priority_weight, DR.logical_date, TI.map_index)
+                )
+            else:
+                query = (
+                    select(TI)
+                    .with_hint(TI, "USE INDEX (ti_state)", dialect_name="mysql")
+                    .join(TI.dag_run)
+                    .where(DR.state == DagRunState.RUNNING)
+                    .join(TI.dag_model)
+                    .where(~DM.is_paused)
+                    .where(TI.state == TaskInstanceState.SCHEDULED)
+                    .where(DM.bundle_name.is_not(None))
+                    .options(selectinload(TI.dag_model))
+                    .order_by(-TI.priority_weight, DR.logical_date, TI.map_index)
+                )
+
+            # Fair selection will ensure task instances are selected across multiple running DAGs
+            if conf.getboolean("scheduler", "enable_task_fail_selection") and conf.get(
+                "database", "sql_alchemy_conn"
+            ).lower().startswith("postgresql"):
+                self.log.info("Scheduler fair selection is enabled")
+
+                per_dag_limit = int(os.getenv("AIRFLOW__SCHEDULER_FAIR_SELECTION_PER_DAG_LIMIT", 16))
+
+                self.log.info(f"Scheduler fair selection per dag limit is {per_dag_limit}")
+
+                _subquery_dm = select(DM.dag_id).where(not_(DM.is_paused)).distinct().subquery()
+
+                _subquery_lateral = lateral(
+                    query.where(TI.dag_id == _subquery_dm.c.dag_id).limit(per_dag_limit)
+                ).alias("limited")
+
+                _reduced = (
+                    select(_subquery_dm, _subquery_lateral)
+                    .select_from(_subquery_dm)
+                    .join(_subquery_lateral, literal_column("true"))
+                    .alias("reduced")
+                )
+
+                query = select(TI).join(
+                    _reduced,
+                    (TI.dag_id == _reduced.c.dag_id)
+                    & (TI.task_id == _reduced.c.task_id)
+                    & (TI.run_id == _reduced.c.run_id)
+                    & (TI.state == _reduced.c.state)
+                    & (TI.map_index == _reduced.c.map_index),
+                )
 
             if starved_pools:
                 query = query.where(TI.pool.not_in(starved_pools))
@@ -425,6 +487,7 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                 query = query.where(tuple_(TI.dag_id, TI.task_id).not_in(starved_tasks))
 
             if starved_tasks_task_dagrun_concurrency:
+                self.log.warning("Starved ")
                 query = query.where(
                     tuple_(TI.dag_id, TI.run_id, TI.task_id).not_in(starved_tasks_task_dagrun_concurrency)
                 )
@@ -437,6 +500,8 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
             try:
                 query = with_row_locks(query, of=TI, session=session, skip_locked=True)
                 task_instances_to_examine: list[TI] = session.scalars(query).all()
+                self.log.info(f"Length of the tis to examine is {len(task_instances_to_examine)}")
+                self.__print_tis_selection(task_instances_to_examine)
 
                 timer.stop(send=True)
             except OperationalError as e:
@@ -1314,7 +1379,7 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                 next_event = timers.run(blocking=False)
                 self.log.debug("Next timed event is in %f", next_event)
 
-            self.log.debug("Ran scheduling loop in %.2f seconds", timer.duration)
+            self.log.info("Ran scheduling loop in %.2f seconds", timer.duration)
             if span.is_recording():
                 span.add_event(
                     name="Ran scheduling loop",
@@ -2086,9 +2151,16 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
             .all()
         )
 
+        print(f"x: running: {running}")
+
         ti_running_metrics = {(row.dag_id, row.task_id, row.queue): row.running_count for row in running}
 
+        Stats.gauge("ti.current.active", len(ti_running_metrics))
+
+        iteration = 0
         for (dag_id, task_id, queue), count in ti_running_metrics.items():
+            iteration += 1
+            print(f"x: here: dag_id: {dag_id} | task_id: {task_id} | count: {count} | iteration: {iteration}")
             Stats.gauge(f"ti.running.{queue}.{dag_id}.{task_id}", count)
             Stats.gauge("ti.running", count, tags={"queue": queue, "dag_id": dag_id, "task_id": task_id})
 

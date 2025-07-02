@@ -188,8 +188,10 @@ with DAG(
     default_args=args,
     schedule=None,
     catchup=False,
+    max_active_tasks=20,
+    max_active_runs=5,
 ) as dag:
-    chain(
+    parallel_tasks = [
         task1(),
         task2(),
         task3(),
@@ -215,4 +217,4 @@ with DAG(
         task23(),
         task24(),
         task25(),
-    )  # type: ignore
+    ]  # type: ignore

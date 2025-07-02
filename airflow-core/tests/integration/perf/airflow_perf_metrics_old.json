@@ -1,0 +1,2152 @@
+{
+  "with_fts": {
+    "check_1": {
+      "timestamp": "2025-06-29T08:10:20.447590+00:00",
+      "running_total": 0,
+      "scheduled_total": 0,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 0.0,
+        "memory_usage": 2.49
+      },
+      "worker1": {
+        "cpu_usage": 0.0,
+        "memory_usage": 3.11
+      },
+      "worker2": {
+        "cpu_usage": 972.5,
+        "memory_usage": 3.11
+      },
+      "worker3": {
+        "cpu_usage": 0.0,
+        "memory_usage": 3.11
+      }
+    },
+    "check_2": {
+      "timestamp": "2025-06-29T08:10:25.504474+00:00",
+      "running_total": 0,
+      "scheduled_total": 0,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 2.4,
+        "memory_usage": 2.49
+      },
+      "worker1": {
+        "cpu_usage": 99.2,
+        "memory_usage": 3.11
+      },
+      "worker2": {
+        "cpu_usage": 99.2,
+        "memory_usage": 3.11
+      },
+      "worker3": {
+        "cpu_usage": 99.0,
+        "memory_usage": 3.11
+      }
+    },
+    "check_3": {
+      "timestamp": "2025-06-29T08:10:30.714074+00:00",
+      "running_total": 0,
+      "scheduled_total": 0,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 3.5,
+        "memory_usage": 2.5
+      },
+      "worker1": {
+        "cpu_usage": 46.0,
+        "memory_usage": 3.11
+      },
+      "worker2": {
+        "cpu_usage": 44.8,
+        "memory_usage": 3.11
+      },
+      "worker3": {
+        "cpu_usage": 47.0,
+        "memory_usage": 3.11
+      }
+    },
+    "check_4": {
+      "timestamp": "2025-06-29T08:10:35.867010+00:00",
+      "running_total": 0,
+      "scheduled_total": 112,
+      "queued_total": 16,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 0,
+        "scheduled": 112,
+        "queued": 16
+      },
+      "sched1": {
+        "cpu_usage": 10.7,
+        "memory_usage": 2.53
+      },
+      "worker1": {
+        "cpu_usage": 1.4,
+        "memory_usage": 3.11
+      },
+      "worker2": {
+        "cpu_usage": 1.0,
+        "memory_usage": 3.11
+      },
+      "worker3": {
+        "cpu_usage": 1.6,
+        "memory_usage": 3.11
+      }
+    },
+    "check_5": {
+      "timestamp": "2025-06-29T08:10:40.935565+00:00",
+      "running_total": 7,
+      "scheduled_total": 112,
+      "queued_total": 9,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 7,
+        "scheduled": 112,
+        "queued": 9
+      },
+      "sched1": {
+        "cpu_usage": 7.5,
+        "memory_usage": 2.54
+      },
+      "worker1": {
+        "cpu_usage": 0.6,
+        "memory_usage": 3.11
+      },
+      "worker2": {
+        "cpu_usage": 0.8,
+        "memory_usage": 3.11
+      },
+      "worker3": {
+        "cpu_usage": 0.4,
+        "memory_usage": 3.11
+      }
+    },
+    "check_6": {
+      "timestamp": "2025-06-29T08:10:45.977809+00:00",
+      "running_total": 16,
+      "scheduled_total": 112,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 16,
+        "scheduled": 112,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 5.8,
+        "memory_usage": 2.55
+      },
+      "worker1": {
+        "cpu_usage": 0.8,
+        "memory_usage": 3.11
+      },
+      "worker2": {
+        "cpu_usage": 0.8,
+        "memory_usage": 3.11
+      },
+      "worker3": {
+        "cpu_usage": 0.8,
+        "memory_usage": 3.11
+      }
+    },
+    "check_7": {
+      "timestamp": "2025-06-29T08:10:51.016950+00:00",
+      "running_total": 9,
+      "scheduled_total": 105,
+      "queued_total": 7,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 9,
+        "scheduled": 105,
+        "queued": 7
+      },
+      "sched1": {
+        "cpu_usage": 7.9,
+        "memory_usage": 2.58
+      },
+      "worker1": {
+        "cpu_usage": 0.4,
+        "memory_usage": 3.11
+      },
+      "worker2": {
+        "cpu_usage": 0.6,
+        "memory_usage": 3.11
+      },
+      "worker3": {
+        "cpu_usage": 0.2,
+        "memory_usage": 3.11
+      }
+    },
+    "check_8": {
+      "timestamp": "2025-06-29T08:10:56.066113+00:00",
+      "running_total": 12,
+      "scheduled_total": 127,
+      "queued_total": 20,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 3,
+        "scheduled": 29,
+        "queued": 13
+      },
+      "dag_128_tasks": {
+        "running": 9,
+        "scheduled": 98,
+        "queued": 7
+      },
+      "sched1": {
+        "cpu_usage": 23.8,
+        "memory_usage": 2.58
+      },
+      "worker1": {
+        "cpu_usage": 2.0,
+        "memory_usage": 3.11
+      },
+      "worker2": {
+        "cpu_usage": 2.2,
+        "memory_usage": 3.11
+      },
+      "worker3": {
+        "cpu_usage": 2.4,
+        "memory_usage": 3.11
+      }
+    },
+    "check_9": {
+      "timestamp": "2025-06-29T08:11:01.211004+00:00",
+      "running_total": 29,
+      "scheduled_total": 125,
+      "queued_total": 3,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 15,
+        "scheduled": 29,
+        "queued": 1
+      },
+      "dag_128_tasks": {
+        "running": 14,
+        "scheduled": 96,
+        "queued": 2
+      },
+      "sched1": {
+        "cpu_usage": 14.0,
+        "memory_usage": 2.58
+      },
+      "worker1": {
+        "cpu_usage": 1.4,
+        "memory_usage": 3.11
+      },
+      "worker2": {
+        "cpu_usage": 1.8,
+        "memory_usage": 3.11
+      },
+      "worker3": {
+        "cpu_usage": 1.0,
+        "memory_usage": 3.11
+      }
+    },
+    "check_10": {
+      "timestamp": "2025-06-29T08:11:06.329007+00:00",
+      "running_total": 30,
+      "scheduled_total": 118,
+      "queued_total": 2,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 16,
+        "scheduled": 29,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 14,
+        "scheduled": 89,
+        "queued": 2
+      },
+      "sched1": {
+        "cpu_usage": 23.7,
+        "memory_usage": 2.72
+      },
+      "worker1": {
+        "cpu_usage": 1.4,
+        "memory_usage": 3.1
+      },
+      "worker2": {
+        "cpu_usage": 1.0,
+        "memory_usage": 3.09
+      },
+      "worker3": {
+        "cpu_usage": 1.4,
+        "memory_usage": 3.1
+      }
+    },
+    "check_11": {
+      "timestamp": "2025-06-29T08:11:11.366132+00:00",
+      "running_total": 30,
+      "scheduled_total": 99,
+      "queued_total": 1,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 15,
+        "scheduled": 16,
+        "queued": 1
+      },
+      "dag_128_tasks": {
+        "running": 15,
+        "scheduled": 83,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 20.0,
+        "memory_usage": 2.73
+      },
+      "worker1": {
+        "cpu_usage": 1.4,
+        "memory_usage": 3.1
+      },
+      "worker2": {
+        "cpu_usage": 2.2,
+        "memory_usage": 3.09
+      },
+      "worker3": {
+        "cpu_usage": 1.6,
+        "memory_usage": 3.1
+      }
+    },
+    "check_12": {
+      "timestamp": "2025-06-29T08:11:16.518461+00:00",
+      "running_total": 29,
+      "scheduled_total": 91,
+      "queued_total": 1,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 16,
+        "scheduled": 13,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 13,
+        "scheduled": 78,
+        "queued": 1
+      },
+      "sched1": {
+        "cpu_usage": 32.5,
+        "memory_usage": 2.47
+      },
+      "worker1": {
+        "cpu_usage": 1.4,
+        "memory_usage": 2.83
+      },
+      "worker2": {
+        "cpu_usage": 1.0,
+        "memory_usage": 2.83
+      },
+      "worker3": {
+        "cpu_usage": 1.0,
+        "memory_usage": 2.83
+      }
+    },
+    "check_13": {
+      "timestamp": "2025-06-29T08:11:21.633129+00:00",
+      "running_total": 29,
+      "scheduled_total": 90,
+      "queued_total": 22,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 5,
+        "queued": 20
+      },
+      "dag_45_tasks": {
+        "running": 14,
+        "scheduled": 12,
+        "queued": 1
+      },
+      "dag_128_tasks": {
+        "running": 15,
+        "scheduled": 73,
+        "queued": 1
+      },
+      "sched1": {
+        "cpu_usage": 24.6,
+        "memory_usage": 2.41
+      },
+      "worker1": {
+        "cpu_usage": 1.4,
+        "memory_usage": 2.72
+      },
+      "worker2": {
+        "cpu_usage": 0.8,
+        "memory_usage": 2.71
+      },
+      "worker3": {
+        "cpu_usage": 1.6,
+        "memory_usage": 2.72
+      }
+    },
+    "check_14": {
+      "timestamp": "2025-06-29T08:11:26.661678+00:00",
+      "running_total": 30,
+      "scheduled_total": 71,
+      "queued_total": 16,
+      "dag_25_tasks": {
+        "running": 20,
+        "scheduled": 5,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 1,
+        "scheduled": 0,
+        "queued": 12
+      },
+      "dag_128_tasks": {
+        "running": 9,
+        "scheduled": 66,
+        "queued": 4
+      },
+      "sched1": {
+        "cpu_usage": 31.2,
+        "memory_usage": 2.41
+      },
+      "worker1": {
+        "cpu_usage": 2.0,
+        "memory_usage": 2.71
+      },
+      "worker2": {
+        "cpu_usage": 2.0,
+        "memory_usage": 2.71
+      },
+      "worker3": {
+        "cpu_usage": 1.4,
+        "memory_usage": 2.71
+      }
+    },
+    "check_15": {
+      "timestamp": "2025-06-29T08:11:31.675320+00:00",
+      "running_total": 30,
+      "scheduled_total": 64,
+      "queued_total": 18,
+      "dag_25_tasks": {
+        "running": 20,
+        "scheduled": 5,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 6,
+        "scheduled": 0,
+        "queued": 7
+      },
+      "dag_128_tasks": {
+        "running": 4,
+        "scheduled": 59,
+        "queued": 11
+      },
+      "sched1": {
+        "cpu_usage": 20.3,
+        "memory_usage": 2.44
+      },
+      "worker1": {
+        "cpu_usage": 0.4,
+        "memory_usage": 2.71
+      },
+      "worker2": {
+        "cpu_usage": 0.2,
+        "memory_usage": 2.71
+      },
+      "worker3": {
+        "cpu_usage": 0.8,
+        "memory_usage": 2.71
+      }
+    },
+    "check_16": {
+      "timestamp": "2025-06-29T08:11:36.702130+00:00",
+      "running_total": 30,
+      "scheduled_total": 57,
+      "queued_total": 5,
+      "dag_25_tasks": {
+        "running": 2,
+        "scheduled": 0,
+        "queued": 5
+      },
+      "dag_45_tasks": {
+        "running": 12,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 16,
+        "scheduled": 57,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 21.5,
+        "memory_usage": 2.44
+      },
+      "worker1": {
+        "cpu_usage": 2.0,
+        "memory_usage": 2.71
+      },
+      "worker2": {
+        "cpu_usage": 2.0,
+        "memory_usage": 2.71
+      },
+      "worker3": {
+        "cpu_usage": 1.8,
+        "memory_usage": 2.71
+      }
+    },
+    "check_17": {
+      "timestamp": "2025-06-29T08:11:41.726082+00:00",
+      "running_total": 29,
+      "scheduled_total": 54,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 5,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 8,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 16,
+        "scheduled": 54,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 13.7,
+        "memory_usage": 2.44
+      },
+      "worker1": {
+        "cpu_usage": 1.8,
+        "memory_usage": 2.71
+      },
+      "worker2": {
+        "cpu_usage": 1.0,
+        "memory_usage": 2.71
+      },
+      "worker3": {
+        "cpu_usage": 1.2,
+        "memory_usage": 2.71
+      }
+    },
+    "check_18": {
+      "timestamp": "2025-06-29T08:11:46.742656+00:00",
+      "running_total": 21,
+      "scheduled_total": 53,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 5,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 1,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 15,
+        "scheduled": 53,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 8.0,
+        "memory_usage": 2.44
+      },
+      "worker1": {
+        "cpu_usage": 0.4,
+        "memory_usage": 2.71
+      },
+      "worker2": {
+        "cpu_usage": 0.4,
+        "memory_usage": 2.71
+      },
+      "worker3": {
+        "cpu_usage": 0.4,
+        "memory_usage": 2.71
+      }
+    },
+    "check_19": {
+      "timestamp": "2025-06-29T08:11:51.758059+00:00",
+      "running_total": 16,
+      "scheduled_total": 38,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 16,
+        "scheduled": 38,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 36.5,
+        "memory_usage": 2.46
+      },
+      "worker1": {
+        "cpu_usage": 2.2,
+        "memory_usage": 2.71
+      },
+      "worker2": {
+        "cpu_usage": 2.6,
+        "memory_usage": 2.71
+      },
+      "worker3": {
+        "cpu_usage": 2.6,
+        "memory_usage": 2.71
+      }
+    },
+    "check_20": {
+      "timestamp": "2025-06-29T08:11:56.836768+00:00",
+      "running_total": 16,
+      "scheduled_total": 37,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 16,
+        "scheduled": 37,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 25.6,
+        "memory_usage": 2.46
+      },
+      "worker1": {
+        "cpu_usage": 0.6,
+        "memory_usage": 2.71
+      },
+      "worker2": {
+        "cpu_usage": 0.6,
+        "memory_usage": 2.71
+      },
+      "worker3": {
+        "cpu_usage": 0.8,
+        "memory_usage": 2.71
+      }
+    },
+    "check_21": {
+      "timestamp": "2025-06-29T08:12:01.858033+00:00",
+      "running_total": 16,
+      "scheduled_total": 37,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 16,
+        "scheduled": 37,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 4.8,
+        "memory_usage": 2.46
+      },
+      "worker1": {
+        "cpu_usage": 0.6,
+        "memory_usage": 2.71
+      },
+      "worker2": {
+        "cpu_usage": 0.4,
+        "memory_usage": 2.71
+      },
+      "worker3": {
+        "cpu_usage": 0.4,
+        "memory_usage": 2.71
+      }
+    },
+    "check_22": {
+      "timestamp": "2025-06-29T08:12:06.875245+00:00",
+      "running_total": 16,
+      "scheduled_total": 22,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 16,
+        "scheduled": 22,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 21.5,
+        "memory_usage": 2.46
+      },
+      "worker1": {
+        "cpu_usage": 1.8,
+        "memory_usage": 2.71
+      },
+      "worker2": {
+        "cpu_usage": 2.0,
+        "memory_usage": 2.71
+      },
+      "worker3": {
+        "cpu_usage": 2.0,
+        "memory_usage": 2.71
+      }
+    },
+    "check_23": {
+      "timestamp": "2025-06-29T08:12:11.952820+00:00",
+      "running_total": 16,
+      "scheduled_total": 21,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 16,
+        "scheduled": 21,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 6.7,
+        "memory_usage": 2.46
+      },
+      "worker1": {
+        "cpu_usage": 0.6,
+        "memory_usage": 2.71
+      },
+      "worker2": {
+        "cpu_usage": 0.6,
+        "memory_usage": 2.71
+      },
+      "worker3": {
+        "cpu_usage": 0.8,
+        "memory_usage": 2.71
+      }
+    },
+    "check_24": {
+      "timestamp": "2025-06-29T08:12:16.965180+00:00",
+      "running_total": 14,
+      "scheduled_total": 18,
+      "queued_total": 1,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 14,
+        "scheduled": 18,
+        "queued": 1
+      },
+      "sched1": {
+        "cpu_usage": 8.8,
+        "memory_usage": 2.46
+      },
+      "worker1": {
+        "cpu_usage": 0.8,
+        "memory_usage": 2.71
+      },
+      "worker2": {
+        "cpu_usage": 0.6,
+        "memory_usage": 2.71
+      },
+      "worker3": {
+        "cpu_usage": 0.2,
+        "memory_usage": 2.71
+      }
+    },
+    "check_25": {
+      "timestamp": "2025-06-29T08:12:21.993922+00:00",
+      "running_total": 16,
+      "scheduled_total": 5,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 16,
+        "scheduled": 5,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 29.0,
+        "memory_usage": 2.46
+      },
+      "worker1": {
+        "cpu_usage": 2.8,
+        "memory_usage": 2.71
+      },
+      "worker2": {
+        "cpu_usage": 2.6,
+        "memory_usage": 2.71
+      },
+      "worker3": {
+        "cpu_usage": 3.6,
+        "memory_usage": 2.71
+      }
+    },
+    "check_26": {
+      "timestamp": "2025-06-29T08:12:27.063013+00:00",
+      "running_total": 15,
+      "scheduled_total": 5,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 15,
+        "scheduled": 5,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 4.1,
+        "memory_usage": 2.46
+      },
+      "worker1": {
+        "cpu_usage": 0.4,
+        "memory_usage": 2.71
+      },
+      "worker2": {
+        "cpu_usage": 0.2,
+        "memory_usage": 2.71
+      },
+      "worker3": {
+        "cpu_usage": 0.0,
+        "memory_usage": 2.71
+      }
+    },
+    "check_27": {
+      "timestamp": "2025-06-29T08:12:32.071634+00:00",
+      "running_total": 12,
+      "scheduled_total": 0,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 12,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 8.6,
+        "memory_usage": 2.46
+      },
+      "worker1": {
+        "cpu_usage": 0.6,
+        "memory_usage": 2.71
+      },
+      "worker2": {
+        "cpu_usage": 0.4,
+        "memory_usage": 2.71
+      },
+      "worker3": {
+        "cpu_usage": 0.6,
+        "memory_usage": 2.71
+      }
+    },
+    "check_28": {
+      "timestamp": "2025-06-29T08:12:37.082860+00:00",
+      "running_total": 5,
+      "scheduled_total": 0,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 5,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 17.2,
+        "memory_usage": 2.46
+      },
+      "worker1": {
+        "cpu_usage": 0.4,
+        "memory_usage": 2.71
+      },
+      "worker2": {
+        "cpu_usage": 0.4,
+        "memory_usage": 2.71
+      },
+      "worker3": {
+        "cpu_usage": 0.4,
+        "memory_usage": 2.71
+      }
+    },
+    "check_29": {
+      "timestamp": "2025-06-29T08:12:42.105459+00:00",
+      "running_total": 0,
+      "scheduled_total": 0,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 4.0,
+        "memory_usage": 2.46
+      },
+      "worker1": {
+        "cpu_usage": 0.4,
+        "memory_usage": 2.71
+      },
+      "worker2": {
+        "cpu_usage": 0.4,
+        "memory_usage": 2.71
+      },
+      "worker3": {
+        "cpu_usage": 0.4,
+        "memory_usage": 2.71
+      }
+    },
+    "check_30": {
+      "timestamp": "2025-06-29T08:12:47.111588+00:00",
+      "running_total": 0,
+      "scheduled_total": 0,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 3.0,
+        "memory_usage": 2.46
+      },
+      "worker1": {
+        "cpu_usage": 0.0,
+        "memory_usage": 2.71
+      },
+      "worker2": {
+        "cpu_usage": 0.2,
+        "memory_usage": 2.71
+      },
+      "worker3": {
+        "cpu_usage": 0.2,
+        "memory_usage": 2.71
+      }
+    },
+    "check_31": {
+      "timestamp": "2025-06-29T08:12:52.127504+00:00",
+      "running_total": 0,
+      "scheduled_total": 0,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 3.6,
+        "memory_usage": 2.46
+      },
+      "worker1": {
+        "cpu_usage": 0.6,
+        "memory_usage": 2.71
+      },
+      "worker2": {
+        "cpu_usage": 0.4,
+        "memory_usage": 2.71
+      },
+      "worker3": {
+        "cpu_usage": 0.6,
+        "memory_usage": 2.71
+      }
+    }
+  },
+  "fts_disabled": {
+    "check_1": {
+      "timestamp": "2025-06-29T08:13:15.232439+00:00",
+      "running_total": 0,
+      "scheduled_total": 0,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 0.0,
+        "memory_usage": 2.48
+      },
+      "worker1": {
+        "cpu_usage": 0.0,
+        "memory_usage": 3.11
+      },
+      "worker2": {
+        "cpu_usage": 0.0,
+        "memory_usage": 3.11
+      },
+      "worker3": {
+        "cpu_usage": 0.0,
+        "memory_usage": 3.11
+      }
+    },
+    "check_2": {
+      "timestamp": "2025-06-29T08:13:20.270697+00:00",
+      "running_total": 0,
+      "scheduled_total": 0,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 3.4,
+        "memory_usage": 2.48
+      },
+      "worker1": {
+        "cpu_usage": 94.9,
+        "memory_usage": 3.12
+      },
+      "worker2": {
+        "cpu_usage": 98.8,
+        "memory_usage": 3.11
+      },
+      "worker3": {
+        "cpu_usage": 96.6,
+        "memory_usage": 3.11
+      }
+    },
+    "check_3": {
+      "timestamp": "2025-06-29T08:13:25.349639+00:00",
+      "running_total": 0,
+      "scheduled_total": 0,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 2.8,
+        "memory_usage": 2.48
+      },
+      "worker1": {
+        "cpu_usage": 1.2,
+        "memory_usage": 3.12
+      },
+      "worker2": {
+        "cpu_usage": 9.8,
+        "memory_usage": 3.11
+      },
+      "worker3": {
+        "cpu_usage": 1.4,
+        "memory_usage": 3.11
+      }
+    },
+    "check_4": {
+      "timestamp": "2025-06-29T08:13:30.392675+00:00",
+      "running_total": 16,
+      "scheduled_total": 112,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 16,
+        "scheduled": 112,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 11.7,
+        "memory_usage": 2.52
+      },
+      "worker1": {
+        "cpu_usage": 1.2,
+        "memory_usage": 3.12
+      },
+      "worker2": {
+        "cpu_usage": 0.8,
+        "memory_usage": 3.11
+      },
+      "worker3": {
+        "cpu_usage": 1.0,
+        "memory_usage": 3.12
+      }
+    },
+    "check_5": {
+      "timestamp": "2025-06-29T08:13:35.480974+00:00",
+      "running_total": 16,
+      "scheduled_total": 112,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 16,
+        "scheduled": 112,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 8.1,
+        "memory_usage": 2.53
+      },
+      "worker1": {
+        "cpu_usage": 1.0,
+        "memory_usage": 3.12
+      },
+      "worker2": {
+        "cpu_usage": 0.6,
+        "memory_usage": 3.11
+      },
+      "worker3": {
+        "cpu_usage": 0.6,
+        "memory_usage": 3.12
+      }
+    },
+    "check_6": {
+      "timestamp": "2025-06-29T08:13:40.581936+00:00",
+      "running_total": 16,
+      "scheduled_total": 112,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 16,
+        "scheduled": 112,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 9.6,
+        "memory_usage": 2.54
+      },
+      "worker1": {
+        "cpu_usage": 0.8,
+        "memory_usage": 3.12
+      },
+      "worker2": {
+        "cpu_usage": 0.8,
+        "memory_usage": 3.11
+      },
+      "worker3": {
+        "cpu_usage": 0.8,
+        "memory_usage": 3.12
+      }
+    },
+    "check_7": {
+      "timestamp": "2025-06-29T08:13:45.644907+00:00",
+      "running_total": 14,
+      "scheduled_total": 125,
+      "queued_total": 18,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 29,
+        "queued": 16
+      },
+      "dag_128_tasks": {
+        "running": 14,
+        "scheduled": 96,
+        "queued": 2
+      },
+      "sched1": {
+        "cpu_usage": 18.1,
+        "memory_usage": 2.55
+      },
+      "worker1": {
+        "cpu_usage": 1.8,
+        "memory_usage": 3.12
+      },
+      "worker2": {
+        "cpu_usage": 2.4,
+        "memory_usage": 3.11
+      },
+      "worker3": {
+        "cpu_usage": 2.5,
+        "memory_usage": 3.12
+      }
+    },
+    "check_8": {
+      "timestamp": "2025-06-29T08:13:51.107683+00:00",
+      "running_total": 30,
+      "scheduled_total": 125,
+      "queued_total": 2,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 14,
+        "scheduled": 29,
+        "queued": 2
+      },
+      "dag_128_tasks": {
+        "running": 16,
+        "scheduled": 96,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 31.6,
+        "memory_usage": 2.56
+      },
+      "worker1": {
+        "cpu_usage": 0.9,
+        "memory_usage": 3.12
+      },
+      "worker2": {
+        "cpu_usage": 0.9,
+        "memory_usage": 3.11
+      },
+      "worker3": {
+        "cpu_usage": 0.9,
+        "memory_usage": 3.12
+      }
+    },
+    "check_9": {
+      "timestamp": "2025-06-29T08:13:56.164302+00:00",
+      "running_total": 26,
+      "scheduled_total": 122,
+      "queued_total": 2,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 16,
+        "scheduled": 29,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 10,
+        "scheduled": 93,
+        "queued": 2
+      },
+      "sched1": {
+        "cpu_usage": 20.6,
+        "memory_usage": 2.65
+      },
+      "worker1": {
+        "cpu_usage": 1.6,
+        "memory_usage": 3.12
+      },
+      "worker2": {
+        "cpu_usage": 2.6,
+        "memory_usage": 3.11
+      },
+      "worker3": {
+        "cpu_usage": 1.8,
+        "memory_usage": 3.12
+      }
+    },
+    "check_10": {
+      "timestamp": "2025-06-29T08:14:01.233294+00:00",
+      "running_total": 27,
+      "scheduled_total": 96,
+      "queued_total": 4,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 11,
+        "scheduled": 16,
+        "queued": 4
+      },
+      "dag_128_tasks": {
+        "running": 16,
+        "scheduled": 80,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 31.4,
+        "memory_usage": 2.68
+      },
+      "worker1": {
+        "cpu_usage": 1.8,
+        "memory_usage": 3.12
+      },
+      "worker2": {
+        "cpu_usage": 1.4,
+        "memory_usage": 3.11
+      },
+      "worker3": {
+        "cpu_usage": 2.0,
+        "memory_usage": 3.12
+      }
+    },
+    "check_11": {
+      "timestamp": "2025-06-29T08:14:06.323103+00:00",
+      "running_total": 30,
+      "scheduled_total": 100,
+      "queued_total": 22,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 5,
+        "queued": 20
+      },
+      "dag_45_tasks": {
+        "running": 14,
+        "scheduled": 15,
+        "queued": 2
+      },
+      "dag_128_tasks": {
+        "running": 16,
+        "scheduled": 80,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 13.8,
+        "memory_usage": 2.69
+      },
+      "worker1": {
+        "cpu_usage": 0.4,
+        "memory_usage": 3.11
+      },
+      "worker2": {
+        "cpu_usage": 0.4,
+        "memory_usage": 3.1
+      },
+      "worker3": {
+        "cpu_usage": 0.4,
+        "memory_usage": 3.11
+      }
+    },
+    "check_12": {
+      "timestamp": "2025-06-29T08:14:11.336709+00:00",
+      "running_total": 28,
+      "scheduled_total": 82,
+      "queued_total": 23,
+      "dag_25_tasks": {
+        "running": 15,
+        "scheduled": 5,
+        "queued": 5
+      },
+      "dag_45_tasks": {
+        "running": 13,
+        "scheduled": 13,
+        "queued": 2
+      },
+      "dag_128_tasks": {
+        "running": 0,
+        "scheduled": 64,
+        "queued": 16
+      },
+      "sched1": {
+        "cpu_usage": 24.9,
+        "memory_usage": 2.7
+      },
+      "worker1": {
+        "cpu_usage": 2.2,
+        "memory_usage": 3.11
+      },
+      "worker2": {
+        "cpu_usage": 1.6,
+        "memory_usage": 3.1
+      },
+      "worker3": {
+        "cpu_usage": 1.4,
+        "memory_usage": 3.11
+      }
+    },
+    "check_13": {
+      "timestamp": "2025-06-29T08:14:16.400929+00:00",
+      "running_total": 30,
+      "scheduled_total": 70,
+      "queued_total": 22,
+      "dag_25_tasks": {
+        "running": 20,
+        "scheduled": 5,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 4,
+        "scheduled": 1,
+        "queued": 12
+      },
+      "dag_128_tasks": {
+        "running": 6,
+        "scheduled": 64,
+        "queued": 10
+      },
+      "sched1": {
+        "cpu_usage": 36.8,
+        "memory_usage": 2.7
+      },
+      "worker1": {
+        "cpu_usage": 1.2,
+        "memory_usage": 3.11
+      },
+      "worker2": {
+        "cpu_usage": 1.0,
+        "memory_usage": 3.1
+      },
+      "worker3": {
+        "cpu_usage": 1.2,
+        "memory_usage": 3.11
+      }
+    },
+    "check_14": {
+      "timestamp": "2025-06-29T08:14:21.422829+00:00",
+      "running_total": 29,
+      "scheduled_total": 64,
+      "queued_total": 20,
+      "dag_25_tasks": {
+        "running": 13,
+        "scheduled": 0,
+        "queued": 5
+      },
+      "dag_45_tasks": {
+        "running": 2,
+        "scheduled": 0,
+        "queued": 13
+      },
+      "dag_128_tasks": {
+        "running": 14,
+        "scheduled": 64,
+        "queued": 2
+      },
+      "sched1": {
+        "cpu_usage": 12.9,
+        "memory_usage": 2.7
+      },
+      "worker1": {
+        "cpu_usage": 0.6,
+        "memory_usage": 3.11
+      },
+      "worker2": {
+        "cpu_usage": 0.8,
+        "memory_usage": 3.1
+      },
+      "worker3": {
+        "cpu_usage": 1.0,
+        "memory_usage": 3.11
+      }
+    },
+    "check_15": {
+      "timestamp": "2025-06-29T08:14:26.454693+00:00",
+      "running_total": 28,
+      "scheduled_total": 62,
+      "queued_total": 4,
+      "dag_25_tasks": {
+        "running": 3,
+        "scheduled": 0,
+        "queued": 2
+      },
+      "dag_45_tasks": {
+        "running": 13,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 12,
+        "scheduled": 62,
+        "queued": 2
+      },
+      "sched1": {
+        "cpu_usage": 29.6,
+        "memory_usage": 2.72
+      },
+      "worker1": {
+        "cpu_usage": 1.6,
+        "memory_usage": 3.11
+      },
+      "worker2": {
+        "cpu_usage": 1.4,
+        "memory_usage": 3.1
+      },
+      "worker3": {
+        "cpu_usage": 1.4,
+        "memory_usage": 3.11
+      }
+    },
+    "check_16": {
+      "timestamp": "2025-06-29T08:14:31.547861+00:00",
+      "running_total": 29,
+      "scheduled_total": 54,
+      "queued_total": 3,
+      "dag_25_tasks": {
+        "running": 5,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 13,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 11,
+        "scheduled": 54,
+        "queued": 3
+      },
+      "sched1": {
+        "cpu_usage": 22.8,
+        "memory_usage": 2.72
+      },
+      "worker1": {
+        "cpu_usage": 0.6,
+        "memory_usage": 3.11
+      },
+      "worker2": {
+        "cpu_usage": 1.0,
+        "memory_usage": 3.1
+      },
+      "worker3": {
+        "cpu_usage": 0.6,
+        "memory_usage": 3.11
+      }
+    },
+    "check_17": {
+      "timestamp": "2025-06-29T08:14:36.572726+00:00",
+      "running_total": 21,
+      "scheduled_total": 48,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 4,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 1,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 16,
+        "scheduled": 48,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 18.9,
+        "memory_usage": 2.72
+      },
+      "worker1": {
+        "cpu_usage": 0.6,
+        "memory_usage": 3.08
+      },
+      "worker2": {
+        "cpu_usage": 0.8,
+        "memory_usage": 3.07
+      },
+      "worker3": {
+        "cpu_usage": 0.8,
+        "memory_usage": 3.08
+      }
+    },
+    "check_18": {
+      "timestamp": "2025-06-29T08:14:41.593035+00:00",
+      "running_total": 15,
+      "scheduled_total": 42,
+      "queued_total": 1,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 15,
+        "scheduled": 42,
+        "queued": 1
+      },
+      "sched1": {
+        "cpu_usage": 17.5,
+        "memory_usage": 2.72
+      },
+      "worker1": {
+        "cpu_usage": 1.0,
+        "memory_usage": 3.08
+      },
+      "worker2": {
+        "cpu_usage": 1.2,
+        "memory_usage": 3.07
+      },
+      "worker3": {
+        "cpu_usage": 0.8,
+        "memory_usage": 3.08
+      }
+    },
+    "check_19": {
+      "timestamp": "2025-06-29T08:14:46.709249+00:00",
+      "running_total": 16,
+      "scheduled_total": 32,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 16,
+        "scheduled": 32,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 22.7,
+        "memory_usage": 2.74
+      },
+      "worker1": {
+        "cpu_usage": 0.6,
+        "memory_usage": 3.08
+      },
+      "worker2": {
+        "cpu_usage": 0.8,
+        "memory_usage": 3.07
+      },
+      "worker3": {
+        "cpu_usage": 0.8,
+        "memory_usage": 3.08
+      }
+    },
+    "check_20": {
+      "timestamp": "2025-06-29T08:14:51.725319+00:00",
+      "running_total": 13,
+      "scheduled_total": 30,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 13,
+        "scheduled": 30,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 5.4,
+        "memory_usage": 2.74
+      },
+      "worker1": {
+        "cpu_usage": 0.6,
+        "memory_usage": 3.08
+      },
+      "worker2": {
+        "cpu_usage": 0.4,
+        "memory_usage": 3.07
+      },
+      "worker3": {
+        "cpu_usage": 0.4,
+        "memory_usage": 3.08
+      }
+    },
+    "check_21": {
+      "timestamp": "2025-06-29T08:14:56.736708+00:00",
+      "running_total": 16,
+      "scheduled_total": 16,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 16,
+        "scheduled": 16,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 20.2,
+        "memory_usage": 2.74
+      },
+      "worker1": {
+        "cpu_usage": 1.6,
+        "memory_usage": 3.08
+      },
+      "worker2": {
+        "cpu_usage": 1.8,
+        "memory_usage": 3.07
+      },
+      "worker3": {
+        "cpu_usage": 1.4,
+        "memory_usage": 3.08
+      }
+    },
+    "check_22": {
+      "timestamp": "2025-06-29T08:15:01.749559+00:00",
+      "running_total": 16,
+      "scheduled_total": 14,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 16,
+        "scheduled": 14,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 5.6,
+        "memory_usage": 2.74
+      },
+      "worker1": {
+        "cpu_usage": 0.4,
+        "memory_usage": 3.08
+      },
+      "worker2": {
+        "cpu_usage": 0.2,
+        "memory_usage": 3.07
+      },
+      "worker3": {
+        "cpu_usage": 0.2,
+        "memory_usage": 3.08
+      }
+    },
+    "check_23": {
+      "timestamp": "2025-06-29T08:15:06.760692+00:00",
+      "running_total": 11,
+      "scheduled_total": 6,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 11,
+        "scheduled": 6,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 8.6,
+        "memory_usage": 2.74
+      },
+      "worker1": {
+        "cpu_usage": 0.4,
+        "memory_usage": 3.08
+      },
+      "worker2": {
+        "cpu_usage": 0.6,
+        "memory_usage": 3.07
+      },
+      "worker3": {
+        "cpu_usage": 0.4,
+        "memory_usage": 3.08
+      }
+    },
+    "check_24": {
+      "timestamp": "2025-06-29T08:15:11.776715+00:00",
+      "running_total": 14,
+      "scheduled_total": 0,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 14,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 10.2,
+        "memory_usage": 2.74
+      },
+      "worker1": {
+        "cpu_usage": 0.4,
+        "memory_usage": 3.08
+      },
+      "worker2": {
+        "cpu_usage": 0.4,
+        "memory_usage": 3.07
+      },
+      "worker3": {
+        "cpu_usage": 0.6,
+        "memory_usage": 3.08
+      }
+    },
+    "check_25": {
+      "timestamp": "2025-06-29T08:15:16.794619+00:00",
+      "running_total": 6,
+      "scheduled_total": 0,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 6,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 5.6,
+        "memory_usage": 2.74
+      },
+      "worker1": {
+        "cpu_usage": 1.0,
+        "memory_usage": 3.08
+      },
+      "worker2": {
+        "cpu_usage": 1.0,
+        "memory_usage": 3.07
+      },
+      "worker3": {
+        "cpu_usage": 0.8,
+        "memory_usage": 3.08
+      }
+    },
+    "check_26": {
+      "timestamp": "2025-06-29T08:15:21.809146+00:00",
+      "running_total": 0,
+      "scheduled_total": 0,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 3.2,
+        "memory_usage": 2.74
+      },
+      "worker1": {
+        "cpu_usage": 0.4,
+        "memory_usage": 3.08
+      },
+      "worker2": {
+        "cpu_usage": 0.2,
+        "memory_usage": 3.07
+      },
+      "worker3": {
+        "cpu_usage": 0.4,
+        "memory_usage": 3.08
+      }
+    },
+    "check_27": {
+      "timestamp": "2025-06-29T08:15:26.830131+00:00",
+      "running_total": 0,
+      "scheduled_total": 0,
+      "queued_total": 0,
+      "dag_25_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_45_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "dag_128_tasks": {
+        "running": 0,
+        "scheduled": 0,
+        "queued": 0
+      },
+      "sched1": {
+        "cpu_usage": 1.6,
+        "memory_usage": 2.74
+      },
+      "worker1": {
+        "cpu_usage": 0.2,
+        "memory_usage": 3.08
+      },
+      "worker2": {
+        "cpu_usage": 0.2,
+        "memory_usage": 3.07
+      },
+      "worker3": {
+        "cpu_usage": 0.2,
+        "memory_usage": 3.08
+      }
+    }
+  }
+}

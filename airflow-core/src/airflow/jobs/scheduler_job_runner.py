@@ -408,13 +408,15 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
 
         pool_num_starving_tasks: dict[str, int] = Counter()
 
+        fts_enabled = conf.getboolean("scheduler", "enable_fair_task_selection")
+
         for loop_count in itertools.count(start=1):
             num_starved_pools = len(starved_pools)
             num_starved_dags = len(starved_dags)
             num_starved_tasks = len(starved_tasks)
             num_starved_tasks_task_dagrun_concurrency = len(starved_tasks_task_dagrun_concurrency)
 
-            if conf.getboolean("scheduler", "enable_task_fail_selection"):
+            if fts_enabled:
                 query = (
                     select(TI)
                     .with_hint(TI, "USE INDEX (ti_state)", dialect_name="mysql")
@@ -446,12 +448,10 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                 )
 
             # Fair selection will ensure task instances are selected across multiple running DAGs
-            if conf.getboolean("scheduler", "enable_task_fail_selection") and conf.get(
-                "database", "sql_alchemy_conn"
-            ).lower().startswith("postgresql"):
+            if fts_enabled:
                 self.log.info("Scheduler fair selection is enabled")
 
-                per_dag_limit = int(os.getenv("AIRFLOW__SCHEDULER_FAIR_SELECTION_PER_DAG_LIMIT", 16))
+                per_dag_limit = conf.getint("scheduler", "fair_task_selection_per_dag_limit")
 
                 self.log.info(f"Scheduler fair selection per dag limit is {per_dag_limit}")
 
@@ -496,7 +496,9 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
 
             timer = Stats.timer("scheduler.critical_section_query_duration")
             timer.start()
+            start_time = time.perf_counter()
 
+            timer_name = "query_timer_with_fts" if fts_enabled else "query_timer_fts_disabled"
             try:
                 query = with_row_locks(query, of=TI, session=session, skip_locked=True)
                 task_instances_to_examine: list[TI] = session.scalars(query).all()
@@ -504,7 +506,13 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                 self.__print_tis_selection(task_instances_to_examine)
 
                 timer.stop(send=True)
+
+                duration_s = time.perf_counter() - start_time
+                Stats.gauge(timer_name, duration_s)
             except OperationalError as e:
+
+                duration_s = time.perf_counter() - start_time
+                Stats.gauge(timer_name, duration_s)
                 timer.stop(send=False)
                 raise e
 
@@ -2156,6 +2164,59 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
         ti_running_metrics = {(row.dag_id, row.task_id, row.queue): row.running_count for row in running}
 
         Stats.gauge("ti.current.active", len(ti_running_metrics))
+
+        scheduled = (
+            session.query(
+                TaskInstance.dag_id,
+                TaskInstance.task_id,
+                TaskInstance.queue,
+                func.count(TaskInstance.dag_id).label("scheduled_count"),
+            )
+            .filter(TaskInstance.state == State.SCHEDULED)
+            .group_by(TaskInstance.dag_id, TaskInstance.task_id, TaskInstance.queue)
+            .all()
+        )
+
+        print(f"x: scheduled: {scheduled}")
+        ti_scheduled_metrics = {(row.dag_id, row.task_id, row.queue): row.scheduled_count for row in scheduled}
+
+        Stats.gauge("ti.current.scheduled", len(ti_scheduled_metrics))
+
+        for (dag_id, task_id, queue), count in ti_scheduled_metrics.items():
+            print(f"x: here: scheduled: dag_id: {dag_id} | task_id: {task_id} | count: {count}")
+
+        # TODO: x: what is the exact difference between 'queued' and 'scheduled'?
+        # - none: The Task has not yet been queued for execution (its dependencies are not yet met)
+        # - scheduled: The scheduler has determined the Task’s dependencies are met and it should run
+        # - queued: The task has been assigned to an Executor and is awaiting a worker
+        # - running: The task is running on a worker (or on a local/synchronous executor)
+        # - success: The task finished running without errors
+        # - restarting: The task was externally requested to restart when it was running
+        # - failed: The task had an error during execution and failed to run
+        # - skipped: The task was skipped due to branching, LatestOnly, or similar.
+        # - upstream_failed: An upstream task failed and the Trigger Rule says we needed it
+        # - up_for_retry: The task failed, but has retry attempts left and will be rescheduled.
+        # - up_for_reschedule: The task is a Sensor that is in reschedule mode
+        # - deferred: The task has been deferred to a trigger
+        # - removed: The task has vanished from the DAG since the run started
+
+        queued = (
+            session.query(
+                TaskInstance.dag_id,
+                TaskInstance.task_id,
+                TaskInstance.queue,
+                func.count(TaskInstance.task_id).label("queued_count"),
+            )
+            .filter(TaskInstance.state == State.QUEUED)
+            .group_by(TaskInstance.dag_id, TaskInstance.task_id, TaskInstance.queue)
+            .all()
+        )
+
+        print(f"x: queued: {queued}")
+        ti_queued_metrics = {(row.dag_id, row.task_id, row.queue): row.queued_count for row in queued}
+
+        Stats.gauge("ti.current.queued", len(ti_queued_metrics))
+
 
         iteration = 0
         for (dag_id, task_id, queue), count in ti_running_metrics.items():

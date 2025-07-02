@@ -129,7 +129,7 @@ with DAG(
     schedule=None,
     catchup=False,
 ) as dag:
-    chain(
+    parallel_tasks = [
         task1(),
         task2(),
         task3(),
@@ -145,4 +145,4 @@ with DAG(
         task13(),
         task14(),
         task15(),
-    )  # type: ignore
+    ]  # type: ignore

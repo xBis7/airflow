@@ -418,6 +418,7 @@ class TestPerformanceIntegration:
         # Approximately, there is a scheduler heartbeat every 5-6 seconds. Set the threshold to 15.
         os.environ["AIRFLOW__SCHEDULER__SCHEDULER_HEALTH_CHECK_THRESHOLD"] = "15"
 
+        # How many the scheduler can schedule at once.
         os.environ["AIRFLOW__SCHEDULER__MAX_TIS_PER_QUERY"] = "1512"
         os.environ["AIRFLOW__SCHEDULER__MAX_DAGRUNS_TO_CREATE_PER_LOOP"] = "10"
         os.environ["AIRFLOW__SCHEDULER__MAX_DAGRUNS_PER_LOOP_TO_SCHEDULE"] = "20"
@@ -433,7 +434,8 @@ class TestPerformanceIntegration:
         # e.g. if parallelism is 32, for 2 schedulers the number will be 32 * 2 = 64
         os.environ["AIRFLOW__CORE__PARALLELISM"] = "1512"
         # Number of tasks that can run concurrently per dag.
-        os.environ["AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG"] = "16"
+        # Worker concurrency is 30, therefore the queued - running tasks should be 8-8-8-6.
+        os.environ["AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG"] = "8"
         # Number of active dag_runs per dag.
         os.environ["AIRFLOW__CORE__MAX_ACTIVE_RUNS_PER_DAG"] = "10"
         os.environ["AIRFLOW__CORE__DEFAULT_POOL_TASK_SLOT_COUNT"] = "64"
@@ -621,11 +623,12 @@ class TestPerformanceIntegration:
             # ----------------------------------------------------------
 
             dag_250_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_250_id)
-            dag_470_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_470_id)
+            # dag_470_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_470_id)
             dag_128_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_128_id)
-            dag_25_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_25_id)
-            dag_420_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_420_id)
+            # dag_25_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_25_id)
+            # dag_420_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_420_id)
             dag_45_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_45_id)
+
             # dag_15_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_15_id)
             # dag_10_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_10_id)
 
@@ -633,9 +636,9 @@ class TestPerformanceIntegration:
 
             # wait_for_dag_run(dag_id=dag_15_id, run_id=dag_15_run_id, max_wait_time=250)
 
-            wait_for_dag_run(
-                dag_id=dag_25_id, run_id=dag_25_run_id, max_wait_time=400
-            )
+            # wait_for_dag_run(
+            #     dag_id=dag_25_id, run_id=dag_25_run_id, max_wait_time=400
+            # )
 
             wait_for_dag_run(
                 dag_id=dag_45_id, run_id=dag_45_run_id, max_wait_time=900
@@ -649,13 +652,13 @@ class TestPerformanceIntegration:
                 dag_id=dag_250_id, run_id=dag_250_run_id, max_wait_time=9000
             )
 
-            wait_for_dag_run(
-                dag_id=dag_420_id, run_id=dag_420_run_id, max_wait_time=9000
-            )
+            # wait_for_dag_run(
+            #     dag_id=dag_420_id, run_id=dag_420_run_id, max_wait_time=9000
+            # )
 
-            wait_for_dag_run(
-                dag_id=dag_470_id, run_id=dag_470_run_id, max_wait_time=9000
-            )
+            # wait_for_dag_run(
+            #     dag_id=dag_470_id, run_id=dag_470_run_id, max_wait_time=9000
+            # )
 
             time.sleep(10)
         finally:
@@ -664,12 +667,13 @@ class TestPerformanceIntegration:
 
             # print_ti_output_for_dag_run(dag_id=dag_10_id, run_id=dag_10_run_id)
             # print_ti_output_for_dag_run(dag_id=dag_15_id, run_id=dag_15_run_id)
-            print_ti_output_for_dag_run(dag_id=dag_25_id, run_id=dag_25_run_id)
+
+            # print_ti_output_for_dag_run(dag_id=dag_25_id, run_id=dag_25_run_id)
             print_ti_output_for_dag_run(dag_id=dag_45_id, run_id=dag_45_run_id)
             print_ti_output_for_dag_run(dag_id=dag_128_id, run_id=dag_128_run_id)
             print_ti_output_for_dag_run(dag_id=dag_250_id, run_id=dag_250_run_id)
-            print_ti_output_for_dag_run(dag_id=dag_420_id, run_id=dag_420_run_id)
-            print_ti_output_for_dag_run(dag_id=dag_470_id, run_id=dag_470_run_id)
+            # print_ti_output_for_dag_run(dag_id=dag_420_id, run_id=dag_420_run_id)
+            # print_ti_output_for_dag_run(dag_id=dag_470_id, run_id=dag_470_run_id)
 
             # Terminate the processes.
             celery_worker_1_process.terminate()

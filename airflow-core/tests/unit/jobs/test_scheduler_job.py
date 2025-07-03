@@ -859,6 +859,53 @@ class TestSchedulerJob:
         for ti in tis_tuple:
             assert ti.key in res_ti_keys
 
+    @conf_vars(
+        {
+            ("scheduler", "enable_fair_task_selection"): "False",
+            ("core", "max_active_tasks_per_dag"): "10",
+        }
+    )
+    def test_fair_task_selection(self, dag_maker, mock_executors):
+        """
+        Test that tasks for all executors are set to queued, if space allows it
+        """
+        scheduler_job = Job()
+        self.job_runner = SchedulerJobRunner(job=scheduler_job)
+        session = settings.Session()
+
+        dag_120_tasks_dag_id = "dag_120_tasks"
+        dag_120_tasks = {}
+
+        with dag_maker(dag_id=dag_120_tasks_dag_id):
+            for i in range(120):
+                # No executor specified, runs on default executor
+                dag_120_tasks[f"op{i}"] = EmptyOperator(task_id=f"dummy{i}")
+            # op2 = EmptyOperator(task_id="dummy2", executor="default_exec")
+
+        dag_120_tasks_dag_run = dag_maker.create_dagrun(run_type=DagRunType.SCHEDULED)
+
+        dag_120_tasks_tis = {}
+
+        tis_list = []
+        for i in range(120):
+            dag_120_tasks_tis[f"ti{i}"] = dag_120_tasks_dag_run.get_task_instance(dag_120_tasks[f"op{i}"].task_id, session)
+            # add
+            tis_list.append(dag_120_tasks_tis[f"ti{i}"])
+
+        for ti in tis_list:
+            ti.state = State.SCHEDULED
+
+        session.flush()
+
+        res = self.job_runner._executable_task_instances_to_queued(max_tis=32, session=session)
+
+        assert len(res) == 8
+        res_ti_keys = [res_ti.key for res_ti in res]
+        print(f"x: len(tis_list): {len(tis_list)}")
+        print(f"x: len(res): {len(res)} | {res_ti_keys}")
+        # for ti in tis_list:
+        #     assert ti.key in res_ti_keys
+
     def test_find_executable_task_instances_order_priority_with_pools(self, dag_maker):
         """
         The scheduler job should pick tasks with higher priority for execution

@@ -451,7 +451,8 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
             if fts_enabled:
                 self.log.info("Scheduler fair selection is enabled")
 
-                per_dag_limit = conf.getint("scheduler", "fair_task_selection_per_dag_limit")
+                # per_dag_limit = DM.max_active_tasks
+                per_dag_limit = conf.getint("core", "max_active_tasks_per_dag")
 
                 self.log.info(f"Scheduler fair selection per dag limit is {per_dag_limit}")
 

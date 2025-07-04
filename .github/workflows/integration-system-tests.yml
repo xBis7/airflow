@@ -48,10 +48,10 @@ on:  # yamllint disable-line rule:truthy
         description: "Default version of MySQL to use"
         required: true
         type: string
-      skip-providers-tests:
-        description: "Skip provider tests (true/false)"
-        required: true
-        type: string
+      #      skip-providers-tests:
+      #        description: "Skip provider tests (true/false)"
+      #        required: true
+      #        type: string
       run-coverage:
         description: "Run coverage (true/false)"
         required: true
@@ -85,7 +85,7 @@ jobs:
       BACKEND_VERSION: ${{ inputs.default-postgres-version }}"
       PYTHON_MAJOR_MINOR_VERSION: "${{ inputs.default-python-version }}"
       JOB_ID: "integration-core-${{ matrix.integration }}"
-      SKIP_PROVIDERS_TESTS: "${{ inputs.skip-providers-tests }}"
+      #      SKIP_PROVIDERS_TESTS: "${{ inputs.skip-providers-tests }}"
       ENABLE_COVERAGE: "${{ inputs.run-coverage}}"
       DEBUG_RESOURCES: "${{ inputs.debug-resources }}"
       GITHUB_REPOSITORY: ${{ github.repository }}

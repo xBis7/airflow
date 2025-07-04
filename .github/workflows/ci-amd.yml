@@ -123,7 +123,7 @@ jobs:
       selected-providers-list-as-string: >-
         ${{ steps.selective-checks.outputs.selected-providers-list-as-string }}
       skip-pre-commits: ${{ steps.selective-checks.outputs.skip-pre-commits }}
-      skip-providers-tests: ${{ steps.selective-checks.outputs.skip-providers-tests }}
+      #      skip-providers-tests: ${{ steps.selective-checks.outputs.skip-providers-tests }}
       source-head-repo: ${{ steps.source-run-info.outputs.source-head-repo }}
       sqlite-exclude: ${{ steps.selective-checks.outputs.sqlite-exclude }}
       testable-core-integrations: ${{ steps.selective-checks.outputs.testable-core-integrations }}

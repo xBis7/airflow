@@ -74,7 +74,7 @@ jobs:
   tests-core-integration:
     timeout-minutes: 30
     if: inputs.testable-core-integrations != '[]'
-    name: "Integration core ${{ matrix.integration }}"
+    name: "Integration-${{ matrix.integration }}-${{ inputs.iteration || matrix.iteration || matrix.iter }}"
     runs-on: ${{ fromJSON(inputs.runners) }}
     strategy:
       fail-fast: false

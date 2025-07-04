@@ -127,7 +127,7 @@ jobs:
       source-head-repo: ${{ steps.source-run-info.outputs.source-head-repo }}
       sqlite-exclude: ${{ steps.selective-checks.outputs.sqlite-exclude }}
       testable-core-integrations: ${{ steps.selective-checks.outputs.testable-core-integrations }}
-      testable-providers-integrations: ${{ steps.selective-checks.outputs.testable-providers-integrations }}
+      #      testable-providers-integrations: ${{ steps.selective-checks.outputs.testable-providers-integrations }}
       use-uv: ${{ steps.selective-checks.outputs.force-pip == 'true' && 'false' || 'true' }}
       upgrade-to-newer-dependencies: ${{ steps.selective-checks.outputs.upgrade-to-newer-dependencies }}
     steps:

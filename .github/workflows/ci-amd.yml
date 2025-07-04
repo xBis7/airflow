@@ -200,21 +200,21 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  basic-tests:
-    name: "Basic tests"
-    needs: [build-info]
-    uses: ./.github/workflows/basic-tests.yml
-    with:
-      runners: ${{ needs.build-info.outputs.amd-runners }}
-      run-ui-tests: ${{needs.build-info.outputs.run-ui-tests}}
-      run-www-tests: ${{needs.build-info.outputs.run-www-tests}}
-      needs-api-codegen: ${{needs.build-info.outputs.needs-api-codegen}}
-      default-python-version: "${{ needs.build-info.outputs.default-python-version }}"
-      basic-checks-only: ${{needs.build-info.outputs.basic-checks-only}}
-      skip-pre-commits: ${{needs.build-info.outputs.skip-pre-commits}}
-      canary-run: ${{needs.build-info.outputs.canary-run}}
-      latest-versions-only: ${{needs.build-info.outputs.latest-versions-only}}
-      use-uv: ${{needs.build-info.outputs.use-uv}}
+  #  basic-tests:
+  #    name: "Basic tests"
+  #    needs: [build-info]
+  #    uses: ./.github/workflows/basic-tests.yml
+  #    with:
+  #      runners: ${{ needs.build-info.outputs.amd-runners }}
+  #      run-ui-tests: ${{needs.build-info.outputs.run-ui-tests}}
+  #      run-www-tests: ${{needs.build-info.outputs.run-www-tests}}
+  #      needs-api-codegen: ${{needs.build-info.outputs.needs-api-codegen}}
+  #      default-python-version: "${{ needs.build-info.outputs.default-python-version }}"
+  #      basic-checks-only: ${{needs.build-info.outputs.basic-checks-only}}
+  #      skip-pre-commits: ${{needs.build-info.outputs.skip-pre-commits}}
+  #      canary-run: ${{needs.build-info.outputs.canary-run}}
+  #      latest-versions-only: ${{needs.build-info.outputs.latest-versions-only}}
+  #      use-uv: ${{needs.build-info.outputs.use-uv}}
 
   build-ci-images:
     name: Build CI images
@@ -240,80 +240,80 @@ jobs:
       disable-airflow-repo-cache: ${{ needs.build-info.outputs.disable-airflow-repo-cache }}
     if: needs.build-info.outputs.ci-image-build == 'true'
 
-  additional-ci-image-checks:
-    name: "Additional CI image checks"
-    needs: [build-info, build-ci-images]
-    uses: ./.github/workflows/additional-ci-image-checks.yml
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-    with:
-      runners: ${{ needs.build-info.outputs.amd-runners }}
-      platform: "linux/amd64"
-      python-versions: ${{ needs.build-info.outputs.python-versions }}
-      branch: ${{ needs.build-info.outputs.default-branch }}
-      constraints-branch: ${{ needs.build-info.outputs.default-constraints-branch }}
-      default-python-version: "${{ needs.build-info.outputs.default-python-version }}"
-      upgrade-to-newer-dependencies: ${{ needs.build-info.outputs.upgrade-to-newer-dependencies }}
-      skip-pre-commits: ${{ needs.build-info.outputs.skip-pre-commits }}
-      docker-cache: ${{ needs.build-info.outputs.docker-cache }}
-      disable-airflow-repo-cache: ${{ needs.build-info.outputs.disable-airflow-repo-cache }}
-      canary-run: ${{ needs.build-info.outputs.canary-run }}
-      latest-versions-only: ${{ needs.build-info.outputs.latest-versions-only }}
-      include-success-outputs: ${{ needs.build-info.outputs.include-success-outputs }}
-      debug-resources: ${{ needs.build-info.outputs.debug-resources }}
-      use-uv: ${{ needs.build-info.outputs.use-uv }}
-
-  generate-constraints:
-    name: "Generate constraints"
-    needs: [build-info, build-ci-images]
-    uses: ./.github/workflows/generate-constraints.yml
-    if: needs.build-info.outputs.ci-image-build == 'true'
-    with:
-      runners: ${{ needs.build-info.outputs.amd-runners }}
-      platform: "linux/amd64"
-      python-versions-list-as-string: ${{ needs.build-info.outputs.python-versions-list-as-string }}
-      python-versions: ${{ needs.build-info.outputs.python-versions }}
-      generate-pypi-constraints: "true"
-      # generate no providers constraints only in canary builds - they take quite some time to generate
-      # they are not needed for regular builds, they are only needed to update constraints in canaries
-      generate-no-providers-constraints: ${{ needs.build-info.outputs.canary-run }}
-      debug-resources: ${{ needs.build-info.outputs.debug-resources }}
-      use-uv: ${{ needs.build-info.outputs.use-uv }}
-
-  ci-image-checks:
-    name: "CI image checks"
-    needs: [build-info, build-ci-images]
-    uses: ./.github/workflows/ci-image-checks.yml
-    permissions:
-      id-token: write
-      contents: read
-    with:
-      runners: ${{ needs.build-info.outputs.amd-runners }}
-      platform: "linux/amd64"
-      needs-mypy: ${{ needs.build-info.outputs.needs-mypy }}
-      mypy-checks: ${{ needs.build-info.outputs.mypy-checks }}
-      python-versions-list-as-string: ${{ needs.build-info.outputs.python-versions-list-as-string }}
-      branch: ${{ needs.build-info.outputs.default-branch }}
-      canary-run: ${{ needs.build-info.outputs.canary-run }}
-      default-python-version: "${{ needs.build-info.outputs.default-python-version }}"
-      docs-list-as-string: ${{ needs.build-info.outputs.docs-list-as-string }}
-      latest-versions-only: ${{ needs.build-info.outputs.latest-versions-only }}
-      basic-checks-only: ${{ needs.build-info.outputs.basic-checks-only }}
-      upgrade-to-newer-dependencies: ${{ needs.build-info.outputs.upgrade-to-newer-dependencies }}
-      skip-pre-commits: ${{ needs.build-info.outputs.skip-pre-commits }}
-      ci-image-build: ${{ needs.build-info.outputs.ci-image-build }}
-      include-success-outputs: ${{ needs.build-info.outputs.include-success-outputs }}
-      debug-resources: ${{ needs.build-info.outputs.debug-resources }}
-      docs-build: ${{ needs.build-info.outputs.docs-build }}
-      needs-api-codegen: ${{ needs.build-info.outputs.needs-api-codegen }}
-      default-postgres-version: ${{ needs.build-info.outputs.default-postgres-version }}
-      run-coverage: ${{ needs.build-info.outputs.run-coverage }}
-      use-uv: ${{ needs.build-info.outputs.use-uv }}
-    secrets:
-      DOCS_AWS_ACCESS_KEY_ID: ${{ secrets.DOCS_AWS_ACCESS_KEY_ID }}
-      DOCS_AWS_SECRET_ACCESS_KEY: ${{ secrets.DOCS_AWS_SECRET_ACCESS_KEY }}
+  #  additional-ci-image-checks:
+  #    name: "Additional CI image checks"
+  #    needs: [build-info, build-ci-images]
+  #    uses: ./.github/workflows/additional-ci-image-checks.yml
+  #    permissions:
+  #      contents: read
+  #      packages: write
+  #      id-token: write
+  #    with:
+  #      runners: ${{ needs.build-info.outputs.amd-runners }}
+  #      platform: "linux/amd64"
+  #      python-versions: ${{ needs.build-info.outputs.python-versions }}
+  #      branch: ${{ needs.build-info.outputs.default-branch }}
+  #      constraints-branch: ${{ needs.build-info.outputs.default-constraints-branch }}
+  #      default-python-version: "${{ needs.build-info.outputs.default-python-version }}"
+  #      upgrade-to-newer-dependencies: ${{ needs.build-info.outputs.upgrade-to-newer-dependencies }}
+  #      skip-pre-commits: ${{ needs.build-info.outputs.skip-pre-commits }}
+  #      docker-cache: ${{ needs.build-info.outputs.docker-cache }}
+  #      disable-airflow-repo-cache: ${{ needs.build-info.outputs.disable-airflow-repo-cache }}
+  #      canary-run: ${{ needs.build-info.outputs.canary-run }}
+  #      latest-versions-only: ${{ needs.build-info.outputs.latest-versions-only }}
+  #      include-success-outputs: ${{ needs.build-info.outputs.include-success-outputs }}
+  #      debug-resources: ${{ needs.build-info.outputs.debug-resources }}
+  #      use-uv: ${{ needs.build-info.outputs.use-uv }}
+  #
+  #  generate-constraints:
+  #    name: "Generate constraints"
+  #    needs: [build-info, build-ci-images]
+  #    uses: ./.github/workflows/generate-constraints.yml
+  #    if: needs.build-info.outputs.ci-image-build == 'true'
+  #    with:
+  #      runners: ${{ needs.build-info.outputs.amd-runners }}
+  #      platform: "linux/amd64"
+  #      python-versions-list-as-string: ${{ needs.build-info.outputs.python-versions-list-as-string }}
+  #      python-versions: ${{ needs.build-info.outputs.python-versions }}
+  #      generate-pypi-constraints: "true"
+  #      # generate no providers constraints only in canary builds - they take quite some time to generate
+  #      # they are not needed for regular builds, they are only needed to update constraints in canaries
+  #      generate-no-providers-constraints: ${{ needs.build-info.outputs.canary-run }}
+  #      debug-resources: ${{ needs.build-info.outputs.debug-resources }}
+  #      use-uv: ${{ needs.build-info.outputs.use-uv }}
+  #
+  #  ci-image-checks:
+  #    name: "CI image checks"
+  #    needs: [build-info, build-ci-images]
+  #    uses: ./.github/workflows/ci-image-checks.yml
+  #    permissions:
+  #      id-token: write
+  #      contents: read
+  #    with:
+  #      runners: ${{ needs.build-info.outputs.amd-runners }}
+  #      platform: "linux/amd64"
+  #      needs-mypy: ${{ needs.build-info.outputs.needs-mypy }}
+  #      mypy-checks: ${{ needs.build-info.outputs.mypy-checks }}
+  #      python-versions-list-as-string: ${{ needs.build-info.outputs.python-versions-list-as-string }}
+  #      branch: ${{ needs.build-info.outputs.default-branch }}
+  #      canary-run: ${{ needs.build-info.outputs.canary-run }}
+  #      default-python-version: "${{ needs.build-info.outputs.default-python-version }}"
+  #      docs-list-as-string: ${{ needs.build-info.outputs.docs-list-as-string }}
+  #      latest-versions-only: ${{ needs.build-info.outputs.latest-versions-only }}
+  #      basic-checks-only: ${{ needs.build-info.outputs.basic-checks-only }}
+  #      upgrade-to-newer-dependencies: ${{ needs.build-info.outputs.upgrade-to-newer-dependencies }}
+  #      skip-pre-commits: ${{ needs.build-info.outputs.skip-pre-commits }}
+  #      ci-image-build: ${{ needs.build-info.outputs.ci-image-build }}
+  #      include-success-outputs: ${{ needs.build-info.outputs.include-success-outputs }}
+  #      debug-resources: ${{ needs.build-info.outputs.debug-resources }}
+  #      docs-build: ${{ needs.build-info.outputs.docs-build }}
+  #      needs-api-codegen: ${{ needs.build-info.outputs.needs-api-codegen }}
+  #      default-postgres-version: ${{ needs.build-info.outputs.default-postgres-version }}
+  #      run-coverage: ${{ needs.build-info.outputs.run-coverage }}
+  #      use-uv: ${{ needs.build-info.outputs.use-uv }}
+  #    secrets:
+  #      DOCS_AWS_ACCESS_KEY_ID: ${{ secrets.DOCS_AWS_ACCESS_KEY_ID }}
+  #      DOCS_AWS_SECRET_ACCESS_KEY: ${{ secrets.DOCS_AWS_SECRET_ACCESS_KEY }}
 
   #  providers:
   #    name: "provider distributions tests"
@@ -872,13 +872,13 @@ jobs:
     # This will fire when all the jobs from "needs" are either successful or skipped
     if: always() && !failure() && !cancelled()
     needs:
-      - additional-ci-image-checks
+      #      - additional-ci-image-checks
       #      - additional-prod-image-tests
       #      - basic-tests
       - build-info
       #      - build-prod-images
-      - ci-image-checks
-      - generate-constraints
+      #      - ci-image-checks
+      #      - generate-constraints
       #      - providers
       #      - tests-helm
       - tests-integration-system

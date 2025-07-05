@@ -68,13 +68,17 @@ on:  # yamllint disable-line rule:truthy
         description: "Whether to use uv"
         required: true
         type: string
+      iteration:
+        description: "Outer loop number for repeated CI runs"
+        type: number
+        required: true
 permissions:
   contents: read
 jobs:
   tests-core-integration:
     timeout-minutes: 30
     if: inputs.testable-core-integrations != '[]'
-    name: "Integration core ${{ matrix.integration }} - ${{ strategy.job-index }}"
+    name: "Integration core ${{ matrix.integration }} - ${{ inputs.iteration }}"
     runs-on: ${{ fromJSON(inputs.runners) }}
     strategy:
       fail-fast: false

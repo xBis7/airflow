@@ -134,7 +134,7 @@ jobs:
 
   dependency-upgrade-summary:
     runs-on: ${{ fromJSON(inputs.runners) }}
-    needs: [update-constraints]
+    #    needs: [update-constraints]
     if: inputs.upgrade-to-newer-dependencies == 'true' && inputs.platform == 'linux/amd64'
     name: "Deps ${{ matrix.python-version }}:${{ matrix.constraints-mode }}"
     strategy:

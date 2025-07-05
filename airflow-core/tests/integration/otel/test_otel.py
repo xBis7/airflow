@@ -941,6 +941,8 @@ class TestOtelIntegration:
                 dag_id=dag_id, run_id=run_id, max_wait_time=120, span_status=SpanStatus.SHOULD_END
             )
 
+            # Stop scheduler2 in case it still has a db lock on the dag_run.
+            scheduler_process_2.terminate()
             scheduler_process_1.send_signal(signal.SIGCONT)
 
             # Wait for the scheduler to start again and continue running.
@@ -966,7 +968,6 @@ class TestOtelIntegration:
             apiserver_process.terminate()
             apiserver_process.wait()
 
-            scheduler_process_2.terminate()
             scheduler_process_2.wait()
 
         out, err = capfd.readouterr()

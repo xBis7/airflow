@@ -1029,7 +1029,7 @@ class TestOtelIntegration:
             with capfd.disabled():
                 scheduler_process_1.terminate()
 
-            assert scheduler_process_1.wait(timeout=30) == 0
+            assert scheduler_process_1.wait() == 0
 
             check_dag_run_state_and_span_status(
                 dag_id=dag_id, run_id=run_id, state=State.RUNNING, span_status=SpanStatus.NEEDS_CONTINUANCE

@@ -630,7 +630,7 @@ jobs:
     #    needs: [build-info, build-ci-images]
     strategy:
       fail-fast: false
-      max-parallel: 4
+      max-parallel: 10
       matrix:
         iter: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     uses: ./.github/workflows/integration-system-tests.yml

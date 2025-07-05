@@ -937,9 +937,6 @@ class TestOtelIntegration:
             with open(self.control_file, "w") as file:
                 file.write("continue")
 
-            # Wait for scheduler2 to be up and running.
-            time.sleep(10)
-
             wait_for_dag_run_and_check_span_status(
                 dag_id=dag_id, run_id=run_id, max_wait_time=120, span_status=SpanStatus.SHOULD_END
             )
@@ -1048,9 +1045,6 @@ class TestOtelIntegration:
             # Rewrite the file to unpause the dag.
             with open(self.control_file, "w") as file:
                 file.write("continue")
-
-            # Wait for scheduler2 to be up and running.
-            time.sleep(10)
 
             wait_for_dag_run_and_check_span_status(
                 dag_id=dag_id, run_id=run_id, max_wait_time=120, span_status=SpanStatus.ENDED
@@ -1252,9 +1246,6 @@ class TestOtelIntegration:
                 stdout=None,
                 stderr=None,
             )
-
-            # Wait for scheduler2 to be up and running.
-            time.sleep(10)
 
             wait_for_dag_run_and_check_span_status(
                 dag_id=dag_id, run_id=run_id, max_wait_time=120, span_status=SpanStatus.ENDED

@@ -170,7 +170,7 @@ jobs:
 
   push-buildx-cache-to-github-registry:
     name: Push Regular Image Cache ${{ inputs.platform }}
-    needs: [update-constraints]
+    #    needs: [update-constraints]
     uses: ./.github/workflows/push-image-cache.yml
     permissions:
       contents: read

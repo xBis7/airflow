@@ -48,157 +48,157 @@ concurrency:
 
 jobs:
 
-  build-info:
-    name: "Build info"
-    # At build-info stage we do not yet have outputs so we need to hard-code the runs-on to public runners
-    runs-on: ["ubuntu-22.04"]
-    env:
-      GITHUB_CONTEXT: ${{ toJson(github) }}
-    outputs:
-      all-python-versions-list-as-string: >-
-        ${{ steps.selective-checks.outputs.all-python-versions-list-as-string }}
-      basic-checks-only: ${{ steps.selective-checks.outputs.basic-checks-only }}
-      canary-run: ${{ steps.source-run-info.outputs.canary-run }}
-      ci-image-build: ${{ steps.selective-checks.outputs.ci-image-build }}
-      core-test-types-list-as-strings-in-json: >-
-        ${{ steps.selective-checks.outputs.core-test-types-list-as-strings-in-json }}
-      debug-resources: ${{ steps.selective-checks.outputs.debug-resources }}
-      default-branch: ${{ steps.selective-checks.outputs.default-branch }}
-      default-constraints-branch: ${{ steps.selective-checks.outputs.default-constraints-branch }}
-      default-helm-version: ${{ steps.selective-checks.outputs.default-helm-version }}
-      default-kind-version: ${{ steps.selective-checks.outputs.default-kind-version }}
-      default-kubernetes-version: ${{ steps.selective-checks.outputs.default-kubernetes-version }}
-      default-mysql-version: ${{ steps.selective-checks.outputs.default-mysql-version }}
-      default-postgres-version: ${{ steps.selective-checks.outputs.default-postgres-version }}
-      default-python-version: ${{ steps.selective-checks.outputs.default-python-version }}
-      disable-airflow-repo-cache: ${{ steps.selective-checks.outputs.disable-airflow-repo-cache }}
-      docker-cache: ${{ steps.selective-checks.outputs.docker-cache }}
-      docs-build: ${{ steps.selective-checks.outputs.docs-build }}
-      docs-list-as-string: ${{ steps.selective-checks.outputs.docs-list-as-string }}
-      excluded-providers-as-string: ${{ steps.selective-checks.outputs.excluded-providers-as-string }}
-      force-pip: ${{ steps.selective-checks.outputs.force-pip }}
-      full-tests-needed: ${{ steps.selective-checks.outputs.full-tests-needed }}
-      has-migrations: ${{ steps.selective-checks.outputs.has-migrations }}
-      helm-test-packages: ${{ steps.selective-checks.outputs.helm-test-packages }}
-      include-success-outputs: ${{ steps.selective-checks.outputs.include-success-outputs }}
-      individual-providers-test-types-list-as-strings-in-json: >-
-        ${{ steps.selective-checks.outputs.individual-providers-test-types-list-as-strings-in-json }}
-      kubernetes-combos: ${{ steps.selective-checks.outputs.kubernetes-combos }}
-      kubernetes-combos-list-as-string: >-
-        ${{ steps.selective-checks.outputs.kubernetes-combos-list-as-string }}
-      kubernetes-versions-list-as-string: >-
-        ${{ steps.selective-checks.outputs.kubernetes-versions-list-as-string }}
-      latest-versions-only: ${{ steps.selective-checks.outputs.latest-versions-only }}
-      mypy-checks: ${{ steps.selective-checks.outputs.mypy-checks }}
-      mysql-exclude: ${{ steps.selective-checks.outputs.mysql-exclude }}
-      mysql-versions: ${{ steps.selective-checks.outputs.mysql-versions }}
-      needs-api-codegen: ${{ steps.selective-checks.outputs.needs-api-codegen }}
-      needs-api-tests: ${{ steps.selective-checks.outputs.needs-api-tests }}
-      needs-helm-tests: ${{ steps.selective-checks.outputs.needs-helm-tests }}
-      needs-mypy: ${{ steps.selective-checks.outputs.needs-mypy }}
-      only-new-ui-files: ${{ steps.selective-checks.outputs.only-new-ui-files }}
-      postgres-exclude: ${{ steps.selective-checks.outputs.postgres-exclude }}
-      postgres-versions: ${{ steps.selective-checks.outputs.postgres-versions }}
-      prod-image-build: ${{ steps.selective-checks.outputs.prod-image-build }}
-      # yamllint disable rule:line-length
-      providers-compatibility-tests-matrix: >
-        ${{ steps.selective-checks.outputs.providers-compatibility-tests-matrix }}
-      providers-test-types-list-as-strings-in-json: >-
-        ${{ steps.selective-checks.outputs.providers-test-types-list-as-strings-in-json }}
-      pull-request-labels: ${{ steps.source-run-info.outputs.pr-labels }}
-      python-versions-list-as-string: ${{ steps.selective-checks.outputs.python-versions-list-as-string }}
-      python-versions: ${{ steps.selective-checks.outputs.python-versions }}
-      run-amazon-tests: ${{ steps.selective-checks.outputs.run-amazon-tests }}
-      run-airflow-ctl-tests: ${{ steps.selective-checks.outputs.run-airflow-ctl-tests }}
-      run-coverage: ${{ steps.source-run-info.outputs.run-coverage }}
-      run-kubernetes-tests: ${{ steps.selective-checks.outputs.run-kubernetes-tests }}
-      run-task-sdk-tests: ${{ steps.selective-checks.outputs.run-task-sdk-tests }}
-      run-go-sdk-tests: ${{ steps.selective-checks.outputs.run-go-sdk-tests }}
-      run-system-tests: ${{ steps.selective-checks.outputs.run-system-tests }}
-      run-tests: ${{ steps.selective-checks.outputs.run-tests }}
-      run-ui-tests: ${{ steps.selective-checks.outputs.run-ui-tests }}
-      run-www-tests: ${{ steps.selective-checks.outputs.run-www-tests }}
-      amd-runners: ${{ steps.selective-checks.outputs.amd-runners }}
-      arm-runners: ${{ steps.selective-checks.outputs.arm-runners }}
-      selected-providers-list-as-string: >-
-        ${{ steps.selective-checks.outputs.selected-providers-list-as-string }}
-      skip-pre-commits: ${{ steps.selective-checks.outputs.skip-pre-commits }}
-      #      skip-providers-tests: ${{ steps.selective-checks.outputs.skip-providers-tests }}
-      source-head-repo: ${{ steps.source-run-info.outputs.source-head-repo }}
-      sqlite-exclude: ${{ steps.selective-checks.outputs.sqlite-exclude }}
-      testable-core-integrations: ${{ steps.selective-checks.outputs.testable-core-integrations }}
-      #      testable-providers-integrations: ${{ steps.selective-checks.outputs.testable-providers-integrations }}
-      use-uv: ${{ steps.selective-checks.outputs.force-pip == 'true' && 'false' || 'true' }}
-      upgrade-to-newer-dependencies: ${{ steps.selective-checks.outputs.upgrade-to-newer-dependencies }}
-    steps:
-      - name: "Cleanup repo"
-        shell: bash
-        run: docker run -v "${GITHUB_WORKSPACE}:/workspace" -u 0:0 bash -c "rm -rf /workspace/*"
-      - name: "Checkout ${{ github.ref }} ( ${{ github.sha }} )"
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
-        with:
-          persist-credentials: false
-      - name: "Prepare and cleanup runner"
-        run: ./scripts/ci/prepare_and_cleanup_runner.sh
-      - name: Fetch incoming commit ${{ github.sha }} with its parent
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 2
-          persist-credentials: false
-      - name: "Install Breeze"
-        uses: ./.github/actions/breeze
-        with:
-          use-uv: ${{ inputs.use-uv }}
-        id: breeze
-      - name: "Get information about the Workflow"
-        id: source-run-info
-        run: breeze ci get-workflow-info 2>> ${GITHUB_OUTPUT}
-        env:
-          SKIP_BREEZE_SELF_UPGRADE_CHECK: "true"
-      - name: Selective checks
-        id: selective-checks
-        env:
-          PR_LABELS: "${{ steps.source-run-info.outputs.pr-labels }}"
-          COMMIT_REF: "${{ github.sha }}"
-          VERBOSE: "false"
-        run: breeze ci selective-check 2>> ${GITHUB_OUTPUT}
-      - name: env
-        run: printenv
-        env:
-          PR_LABELS: ${{ steps.source-run-info.outputs.pr-labels }}
-          GITHUB_CONTEXT: ${{ toJson(github) }}
-
-  run-pin-versions-pre-commit:
-    name: "Run pin-versions pre-commit"
-    needs: [build-info]
-    runs-on: ${{ fromJSON(needs.build-info.outputs.amd-runners) }}
-    steps:
-      - name: "Checkout ${{ github.ref }} ( ${{ github.sha }} )"
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
-        with:
-          persist-credentials: false
-      - name: "Install Python 3.11 as 3.11+ is needed by pin-versions pre-commit"
-        uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c  # v4.9.1
-        with:
-          python-version: 3.11
-          cache: "pip"
-      - name: Install pre-commit, uv, and pre-commit-uv
-        shell: bash
-        env:
-          UV_VERSION: "0.7.17"  # Keep this comment to allow automatic replacement of uv version
-          PRE_COMMIT_VERSION: "4.2.0"  # Keep this comment to allow automatic replacement of pre-commit version
-          PRE_COMMIT_UV_VERSION: "4.1.4"  # Keep this comment to allow automatic replacement of pre-commit-uv version
-        run: |
-          pip install uv==${UV_VERSION} || true
-          uv tool install pre-commit==${PRE_COMMIT_VERSION} --with uv==${UV_VERSION} \
-          --with pre-commit-uv==${PRE_COMMIT_UV_VERSION}
-      - name: "Run pin-versions pre-commit"
-        run: >
-          pre-commit run -c .github/.pre-commit-config.yaml --all-files --verbose --hook-stage manual
-          pin-versions
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #  build-info:
+  #    name: "Build info"
+  #    # At build-info stage we do not yet have outputs so we need to hard-code the runs-on to public runners
+  #    runs-on: ["ubuntu-22.04"]
+  #    env:
+  #      GITHUB_CONTEXT: ${{ toJson(github) }}
+  #    outputs:
+  #      all-python-versions-list-as-string: >-
+  #        ${{ steps.selective-checks.outputs.all-python-versions-list-as-string }}
+  #      basic-checks-only: ${{ steps.selective-checks.outputs.basic-checks-only }}
+  #      canary-run: ${{ steps.source-run-info.outputs.canary-run }}
+  #      ci-image-build: ${{ steps.selective-checks.outputs.ci-image-build }}
+  #      core-test-types-list-as-strings-in-json: >-
+  #        ${{ steps.selective-checks.outputs.core-test-types-list-as-strings-in-json }}
+  #      debug-resources: ${{ steps.selective-checks.outputs.debug-resources }}
+  #      default-branch: ${{ steps.selective-checks.outputs.default-branch }}
+  #      default-constraints-branch: ${{ steps.selective-checks.outputs.default-constraints-branch }}
+  #      default-helm-version: ${{ steps.selective-checks.outputs.default-helm-version }}
+  #      default-kind-version: ${{ steps.selective-checks.outputs.default-kind-version }}
+  #      default-kubernetes-version: ${{ steps.selective-checks.outputs.default-kubernetes-version }}
+  #      default-mysql-version: ${{ steps.selective-checks.outputs.default-mysql-version }}
+  #      default-postgres-version: ${{ steps.selective-checks.outputs.default-postgres-version }}
+  #      default-python-version: ${{ steps.selective-checks.outputs.default-python-version }}
+  #      disable-airflow-repo-cache: ${{ steps.selective-checks.outputs.disable-airflow-repo-cache }}
+  #      docker-cache: ${{ steps.selective-checks.outputs.docker-cache }}
+  #      docs-build: ${{ steps.selective-checks.outputs.docs-build }}
+  #      docs-list-as-string: ${{ steps.selective-checks.outputs.docs-list-as-string }}
+  #      excluded-providers-as-string: ${{ steps.selective-checks.outputs.excluded-providers-as-string }}
+  #      force-pip: ${{ steps.selective-checks.outputs.force-pip }}
+  #      full-tests-needed: ${{ steps.selective-checks.outputs.full-tests-needed }}
+  #      has-migrations: ${{ steps.selective-checks.outputs.has-migrations }}
+  #      helm-test-packages: ${{ steps.selective-checks.outputs.helm-test-packages }}
+  #      include-success-outputs: ${{ steps.selective-checks.outputs.include-success-outputs }}
+  #      individual-providers-test-types-list-as-strings-in-json: >-
+  #        ${{ steps.selective-checks.outputs.individual-providers-test-types-list-as-strings-in-json }}
+  #      kubernetes-combos: ${{ steps.selective-checks.outputs.kubernetes-combos }}
+  #      kubernetes-combos-list-as-string: >-
+  #        ${{ steps.selective-checks.outputs.kubernetes-combos-list-as-string }}
+  #      kubernetes-versions-list-as-string: >-
+  #        ${{ steps.selective-checks.outputs.kubernetes-versions-list-as-string }}
+  #      latest-versions-only: ${{ steps.selective-checks.outputs.latest-versions-only }}
+  #      mypy-checks: ${{ steps.selective-checks.outputs.mypy-checks }}
+  #      mysql-exclude: ${{ steps.selective-checks.outputs.mysql-exclude }}
+  #      mysql-versions: ${{ steps.selective-checks.outputs.mysql-versions }}
+  #      needs-api-codegen: ${{ steps.selective-checks.outputs.needs-api-codegen }}
+  #      needs-api-tests: ${{ steps.selective-checks.outputs.needs-api-tests }}
+  #      needs-helm-tests: ${{ steps.selective-checks.outputs.needs-helm-tests }}
+  #      needs-mypy: ${{ steps.selective-checks.outputs.needs-mypy }}
+  #      only-new-ui-files: ${{ steps.selective-checks.outputs.only-new-ui-files }}
+  #      postgres-exclude: ${{ steps.selective-checks.outputs.postgres-exclude }}
+  #      postgres-versions: ${{ steps.selective-checks.outputs.postgres-versions }}
+  #      prod-image-build: ${{ steps.selective-checks.outputs.prod-image-build }}
+  #      # yamllint disable rule:line-length
+  #      providers-compatibility-tests-matrix: >
+  #        ${{ steps.selective-checks.outputs.providers-compatibility-tests-matrix }}
+  #      providers-test-types-list-as-strings-in-json: >-
+  #        ${{ steps.selective-checks.outputs.providers-test-types-list-as-strings-in-json }}
+  #      pull-request-labels: ${{ steps.source-run-info.outputs.pr-labels }}
+  #      python-versions-list-as-string: ${{ steps.selective-checks.outputs.python-versions-list-as-string }}
+  #      python-versions: ${{ steps.selective-checks.outputs.python-versions }}
+  #      run-amazon-tests: ${{ steps.selective-checks.outputs.run-amazon-tests }}
+  #      run-airflow-ctl-tests: ${{ steps.selective-checks.outputs.run-airflow-ctl-tests }}
+  #      run-coverage: ${{ steps.source-run-info.outputs.run-coverage }}
+  #      run-kubernetes-tests: ${{ steps.selective-checks.outputs.run-kubernetes-tests }}
+  #      run-task-sdk-tests: ${{ steps.selective-checks.outputs.run-task-sdk-tests }}
+  #      run-go-sdk-tests: ${{ steps.selective-checks.outputs.run-go-sdk-tests }}
+  #      run-system-tests: ${{ steps.selective-checks.outputs.run-system-tests }}
+  #      run-tests: ${{ steps.selective-checks.outputs.run-tests }}
+  #      run-ui-tests: ${{ steps.selective-checks.outputs.run-ui-tests }}
+  #      run-www-tests: ${{ steps.selective-checks.outputs.run-www-tests }}
+  #      amd-runners: ${{ steps.selective-checks.outputs.amd-runners }}
+  #      arm-runners: ${{ steps.selective-checks.outputs.arm-runners }}
+  #      selected-providers-list-as-string: >-
+  #        ${{ steps.selective-checks.outputs.selected-providers-list-as-string }}
+  #      skip-pre-commits: ${{ steps.selective-checks.outputs.skip-pre-commits }}
+  #      #      skip-providers-tests: ${{ steps.selective-checks.outputs.skip-providers-tests }}
+  #      source-head-repo: ${{ steps.source-run-info.outputs.source-head-repo }}
+  #      sqlite-exclude: ${{ steps.selective-checks.outputs.sqlite-exclude }}
+  #      testable-core-integrations: ${{ steps.selective-checks.outputs.testable-core-integrations }}
+  #      #      testable-providers-integrations: ${{ steps.selective-checks.outputs.testable-providers-integrations }}
+  #      use-uv: ${{ steps.selective-checks.outputs.force-pip == 'true' && 'false' || 'true' }}
+  #      upgrade-to-newer-dependencies: ${{ steps.selective-checks.outputs.upgrade-to-newer-dependencies }}
+  #    steps:
+  #      - name: "Cleanup repo"
+  #        shell: bash
+  #        run: docker run -v "${GITHUB_WORKSPACE}:/workspace" -u 0:0 bash -c "rm -rf /workspace/*"
+  #      - name: "Checkout ${{ github.ref }} ( ${{ github.sha }} )"
+  #        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+  #        with:
+  #          persist-credentials: false
+  #      - name: "Prepare and cleanup runner"
+  #        run: ./scripts/ci/prepare_and_cleanup_runner.sh
+  #      - name: Fetch incoming commit ${{ github.sha }} with its parent
+  #        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+  #        with:
+  #          ref: ${{ github.sha }}
+  #          fetch-depth: 2
+  #          persist-credentials: false
+  #      - name: "Install Breeze"
+  #        uses: ./.github/actions/breeze
+  #        with:
+  #          use-uv: ${{ inputs.use-uv }}
+  #        id: breeze
+  #      - name: "Get information about the Workflow"
+  #        id: source-run-info
+  #        run: breeze ci get-workflow-info 2>> ${GITHUB_OUTPUT}
+  #        env:
+  #          SKIP_BREEZE_SELF_UPGRADE_CHECK: "true"
+  #      - name: Selective checks
+  #        id: selective-checks
+  #        env:
+  #          PR_LABELS: "${{ steps.source-run-info.outputs.pr-labels }}"
+  #          COMMIT_REF: "${{ github.sha }}"
+  #          VERBOSE: "false"
+  #        run: breeze ci selective-check 2>> ${GITHUB_OUTPUT}
+  #      - name: env
+  #        run: printenv
+  #        env:
+  #          PR_LABELS: ${{ steps.source-run-info.outputs.pr-labels }}
+  #          GITHUB_CONTEXT: ${{ toJson(github) }}
+  #
+  #  run-pin-versions-pre-commit:
+  #    name: "Run pin-versions pre-commit"
+  #    needs: [build-info]
+  #    runs-on: ${{ fromJSON(needs.build-info.outputs.amd-runners) }}
+  #    steps:
+  #      - name: "Checkout ${{ github.ref }} ( ${{ github.sha }} )"
+  #        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+  #        with:
+  #          persist-credentials: false
+  #      - name: "Install Python 3.11 as 3.11+ is needed by pin-versions pre-commit"
+  #        uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c  # v4.9.1
+  #        with:
+  #          python-version: 3.11
+  #          cache: "pip"
+  #      - name: Install pre-commit, uv, and pre-commit-uv
+  #        shell: bash
+  #        env:
+  #          UV_VERSION: "0.7.17"  # Keep this comment to allow automatic replacement of uv version
+  #          PRE_COMMIT_VERSION: "4.2.0"  # Keep this comment to allow automatic replacement of pre-commit version
+  #          PRE_COMMIT_UV_VERSION: "4.1.4"  # Keep this comment to allow automatic replacement of pre-commit-uv version
+  #        run: |
+  #          pip install uv==${UV_VERSION} || true
+  #          uv tool install pre-commit==${PRE_COMMIT_VERSION} --with uv==${UV_VERSION} \
+  #          --with pre-commit-uv==${PRE_COMMIT_UV_VERSION}
+  #      - name: "Run pin-versions pre-commit"
+  #        run: >
+  #          pre-commit run -c .github/.pre-commit-config.yaml --all-files --verbose --hook-stage manual
+  #          pin-versions
+  #        env:
+  #          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   #  basic-tests:
   #    name: "Basic tests"
@@ -216,29 +216,29 @@ jobs:
   #      latest-versions-only: ${{needs.build-info.outputs.latest-versions-only}}
   #      use-uv: ${{needs.build-info.outputs.use-uv}}
 
-  build-ci-images:
-    name: Build CI images
-    needs: [build-info]
-    uses: ./.github/workflows/ci-image-build.yml
-    permissions:
-      contents: read
-      # This write is only given here for `push` events from "apache/airflow" repo. It is not given for PRs
-      # from forks. This is to prevent malicious PRs from creating images in the "apache/airflow" repo.
-      packages: write
-    with:
-      runners: ${{ needs.build-info.outputs.amd-runners }}
-      platform: "linux/amd64"
-      push-image: "false"
-      upload-image-artifact: "true"
-      upload-mount-cache-artifact: ${{ needs.build-info.outputs.canary-run }}
-      python-versions: ${{ needs.build-info.outputs.python-versions }}
-      branch: ${{ needs.build-info.outputs.default-branch }}
-      constraints-branch: ${{ needs.build-info.outputs.default-constraints-branch }}
-      use-uv: ${{ needs.build-info.outputs.use-uv }}
-      upgrade-to-newer-dependencies: ${{ needs.build-info.outputs.upgrade-to-newer-dependencies }}
-      docker-cache: ${{ needs.build-info.outputs.docker-cache }}
-      disable-airflow-repo-cache: ${{ needs.build-info.outputs.disable-airflow-repo-cache }}
-    if: needs.build-info.outputs.ci-image-build == 'true'
+  #  build-ci-images:
+  #    name: Build CI images
+  #    needs: [build-info]
+  #    uses: ./.github/workflows/ci-image-build.yml
+  #    permissions:
+  #      contents: read
+  #      # This write is only given here for `push` events from "apache/airflow" repo. It is not given for PRs
+  #      # from forks. This is to prevent malicious PRs from creating images in the "apache/airflow" repo.
+  #      packages: write
+  #    with:
+  #      runners: ${{ needs.build-info.outputs.amd-runners }}
+  #      platform: "linux/amd64"
+  #      push-image: "false"
+  #      upload-image-artifact: "true"
+  #      upload-mount-cache-artifact: ${{ needs.build-info.outputs.canary-run }}
+  #      python-versions: ${{ needs.build-info.outputs.python-versions }}
+  #      branch: ${{ needs.build-info.outputs.default-branch }}
+  #      constraints-branch: ${{ needs.build-info.outputs.default-constraints-branch }}
+  #      use-uv: ${{ needs.build-info.outputs.use-uv }}
+  #      upgrade-to-newer-dependencies: ${{ needs.build-info.outputs.upgrade-to-newer-dependencies }}
+  #      docker-cache: ${{ needs.build-info.outputs.docker-cache }}
+  #      disable-airflow-repo-cache: ${{ needs.build-info.outputs.disable-airflow-repo-cache }}
+  #    if: needs.build-info.outputs.ci-image-build == 'true'
 
   #  additional-ci-image-checks:
   #    name: "Additional CI image checks"
@@ -626,7 +626,7 @@ jobs:
 
   tests-integration-system:
     name: Integration and System Tests
-    needs: [build-info, build-ci-images]
+    #    needs: [build-info, build-ci-images]
     strategy:
       fail-fast: false
       max-parallel: 4
@@ -875,7 +875,7 @@ jobs:
       #      - additional-ci-image-checks
       #      - additional-prod-image-tests
       #      - basic-tests
-      - build-info
+      #      - build-info
       #      - build-prod-images
       #      - ci-image-checks
       #      - generate-constraints
@@ -913,29 +913,29 @@ jobs:
       use-uv: ${{ needs.build-info.outputs.use-uv }}
       debug-resources: ${{ needs.build-info.outputs.debug-resources }}
 
-  notify-slack-failure:
-    name: "Notify Slack on Failure"
-    needs:
-      - finalize-tests
-    if: github.event_name == 'schedule' && failure() && github.run_attempt == 1
-    runs-on: ["ubuntu-22.04"]
-    steps:
-      - name: Notify Slack
-        id: slack
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d  # v2.0.0
-        with:
-          method: chat.postMessage
-          token: ${{ env.SLACK_BOT_TOKEN }}
-          # yamllint disable rule:line-length
-          payload: |
-            channel: "internal-airflow-ci-cd"
-            text: "🚨🕒 Scheduled CI Failure Alert (AMD) on branch *${{ github.ref_name }}* 🕒🚨\n\n*Details:* <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|View the failure log>"
-            blocks:
-              - type: "section"
-                text:
-                  type: "mrkdwn"
-                  text: "🚨🕒 Scheduled CI Failure Alert (AMD) 🕒🚨\n\n*Details:* <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|View the failure log>"
-          # yamllint enable rule:line-length
+  #  notify-slack-failure:
+  #    name: "Notify Slack on Failure"
+  #    needs:
+  #      - finalize-tests
+  #    if: github.event_name == 'schedule' && failure() && github.run_attempt == 1
+  #    runs-on: ["ubuntu-22.04"]
+  #    steps:
+  #      - name: Notify Slack
+  #        id: slack
+  #        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d  # v2.0.0
+  #        with:
+  #          method: chat.postMessage
+  #          token: ${{ env.SLACK_BOT_TOKEN }}
+  #          # yamllint disable rule:line-length
+  #          payload: |
+  #            channel: "internal-airflow-ci-cd"
+  #            text: "🚨🕒 Scheduled CI Failure Alert (AMD) on branch *${{ github.ref_name }}* 🕒🚨\n\n*Details:* <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|View the failure log>"
+  #            blocks:
+  #              - type: "section"
+  #                text:
+  #                  type: "mrkdwn"
+  #                  text: "🚨🕒 Scheduled CI Failure Alert (AMD) 🕒🚨\n\n*Details:* <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|View the failure log>"
+  #          # yamllint enable rule:line-length
 
   summarize-warnings:
     timeout-minutes: 15

@@ -632,12 +632,13 @@ jobs:
       fail-fast: false
       max-parallel: 4
       matrix:
-        iteration: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        iter: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     uses: ./.github/workflows/integration-system-tests.yml
     permissions:
       contents: read
       packages: read
     with:
+      iteration: ${{ matrix.iter }}
       runners: ${{ needs.build-info.outputs.amd-runners }}
       platform: "linux/amd64"
       testable-core-integrations: ${{ needs.build-info.outputs.testable-core-integrations }}

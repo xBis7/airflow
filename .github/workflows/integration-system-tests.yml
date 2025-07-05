@@ -120,8 +120,11 @@ jobs:
         with:
           codecov-token: ${{ secrets.CODECOV_TOKEN }}
           python-version: "${{ inputs.default-python-version }}"
+          iteration: "${{ inputs.iteration }}"
       - name: "Post Tests failure"
         uses: ./.github/actions/post_tests_failure
+        with:
+          iteration: "${{ inputs.iteration }}"
         if: failure()
 
 #  tests-providers-integration:

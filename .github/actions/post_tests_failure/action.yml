@@ -36,14 +36,14 @@ runs:
     - name: "Upload container logs"
       uses: actions/upload-artifact@v4
       with:
-        name: container-logs-${{env.JOB_ID}}
+        name: container-logs-${{env.JOB_ID}} - ${{ inputs.iteration }}
         path: "./files/container_logs*"
         retention-days: 7
         if-no-files-found: ignore
     - name: "Upload other logs"
       uses: actions/upload-artifact@v4
       with:
-        name: container-logs-${{env.JOB_ID}}
+        name: container-logs-${{env.JOB_ID}} - ${{ inputs.iteration }}
         path: "./files/other_logs*"
         retention-days: 7
         if-no-files-found: ignore

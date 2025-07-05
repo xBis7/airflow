@@ -626,6 +626,7 @@ jobs:
 
   tests-integration-system:
     name: Integration and System Tests
+    needs: [build-info]
     #    needs: [build-info, build-ci-images]
     strategy:
       fail-fast: false

@@ -638,7 +638,6 @@ jobs:
       contents: read
       packages: read
     with:
-      iteration: ${{ matrix.iter }}
       runners: ${{ needs.build-info.outputs.amd-runners }}
       platform: "linux/amd64"
       testable-core-integrations: ${{ needs.build-info.outputs.testable-core-integrations }}

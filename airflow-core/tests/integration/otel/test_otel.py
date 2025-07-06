@@ -993,7 +993,6 @@ class TestOtelIntegration:
         """
 
         celery_worker_process = None
-        scheduler_process_1 = None
         apiserver_process = None
         scheduler_process_2 = None
         try:

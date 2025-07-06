@@ -872,6 +872,7 @@ class TestOtelIntegration:
         The scheduler thread will be paused after the first task ends and a new scheduler process
         will handle the rest of the dag processing. The paused thread will be resumed afterwards.
         """
+        os.environ["AIRFLOW__SCHEDULER__SCHEDULER_HEALTH_CHECK_THRESHOLD"] = "120"
 
         celery_worker_process = None
         scheduler_process_1 = None
@@ -957,6 +958,9 @@ class TestOtelIntegration:
             if self.log_level == "debug":
                 with create_session() as session:
                     dump_airflow_metadata_db(session)
+
+            # Reset for the rest of the tests.
+            os.environ["AIRFLOW__SCHEDULER__SCHEDULER_HEALTH_CHECK_THRESHOLD"] = "15"
 
             # Terminate the processes.
             celery_worker_process.terminate()

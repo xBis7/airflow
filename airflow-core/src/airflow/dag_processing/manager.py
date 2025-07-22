@@ -151,7 +151,7 @@ class DagFileProcessorManager(LoggingMixin):
     over again, but no more often than the specified interval.
 
     :param max_runs: The number of times to parse each file. -1 for unlimited.
-    :param bundles_names_to_parse: List of bundle names to parse. If None, all bundles are parsed.
+    :param bundle_names_to_parse: List of bundle names to parse. If None, all bundles are parsed.
     :param processor_timeout: How long to wait before timing out a DAG file processor
     """
 
@@ -881,7 +881,7 @@ class DagFileProcessorManager(LoggingMixin):
 
         client = Client(base_url=None, token="", dry_run=True, transport=self._api_server.transport)
         # Mypy is wrong -- the setter accepts a string on the property setter! `URLType = URL | str`
-        client.base_url = "http://in-process.invalid./"  # type: ignore[assignment]
+        client.base_url = "http://in-process.invalid./"
         return client
 
     def _create_process(self, dag_file: DagFileInfo) -> DagFileProcessorProcess:
@@ -1113,7 +1113,7 @@ def reload_configuration_for_dag_processing():
     # iterating on https://github.com/apache/airflow/pull/19860
     # The issue that describes the problem and possible remediation is
     # at https://github.com/apache/airflow/issues/19934
-    importlib.reload(import_module(airflow.settings.LOGGING_CLASS_PATH.rsplit(".", 1)[0]))  # type: ignore
+    importlib.reload(import_module(airflow.settings.LOGGING_CLASS_PATH.rsplit(".", 1)[0]))
     importlib.reload(airflow.settings)
     airflow.settings.initialize()
     del os.environ["CONFIG_PROCESSOR_MANAGER_LOGGER"]

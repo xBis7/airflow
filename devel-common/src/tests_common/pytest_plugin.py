@@ -26,11 +26,11 @@ import re
 import subprocess
 import sys
 import warnings
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import ExitStack, suppress
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Protocol, TypeVar
+from typing import TYPE_CHECKING, Any, Protocol, TypeVar
 from unittest import mock
 
 import pytest
@@ -807,6 +807,14 @@ class DagMaker(Protocol):
 
     def create_dagrun_after(self, dagrun: DagRun, **kwargs) -> DagRun: ...
 
+    def run_ti(
+        self,
+        task_id: str,
+        dag_run: DagRun | None = ...,
+        dag_run_kwargs: dict | None = ...,
+        **kwargs,
+    ) -> TaskInstance: ...
+
     def __call__(
         self,
         dag_id: str = "test_dag",
@@ -956,7 +964,7 @@ def dag_maker(request) -> Generator[DagMaker, None, None]:
                 if AIRFLOW_V_3_0_PLUS:
                     from airflow.providers.fab.www.security_appless import ApplessAirflowSecurityManager
                 else:
-                    from airflow.www.security_appless import ApplessAirflowSecurityManager  # type: ignore
+                    from airflow.www.security_appless import ApplessAirflowSecurityManager
                 security_manager = ApplessAirflowSecurityManager(session=self.session)
                 security_manager.sync_perm_for_dag(dag.dag_id, dag.access_control)
             self.dag_model = self.session.get(DagModel, dag.dag_id)
@@ -1100,6 +1108,49 @@ def dag_maker(request) -> Generator[DagMaker, None, None]:
                 data_interval=next_info.data_interval,
                 **kwargs,
             )
+
+        def run_ti(self, task_id, dag_run=None, dag_run_kwargs=None, **kwargs):
+            """
+            Create a dagrun and run a specific task instance with proper task refresh.
+
+            This is a convenience method for running a single task instance:
+            1. Create a dagrun if it does not exist
+            2. Get the specific task instance by task_id
+            3. Refresh the task instance from the DAG task
+            4. Run the task instance
+
+            Returns the created TaskInstance.
+            """
+            from tests_common.test_utils.version_compat import AIRFLOW_V_3_1_PLUS
+
+            if dag_run is None:
+                if dag_run_kwargs is None:
+                    dag_run_kwargs = {}
+                dag_run = self.create_dagrun(**dag_run_kwargs)
+            ti = dag_run.get_task_instance(task_id=task_id)
+            if ti is None:
+                available_task_ids = [task.task_id for task in self.dag.tasks]
+                raise ValueError(
+                    f"Task instance with task_id '{task_id}' not found in dag run. "
+                    f"Available task_ids: {available_task_ids}"
+                )
+            task = self.dag.get_task(ti.task_id)
+
+            if not AIRFLOW_V_3_1_PLUS:
+                # Airflow <3.1 has a bug for DecoratedOperator has an unused signature for
+                # `DecoratedOperator._handle_output` for xcom_push
+                # This worked for `models.BaseOperator` since it had xcom_push method but for
+                # `airflow.sdk.BaseOperator`, this does not exist, so this returns an AttributeError
+                # Since this is an unused attribute anyway, we just monkey patch it with a lambda.
+                # Error otherwise:
+                # /usr/local/lib/python3.11/site-packages/airflow/sdk/bases/decorator.py:253: in execute
+                #     return self._handle_output(return_value=return_value, context=context, xcom_push=self.xcom_push)
+                #                                                                                      ^^^^^^^^^^^^^^
+                # E   AttributeError: '_PythonDecoratedOperator' object has no attribute 'xcom_push'
+                task.xcom_push = lambda *args, **kwargs: None
+            ti.refresh_from_task(task)
+            ti.run(**kwargs)
+            return ti
 
         def sync_dagbag_to_db(self):
             if not AIRFLOW_V_3_0_PLUS:
@@ -2053,7 +2104,7 @@ def mocked_parse(spy_agency):
 
         if not task.has_dag():
             dag = DAG(dag_id=dag_id, start_date=timezone.datetime(2024, 12, 3))
-            task.dag = dag  # type: ignore[assignment]
+            task.dag = dag
             # Fixture only helps in regular base operator tasks, so mypy is wrong here
             task = dag.task_dict[task.task_id]  # type: ignore[assignment]
         else:
@@ -2191,8 +2242,8 @@ def create_runtime_ti(mocked_parse):
         if not task.has_dag():
             dag = DAG(dag_id=dag_id, start_date=timezone.datetime(2024, 12, 3))
             # Fixture only helps in regular base operator tasks, so mypy is wrong here
-            task.dag = dag  # type: ignore[assignment]
-            task = dag.task_dict[task.task_id]  # type: ignore[assignment]
+            task.dag = dag
+            task = dag.task_dict[task.task_id]
 
         data_interval_start = None
         data_interval_end = None
@@ -2200,7 +2251,7 @@ def create_runtime_ti(mocked_parse):
         if task.dag.timetable:
             if run_type == DagRunType.MANUAL:
                 data_interval_start, data_interval_end = task.dag.timetable.infer_manual_data_interval(
-                    run_after=logical_date  # type: ignore
+                    run_after=logical_date
                 )
             else:
                 drinfo = task.dag.timetable.next_dagrun_info(
@@ -2245,6 +2296,7 @@ def create_runtime_ti(mocked_parse):
                 run_id=run_id,
                 try_number=try_number,
                 map_index=map_index,
+                dag_version_id=uuid7(),
             ),
             dag_rel_path="",
             bundle_info=BundleInfo(name="anything", version="any"),
@@ -2492,3 +2544,20 @@ def testing_dag_bundle():
         if session.query(DagBundleModel).filter(DagBundleModel.name == "testing").count() == 0:
             testing = DagBundleModel(name="testing")
             session.add(testing)
+
+
+@pytest.fixture
+def create_connection_without_db(monkeypatch):
+    """
+    Fixture to create connections for tests without using the database.
+
+    This fixture uses monkeypatch to set the appropriate AIRFLOW_CONN_{conn_id} environment variable.
+    """
+
+    def _create_conn(connection, session=None):
+        """Create connection using environment variable."""
+
+        env_var_name = f"AIRFLOW_CONN_{connection.conn_id.upper()}"
+        monkeypatch.setenv(env_var_name, connection.as_json())
+
+    return _create_conn

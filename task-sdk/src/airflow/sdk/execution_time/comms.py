@@ -54,7 +54,7 @@ from datetime import datetime
 from functools import cached_property
 from pathlib import Path
 from socket import socket
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Generic, Literal, TypeVar, Union, overload
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Generic, Literal, TypeVar, overload
 from uuid import UUID
 
 import attrs
@@ -71,6 +71,7 @@ from airflow.sdk.api.datamodels._generated import (
     BundleInfo,
     ConnectionResponse,
     DagRunStateResponse,
+    HITLDetailRequest,
     InactiveAssetsResponse,
     PrevSuccessfulDagRunResponse,
     TaskInstance,
@@ -83,6 +84,7 @@ from airflow.sdk.api.datamodels._generated import (
     TISkippedDownstreamTasksStatePayload,
     TISuccessStatePayload,
     TriggerDAGRunPayload,
+    UpdateHITLDetailPayload,
     VariableResponse,
     XComResponse,
     XComSequenceIndexResponse,
@@ -95,6 +97,7 @@ try:
 except ImportError:
     # Available on Unix and Windows (so "everywhere") but lets be safe
     recv_fds = None  # type: ignore[assignment]
+
 
 if TYPE_CHECKING:
     from structlog.typing import FilteringBoundLogger as Logger
@@ -183,9 +186,9 @@ class CommsDecoder(Generic[ReceiveMsgType, SendMsgType]):
     def send(self, msg: SendMsgType) -> ReceiveMsgType | None:
         """Send a request to the parent and block until the response is received."""
         frame = _RequestFrame(id=next(self.id_counter), body=msg.model_dump())
-        bytes = frame.as_bytes()
+        frame_bytes = frame.as_bytes()
 
-        self.socket.sendall(bytes)
+        self.socket.sendall(frame_bytes)
         if isinstance(msg, ResendLoggingFD):
             if recv_fds is None:
                 return None
@@ -225,18 +228,19 @@ class CommsDecoder(Generic[ReceiveMsgType, SendMsgType]):
         if len_bytes == b"":
             raise EOFError("Request socket closed before length")
 
-        len = int.from_bytes(len_bytes, byteorder="big")
+        length = int.from_bytes(len_bytes, byteorder="big")
 
-        buffer = bytearray(len)
-        nread = self.socket.recv_into(buffer)
-        if nread != len:
-            raise RuntimeError(
-                f"unable to read full response in child. (We read {nread}, but expected {len})"
-            )
-        if nread == 0:
-            raise EOFError(f"Request socket closed before response was complete ({self.id_counter=})")
+        buffer = bytearray(length)
+        mv = memoryview(buffer)
 
-        resp = self.resp_decoder.decode(buffer)
+        pos = 0
+        while pos < length:
+            nread = self.socket.recv_into(mv[pos:])
+            if nread == 0:
+                raise EOFError(f"Request socket closed before response was complete ({self.id_counter=})")
+            pos += nread
+
+        resp = self.resp_decoder.decode(mv)
         if maxfds:
             return resp, fds or []
         return resp
@@ -304,7 +308,7 @@ class AssetEventSourceTaskInstance:
     def xcom_pull(
         self,
         *,
-        key: str = "return_value",  # TODO: Make this a constant; see RuntimeTaskInstance.
+        key: str = "return_value",
         default: Any = None,
     ) -> Any:
         from airflow.sdk.execution_time.xcom import XCom
@@ -557,28 +561,40 @@ class SentFDs(BaseModel):
     fds: list[int]
 
 
+class CreateHITLDetailPayload(HITLDetailRequest):
+    """Add the input request part of a Human-in-the-loop response."""
+
+    type: Literal["CreateHITLDetailPayload"] = "CreateHITLDetailPayload"
+
+
+class HITLDetailRequestResult(HITLDetailRequest):
+    """Response to CreateHITLDetailPayload request."""
+
+    type: Literal["HITLDetailRequestResult"] = "HITLDetailRequestResult"
+
+
 ToTask = Annotated[
-    Union[
-        AssetResult,
-        AssetEventsResult,
-        ConnectionResult,
-        DagRunStateResult,
-        DRCount,
-        ErrorResponse,
-        PrevSuccessfulDagRunResult,
-        SentFDs,
-        StartupDetails,
-        TaskRescheduleStartDate,
-        TICount,
-        TaskStatesResult,
-        VariableResult,
-        XComCountResponse,
-        XComResult,
-        XComSequenceIndexResult,
-        XComSequenceSliceResult,
-        InactiveAssetsResult,
-        OKResponse,
-    ],
+    AssetResult
+    | AssetEventsResult
+    | ConnectionResult
+    | DagRunStateResult
+    | DRCount
+    | ErrorResponse
+    | PrevSuccessfulDagRunResult
+    | SentFDs
+    | StartupDetails
+    | TaskRescheduleStartDate
+    | TICount
+    | TaskStatesResult
+    | VariableResult
+    | XComCountResponse
+    | XComResult
+    | XComSequenceIndexResult
+    | XComSequenceSliceResult
+    | InactiveAssetsResult
+    | CreateHITLDetailPayload
+    | HITLDetailRequestResult
+    | OKResponse,
     Field(discriminator="type"),
 ]
 
@@ -840,38 +856,52 @@ class GetDRCount(BaseModel):
     type: Literal["GetDRCount"] = "GetDRCount"
 
 
+class GetHITLDetailResponse(BaseModel):
+    """Get the response content part of a Human-in-the-loop response."""
+
+    ti_id: UUID
+    type: Literal["GetHITLDetailResponse"] = "GetHITLDetailResponse"
+
+
+class UpdateHITLDetail(UpdateHITLDetailPayload):
+    """Update the response content part of an existing Human-in-the-loop response."""
+
+    type: Literal["UpdateHITLDetail"] = "UpdateHITLDetail"
+
+
 ToSupervisor = Annotated[
-    Union[
-        DeferTask,
-        DeleteXCom,
-        GetAssetByName,
-        GetAssetByUri,
-        GetAssetEventByAsset,
-        GetAssetEventByAssetAlias,
-        GetConnection,
-        GetDagRunState,
-        GetDRCount,
-        GetPrevSuccessfulDagRun,
-        GetTaskRescheduleStartDate,
-        GetTICount,
-        GetTaskStates,
-        GetVariable,
-        GetXCom,
-        GetXComCount,
-        GetXComSequenceItem,
-        GetXComSequenceSlice,
-        PutVariable,
-        RescheduleTask,
-        RetryTask,
-        SetRenderedFields,
-        SetXCom,
-        SkipDownstreamTasks,
-        SucceedTask,
-        ValidateInletsAndOutlets,
-        TaskState,
-        TriggerDagRun,
-        DeleteVariable,
-        ResendLoggingFD,
-    ],
+    DeferTask
+    | DeleteXCom
+    | GetAssetByName
+    | GetAssetByUri
+    | GetAssetEventByAsset
+    | GetAssetEventByAssetAlias
+    | GetConnection
+    | GetDagRunState
+    | GetDRCount
+    | GetPrevSuccessfulDagRun
+    | GetTaskRescheduleStartDate
+    | GetTICount
+    | GetTaskStates
+    | GetVariable
+    | GetXCom
+    | GetXComCount
+    | GetXComSequenceItem
+    | GetXComSequenceSlice
+    | PutVariable
+    | RescheduleTask
+    | RetryTask
+    | SetRenderedFields
+    | SetXCom
+    | SkipDownstreamTasks
+    | SucceedTask
+    | ValidateInletsAndOutlets
+    | TaskState
+    | TriggerDagRun
+    | DeleteVariable
+    | ResendLoggingFD
+    | CreateHITLDetailPayload
+    | UpdateHITLDetail
+    | GetHITLDetailResponse,
     Field(discriminator="type"),
 ]

@@ -885,6 +885,7 @@ class TestSchedulerJob:
 
         for ti in tis_list:
             ti.state = State.SCHEDULED
+            ti.dag_model.max_active_tasks = 4
 
         session.flush()
 
@@ -893,12 +894,12 @@ class TestSchedulerJob:
 
     @conf_vars(
         {
-            ("scheduler", "enable_fair_task_selection"): "True",
+            ("scheduler", "enable_fair_task_selection"): "False",
             ("scheduler", "max_tis_per_query"): "100",
             ("scheduler", "max_dagruns_to_create_per_loop"): "10",
             ("scheduler", "max_dagruns_per_loop_to_schedule"): "20",
             ("core", "parallelism"): "100",
-            ("core", "max_active_tasks_per_dag"): "10",
+            ("core", "max_active_tasks_per_dag"): "4",
             ("core", "max_active_runs_per_dag"): "10",
             ("core", "default_pool_task_slot_count"): "64",
         }
@@ -908,6 +909,9 @@ class TestSchedulerJob:
         Test that tasks for all executors are set to queued, if space allows it
         """
         scheduler_job = Job()
+        scheduler_job.executor.parallelism = 100
+        scheduler_job.executor.slots_available = 99
+        scheduler_job.max_tis_per_query = 100
         self.job_runner = SchedulerJobRunner(job=scheduler_job)
         session = settings.Session()
 
@@ -915,13 +919,16 @@ class TestSchedulerJob:
         #       2. reuse the method to create multiple dags (OK)
         #       3. add more configs
         #       4. test with the flag and without
+        #
+        #       How many can I queue at each given iteration?
+        #
         dag_120_tasks_tis_list = self.task_helper(dag_maker, session, "dag_120_tasks", 120)
         dag_80_tasks_tis_list = self.task_helper(dag_maker, session, "dag_80_tasks", 80)
         dag_110_tasks_tis_list = self.task_helper(dag_maker, session, "dag_110_tasks", 110)
 
         res = self.job_runner._executable_task_instances_to_queued(max_tis=32, session=session)
 
-        assert len(res) == 8
+        assert len(res) == 12
         res_ti_keys = [res_ti.key for res_ti in res]
         print(f"x: len(tis_list): {len(dag_120_tasks_tis_list)}")
         print(f"x: len(res): {len(res)} | {res_ti_keys}")

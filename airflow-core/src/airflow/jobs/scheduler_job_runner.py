@@ -536,6 +536,7 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                     # But we need to check for None to make mypy happy.
                     assert executor.name
                 executor_slots_available[executor.name] = executor.slots_available
+                print(f"x: executor.name: {executor.name} | slots_available: {executor_slots_available}")
 
             for task_instance in task_instances_to_examine:
                 pool_name = task_instance.pool
@@ -683,9 +684,9 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                         # But we need to check for None to make mypy happy.
                         assert executor_obj.name
                     if executor_slots_available[executor_obj.name] <= 0:
-                        self.log.debug(
+                        self.log.info(
                             "Not scheduling %s since its executor %s does not currently have any more "
-                            "available slots"
+                            "available slots", task_instance.task_id, executor_obj.name
                         )
                         starved_tasks.add((task_instance.dag_id, task_instance.task_id))
                         continue

@@ -2255,14 +2255,7 @@ scheduler:
       version_added: 3.1.0
       type: boolean
       example: ~
-      default: "False"
-    fair_task_selection_per_dag_limit:
-      description: |
-        If task fair selection is enabled, set a limit of tasks to be selected per dag.
-      version_added: 3.1.0
-      type: integer
-      example: ~
-      default: "16"
+      default: "True"
 triggerer:
   description: ~
   options:

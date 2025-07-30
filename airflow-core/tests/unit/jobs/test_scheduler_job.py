@@ -894,7 +894,7 @@ class TestSchedulerJob:
 
     @conf_vars(
         {
-            ("scheduler", "enable_fair_task_selection"): "True",
+            # ("scheduler", "enable_fair_task_selection"): "True",
             # ("scheduler", "enable_fair_task_selection"): "False",
             ("scheduler", "max_tis_per_query"): "100",
             ("scheduler", "max_dagruns_to_create_per_loop"): "10",
@@ -905,36 +905,61 @@ class TestSchedulerJob:
             ("core", "default_pool_task_slot_count"): "64",
         }
     )
-    def test_fair_task_selection(self, dag_maker, mock_executors):
+    @pytest.mark.parametrize(
+        "fts_enabled",
+        [
+            pytest.param(True, id="fts_enabled"),
+            pytest.param(False, id="fts_disabled")
+        ],
+    )
+    def test_fair_task_selection(self, dag_maker, mock_executors, fts_enabled: bool):
         """
-        Test that tasks for all executors are set to queued, if space allows it
+        Test with and without FairTaskSelection.
         """
-        scheduler_job = Job()
-        scheduler_job.executor.parallelism = 100
-        scheduler_job.executor.slots_available = 99
-        scheduler_job.max_tis_per_query = 100
-        self.job_runner = SchedulerJobRunner(job=scheduler_job)
-        session = settings.Session()
+        with conf_vars({("scheduler", "enable_fair_task_selection"): str(fts_enabled)}):
+            scheduler_job = Job()
+            scheduler_job.executor.parallelism = 100
+            scheduler_job.executor.slots_available = 99
+            scheduler_job.max_tis_per_query = 100
+            self.job_runner = SchedulerJobRunner(job=scheduler_job)
+            session = settings.Session()
 
-        # TODO: 1. move the logic to a helper method (OK)
-        #       2. reuse the method to create multiple dags (OK)
-        #       3. add more configs
-        #       4. test with the flag and without
-        #
-        #       How many can I queue at each given iteration?
-        #
-        dag_120_tasks_tis_list = self.task_helper(dag_maker, session, "dag_12000_tasks", 12000)
-        dag_80_tasks_tis_list = self.task_helper(dag_maker, session, "dag_8000_tasks", 8000)
-        dag_110_tasks_tis_list = self.task_helper(dag_maker, session, "dag_11000_tasks", 11000)
+            # TODO: 1. move the logic to a helper method (OK)
+            #       2. reuse the method to create multiple dags (OK)
+            #       3. add more configs
+            #       4. test with the flag and without
+            #
+            #       How many can I queue at each given iteration?
+            #
+            dag_120_tasks_tis_list = self.task_helper(dag_maker, session, "dag_12000_tasks", 12000)
+            dag_80_tasks_tis_list = self.task_helper(dag_maker, session, "dag_8000_tasks", 8000)
+            dag_110_tasks_tis_list = self.task_helper(dag_maker, session, "dag_11000_tasks", 11000)
 
-        res = self.job_runner._executable_task_instances_to_queued(max_tis=32, session=session)
+            import time
+            start_time = time.perf_counter()
 
-        assert len(res) == 12
-        res_ti_keys = [res_ti.key for res_ti in res]
-        print(f"x: len(tis_list): {len(dag_120_tasks_tis_list)}")
-        print(f"x: len(res): {len(res)} | {res_ti_keys}")
-        # for ti in tis_list:
-        #     assert ti.key in res_ti_keys
+            count = 0
+            iterations = 0
+
+            while count < 12:
+                res = self.job_runner._executable_task_instances_to_queued(max_tis=32, session=session)
+                count += len(res)
+                iterations += 1
+                print(f"x: count: {count}")
+
+            duration_s = time.perf_counter() - start_time
+            print(f"x: needed iterations: {iterations} | total time: {duration_s:.2f}")
+
+            if fts_enabled:
+                assert iterations == 1
+                assert count == 12
+            else:
+                assert iterations == 3
+                assert count >= 12
+
+            # res_ti_keys = [res_ti.key for res_ti in res]
+            # for ti in tis_list:
+            #     assert ti.key in res_ti_keys
 
     def test_find_executable_task_instances_order_priority_with_pools(self, dag_maker):
         """

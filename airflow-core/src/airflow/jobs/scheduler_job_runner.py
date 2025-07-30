@@ -360,6 +360,8 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
         from airflow.models.pool import Pool
         from airflow.utils.db import DBLocks
 
+        final_start_time = time.perf_counter()
+
         executable_tis: list[TI] = []
 
         if session.get_bind().dialect.name == "postgresql":
@@ -509,16 +511,20 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                 timer.stop(send=True)
 
                 duration_s = time.perf_counter() - start_time
+                print(f"x: query_duration: {duration_s}")
                 Stats.gauge(timer_name, duration_s)
             except OperationalError as e:
 
                 duration_s = time.perf_counter() - start_time
+                print(f"x: query_duration-error: {duration_s}")
                 Stats.gauge(timer_name, duration_s)
                 timer.stop(send=False)
                 raise e
 
             # TODO[HA]: This was wrong before anyway, as it only looked at a sub-set of dags, not everything.
             # Stats.gauge('scheduler.tasks.pending', len(task_instances_to_examine))
+
+            after_query_start_time = time.perf_counter()
 
             if not task_instances_to_examine:
                 self.log.debug("No tasks to consider for execution.")
@@ -760,6 +766,13 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
 
         for ti in executable_tis:
             make_transient(ti)
+
+        after_query_duration_s = time.perf_counter() - after_query_start_time
+        print(f"x: after_query_duration: {after_query_duration_s}")
+
+        final_duration_s = time.perf_counter() - final_start_time
+        print(f"x: final_duration: {final_duration_s}")
+
         return executable_tis
 
     def _enqueue_task_instances_with_queued_state(

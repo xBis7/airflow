@@ -894,7 +894,8 @@ class TestSchedulerJob:
 
     @conf_vars(
         {
-            ("scheduler", "enable_fair_task_selection"): "False",
+            ("scheduler", "enable_fair_task_selection"): "True",
+            # ("scheduler", "enable_fair_task_selection"): "False",
             ("scheduler", "max_tis_per_query"): "100",
             ("scheduler", "max_dagruns_to_create_per_loop"): "10",
             ("scheduler", "max_dagruns_per_loop_to_schedule"): "20",
@@ -922,9 +923,9 @@ class TestSchedulerJob:
         #
         #       How many can I queue at each given iteration?
         #
-        dag_120_tasks_tis_list = self.task_helper(dag_maker, session, "dag_120_tasks", 120)
-        dag_80_tasks_tis_list = self.task_helper(dag_maker, session, "dag_80_tasks", 80)
-        dag_110_tasks_tis_list = self.task_helper(dag_maker, session, "dag_110_tasks", 110)
+        dag_120_tasks_tis_list = self.task_helper(dag_maker, session, "dag_12000_tasks", 12000)
+        dag_80_tasks_tis_list = self.task_helper(dag_maker, session, "dag_8000_tasks", 8000)
+        dag_110_tasks_tis_list = self.task_helper(dag_maker, session, "dag_11000_tasks", 11000)
 
         res = self.job_runner._executable_task_instances_to_queued(max_tis=32, session=session)
 

@@ -342,6 +342,19 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
             .subquery()
         )
 
+    def __get_current_dagrun_concurrency(self, states: Iterable[TaskInstanceState]) -> Query:
+        """Get current task count per individual dag_run"""
+        return (
+            select(
+                TI.dag_id,
+                TI.run_id,
+                func.count("*").label("dagrun_count")
+            )
+            .where(TI.state.in_(states))
+            .group_by(TI.dag_id, TI.run_id)
+            .subquery()
+        )
+
     def _executable_task_instances_to_queued(self, max_tis: int, session: Session) -> list[TI]:
         """
         Find TIs that are ready for execution based on conditions.
@@ -398,7 +411,6 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
         # dag_id to # of running tasks and (dag_id, task_id) to # of running tasks.
         concurrency_map = ConcurrencyMap()
         concurrency_map.load(session=session)
-        dag_concurrency_subquery = self.__get_current_dag_concurrency(states=EXECUTION_STATES)
 
         # Number of tasks that cannot be scheduled because of no open slot in pool
         num_starving_tasks_total = 0
@@ -419,6 +431,11 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
             num_starved_tasks_task_dagrun_concurrency = len(starved_tasks_task_dagrun_concurrency)
 
             if fts_enabled:
+                dag_concurrency_subquery = self.__get_current_dag_concurrency(states=EXECUTION_STATES)
+                dagrun_concurrency_subquery = self.__get_current_dagrun_concurrency(states=EXECUTION_STATES)
+
+                per_dag_limit = conf.getint("core", "max_active_tasks_total_per_dag")
+
                 query = (
                     select(TI)
                     .with_hint(TI, "USE INDEX (ti_state)", dialect_name="mysql")
@@ -428,10 +445,21 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                     .where(~DM.is_paused)
                     .where(TI.state == TaskInstanceState.SCHEDULED)
                     .where(DM.bundle_name.is_not(None))
+                    # Join both concurrency subqueries
                     .join(
                         dag_concurrency_subquery, TI.dag_id == dag_concurrency_subquery.c.dag_id, isouter=True
                     )
-                    .where(func.coalesce(dag_concurrency_subquery.c.dag_count, 0) < DM.max_active_tasks)
+                    .join(
+                        dagrun_concurrency_subquery,
+                        and_(
+                            TI.dag_id == dagrun_concurrency_subquery.c.dag_id,
+                            TI.run_id == dagrun_concurrency_subquery.c.run_id
+                        ),
+                        isouter=True
+                    )
+                    # Apply both limits
+                    .where(func.coalesce(dagrun_concurrency_subquery.c.dagrun_count, 0) < DM.max_active_tasks)
+                    .where(func.coalesce(dag_concurrency_subquery.c.dag_count, 0) < per_dag_limit)
                     .options(selectinload(TI.dag_model))
                     .order_by(-TI.priority_weight, DR.logical_date, TI.map_index)
                 )
@@ -454,14 +482,14 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                 self.log.info("Scheduler fair selection is enabled")
 
                 # per_dag_limit = DM.max_active_tasks
-                per_dag_limit = conf.getint("core", "max_active_tasks_per_dag")
+                per_dagrun_limit = conf.getint("core", "max_active_tasks_per_dag")
 
-                self.log.info(f"Scheduler fair selection per dag limit is {per_dag_limit}")
+                self.log.info(f"Scheduler fair selection per dag limit is {per_dagrun_limit}")
 
                 _subquery_dm = select(DM.dag_id).where(not_(DM.is_paused)).distinct().subquery()
 
                 _subquery_lateral = lateral(
-                    query.where(TI.dag_id == _subquery_dm.c.dag_id).limit(per_dag_limit)
+                    query.where(TI.dag_id == _subquery_dm.c.dag_id).limit(per_dagrun_limit)
                 ).alias("limited")
 
                 _reduced = (

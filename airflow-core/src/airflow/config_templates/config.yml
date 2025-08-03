@@ -2261,6 +2261,13 @@ scheduler:
       type: boolean
       example: ~
       default: "False"
+    enable_window_function:
+      description: |
+        Whether to enable window function in the scheduler.
+      version_added: 3.1.0
+      type: boolean
+      example: ~
+      default: "True"
 triggerer:
   description: ~
   options:

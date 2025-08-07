@@ -213,7 +213,7 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
         if log:
             self._log = log
 
-        self.scheduler_dag_bag = DBDagBag(load_op_links=False)
+        self.scheduler_dag_bag = SchedulerDagBag()
 
         task_selector_type = conf.get("scheduler", "scheduler_task_selector_strategy")
 
@@ -312,7 +312,7 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
             raise OperationalError("Failed to acquire advisory lock", params=None, orig=RuntimeError("55P03"))
 
     def __print_tis_selection(self, tis: list[TI]) -> None:
-        self.log.info(f"TaskInstance selection is: {dict(Counter(ti.dag_id for ti in tis))}")
+        self.log.info("TaskInstance selection is: %s", dict(Counter(ti.dag_id for ti in tis)))
 
     def _executable_task_instances_to_queued(self, max_tis: int, session: Session) -> list[TI]:
         """
@@ -345,7 +345,7 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                 session,
                 **params,
             )
-            self.log.info(f"Length of the tis to examine is {len(task_instances_to_examine)}")
+            self.log.info("Length of the tis to examine is %d", len(task_instances_to_examine))
             self.__print_tis_selection(task_instances_to_examine)
         except OperationalError as e:
             timer.stop(send=False)
@@ -380,7 +380,9 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                 if executor_slots_available[executor_obj.name] <= 0:
                     self.log.info(
                         "Not scheduling %s since its executor %s does not currently have any more "
-                        "available slots", task_instance.task_id, executor_obj.name
+                        "available slots",
+                        task_instance.task_id,
+                        executor_obj.name,
                     )
                     continue
                 executor_slots_available[executor_obj.name] -= 1
@@ -526,7 +528,7 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
             try:
                 query = with_row_locks(query, of=TI, session=session, skip_locked=True)
                 task_instances_to_examine: list[TI] = session.scalars(query).all()
-                self.log.info(f"Length of the tis to examine is {len(task_instances_to_examine)}")
+                self.log.info("Length of the tis to examine is %d", len(task_instances_to_examine))
                 self.__print_tis_selection(task_instances_to_examine)
 
                 timer.stop(send=True)
@@ -702,7 +704,9 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                     if executor_slots_available[executor_obj.name] <= 0:
                         self.log.info(
                             "Not scheduling %s since its executor %s does not currently have any more "
-                            "available slots", task_instance.task_id, executor_obj.name
+                            "available slots",
+                            task_instance.task_id,
+                            executor_obj.name,
                         )
                         starved_tasks.add((task_instance.dag_id, task_instance.task_id))
                         continue
@@ -834,7 +838,7 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
             self.log.debug("max_tis query size is less than or equal to zero. No query will be performed!")
             return 0
 
-        if (conf.getboolean("scheduler", "enable_window_function")):
+        if conf.getboolean("scheduler", "enable_window_function"):
             queued_tis = self._executable_task_instances_to_queued(max_tis, session=session)
         else:
             queued_tis = self._executable_task_instances_to_queued_orig(max_tis, session=session)

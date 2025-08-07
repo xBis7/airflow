@@ -865,8 +865,8 @@ class TestSchedulerJob:
         with dag_maker(dag_id=dag_id):
             for i in range(task_num):
                 # Assign priority weight to certain tasks.
-                if (i % 10) == 0: # 10, 20, 30, 40, 50, ...
-                    weight = int(i/2)
+                if (i % 10) == 0:  # 10, 20, 30, 40, 50, ...
+                    weight = int(i / 2)
                     dag_tasks[f"op{i}"] = EmptyOperator(task_id=f"dummy{i}", priority_weight=weight)
                 else:
                     # No executor specified, runs on default executor
@@ -891,12 +891,12 @@ class TestSchedulerJob:
 
         return tis_list
 
-
     @conf_vars(
         {
             ("scheduler", "max_tis_per_query"): "100",
             ("scheduler", "max_dagruns_to_create_per_loop"): "10",
             ("scheduler", "max_dagruns_per_loop_to_schedule"): "20",
+            ("scheduler", "scheduler_task_selector_strategy"): "PESSIMISTIC",
             ("core", "parallelism"): "100",
             ("core", "max_active_tasks_per_dag"): "4",
             ("core", "max_active_runs_per_dag"): "10",
@@ -905,10 +905,7 @@ class TestSchedulerJob:
     )
     @pytest.mark.parametrize(
         "enable_window_function",
-        [
-            pytest.param(True, id="wf_enabled"),
-            pytest.param(False, id="wf_disabled")
-        ],
+        [pytest.param(True, id="wf_enabled"), pytest.param(False, id="wf_disabled")],
     )
     def test_enable_window_function(self, dag_maker, mock_executors, enable_window_function: bool):
         """
@@ -922,11 +919,12 @@ class TestSchedulerJob:
             self.job_runner = SchedulerJobRunner(job=scheduler_job)
             session = settings.Session()
 
-            dag_120_tasks_tis_list = self.task_helper(dag_maker, session, "dag_12000_tasks", 12000)
-            dag_80_tasks_tis_list = self.task_helper(dag_maker, session, "dag_800_tasks", 800)
-            dag_110_tasks_tis_list = self.task_helper(dag_maker, session, "dag_1100_tasks", 1100)
+            self.task_helper(dag_maker, session, "dag_12000_tasks", 12000)
+            self.task_helper(dag_maker, session, "dag_800_tasks", 800)
+            self.task_helper(dag_maker, session, "dag_1100_tasks", 1100)
 
             import time
+
             start_time = time.perf_counter()
 
             count = 0
@@ -950,7 +948,6 @@ class TestSchedulerJob:
 
             duration_s = time.perf_counter() - start_time
             print(f"x: needed iterations: {iterations} | total time: {duration_s:.2f}")
-
 
     def test_find_executable_task_instances_order_priority_with_pools(self, dag_maker):
         """

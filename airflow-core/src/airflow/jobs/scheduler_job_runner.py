@@ -356,13 +356,14 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
             .options(selectinload(TI.dag_model))
             .order_by(
                 nulls_first(
-                    case(
-                        (  # max deprioritization is 2 minutes
-                            DR.last_queueing_decision < timezone.utcnow() - timedelta(seconds=120),
-                            None,
-                        ),
-                        else_=DR.last_queueing_decision,
-                    ).asc(),
+                    # case(
+                        # (  # max deprioritization is 2 minutes
+                        #     DR.last_queueing_decision < timezone.utcnow() - timedelta(seconds=120),
+                        #     None,
+                        # ),
+                    #     else_=DR.last_queueing_decision,
+                    # ).asc(),
+                    DR.last_queueing_decision.asc(),
                     session=session,
                 ),
                 -TI.priority_weight,

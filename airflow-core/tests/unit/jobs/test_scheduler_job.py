@@ -941,12 +941,13 @@ class TestSchedulerJob:
         # 6 dags * 4 = 24.
         assert task_num == 24
 
+        dr_ids = None
         queued_tis = None
         while iterations < 4:
             # Use `_executable_task_instances_to_queued` because it returns a list of TIs
             # while `_critical_section_enqueue_task_instances` just returns the number of the TIs.
             if fts_enabled:
-                queued_tis = self.job_runner._executable_task_instances_to_queued(
+                dr_ids, queued_tis = self.job_runner._executable_task_instances_to_queued(
                     max_tis=scheduler_job.executor.slots_available, session=session
                 )
             else:
@@ -955,6 +956,18 @@ class TestSchedulerJob:
                 )
             count += len(queued_tis)
             iterations += 1
+
+            for dr_id in dr_ids:
+                stmt = (
+                    update(DagRun)
+                    .where(DagRun.id == dr_id)
+                    .values(last_queueing_decision=func.current_timestamp())
+                    .execution_options(synchronize_session=False)
+                )
+                session.execute(stmt)
+                session.commit()
+
+            print(f"x: {dr_ids}")
 
             for ti in queued_tis:
                 ti.state = TaskInstanceState.SUCCESS

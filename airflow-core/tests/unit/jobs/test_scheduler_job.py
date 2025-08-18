@@ -178,6 +178,39 @@ def create_dagrun(session):
     return _create_dagrun
 
 
+def task_maker(dag_maker, session, dag_id: str, task_num: int, max_active_tasks: int):
+    dag_tasks = {}
+
+    with dag_maker(dag_id=dag_id):
+        for i in range(task_num):
+            # Assign priority weight to certain tasks.
+            if (i % 10) == 0:  # 10, 20, 30, 40, 50, ...
+                weight = int(i / 2)
+                dag_tasks[f"op{i}"] = EmptyOperator(task_id=f"dummy{i}", priority_weight=weight)
+            else:
+                # No executor specified, runs on default executor
+                dag_tasks[f"op{i}"] = EmptyOperator(task_id=f"dummy{i}")
+
+    # 'logical_date' is used to create the 'run_id'. Set it to 'now', in order to get distinct run ids.
+    dag_run = dag_maker.create_dagrun(run_type=DagRunType.SCHEDULED, logical_date=timezone.utcnow())
+
+    task_tis = {}
+
+    tis_list = []
+    for i in range(task_num):
+        task_tis[f"ti{i}"] = dag_run.get_task_instance(dag_tasks[f"op{i}"].task_id, session)
+        # Add to the list.
+        tis_list.append(task_tis[f"ti{i}"])
+
+    for ti in tis_list:
+        ti.state = State.SCHEDULED
+        ti.dag_model.max_active_tasks = max_active_tasks
+
+    session.flush()
+
+    return tis_list
+
+
 @patch.dict(
     ExecutorLoader.executors, {MOCK_EXECUTOR: f"{MockExecutor.__module__}.{MockExecutor.__qualname__}"}
 )
@@ -863,60 +896,18 @@ class TestSchedulerJob:
         for ti in tis_tuple:
             assert ti.key in res_ti_keys
 
-    def task_helper(self, dag_maker, session, dag_id: str, task_num: int):
-        dag_tasks = {}
-
-        with dag_maker(dag_id=dag_id):
-            for i in range(task_num):
-                # Assign priority weight to certain tasks.
-                if (i % 10) == 0:  # 10, 20, 30, 40, 50, ...
-                    weight = int(i / 2)
-                    dag_tasks[f"op{i}"] = EmptyOperator(task_id=f"dummy{i}", priority_weight=weight)
-                else:
-                    # No executor specified, runs on default executor
-                    dag_tasks[f"op{i}"] = EmptyOperator(task_id=f"dummy{i}")
-
-        dag_run = dag_maker.create_dagrun(run_type=DagRunType.SCHEDULED)
-
-        task_tis = {}
-
-        tis_list = []
-        for i in range(task_num):
-            task_tis[f"ti{i}"] = dag_run.get_task_instance(dag_tasks[f"op{i}"].task_id, session)
-            # add
-            tis_list.append(task_tis[f"ti{i}"])
-
-        for ti in tis_list:
-            ti.state = State.SCHEDULED
-            ti.dag_model.max_active_tasks = 4
-
-        session.flush()
-
-        return tis_list
-
     @conf_vars(
         {
             ("scheduler", "max_tis_per_query"): "100",
             ("scheduler", "max_dagruns_to_create_per_loop"): "10",
             ("scheduler", "max_dagruns_per_loop_to_schedule"): "20",
-            ("scheduler", "fair_task_selection_limit_per_dag"): "4",
             ("core", "parallelism"): "100",
-            ("core", "max_active_tasks_per_dag"): "2",
+            ("core", "max_active_tasks_per_dag"): "4",
             ("core", "max_active_runs_per_dag"): "10",
             ("core", "default_pool_task_slot_count"): "64",
         }
     )
-    @pytest.mark.parametrize(
-        "fts_enabled",
-        [
-            pytest.param(True, id="fts_enabled"),
-            # pytest.param(False, id="fts_disabled")
-        ],
-    )
-    def test_fair_task_selection(self, dag_maker, mock_executors, fts_enabled: bool):
-        """
-        Test with and without FairTaskSelection.
-        """
+    def test_per_dr_limit_applied_in_task_query(self, dag_maker, mock_executors):
         scheduler_job = Job()
         scheduler_job.executor.parallelism = 100
         scheduler_job.executor.slots_available = 70
@@ -924,58 +915,103 @@ class TestSchedulerJob:
         self.job_runner = SchedulerJobRunner(job=scheduler_job)
         session = settings.Session()
 
-        self.task_helper(dag_maker, session, "dag_1300_tasks", 1300)
-        self.task_helper(dag_maker, session, "dag_1200_tasks", 1200)
-        self.task_helper(dag_maker, session, "dag_1100_tasks", 1100)
-        self.task_helper(dag_maker, session, "dag_1000_tasks", 100)
-        self.task_helper(dag_maker, session, "dag_900_tasks", 90)
-        self.task_helper(dag_maker, session, "dag_800_tasks", 80)
+        task_maker(dag_maker, session, "dag_1300_tasks", 1300, 4)
+        task_maker(dag_maker, session, "dag_1200_tasks", 1200, 4)
+        task_maker(dag_maker, session, "dag_1100_tasks", 1100, 4)
+        task_maker(dag_maker, session, "dag_1000_tasks", 100, 4)
+        task_maker(dag_maker, session, "dag_900_tasks", 90, 4)
+        task_maker(dag_maker, session, "dag_800_tasks", 80, 4)
 
         count = 0
         iterations = 0
 
         from airflow.configuration import conf
 
-        task_num = conf.getint("scheduler", "fair_task_selection_limit_per_dag") * 6
+        task_num = conf.getint("core", "max_active_tasks_per_dag") * 6
 
         # 6 dags * 4 = 24.
         assert task_num == 24
 
         dr_ids = None
         queued_tis = None
-        while iterations < 4:
+        while count < task_num:
             # Use `_executable_task_instances_to_queued` because it returns a list of TIs
             # while `_critical_section_enqueue_task_instances` just returns the number of the TIs.
-            if fts_enabled:
-                dr_ids, queued_tis = self.job_runner._executable_task_instances_to_queued(
-                    max_tis=scheduler_job.executor.slots_available, session=session
-                )
-            else:
-                queued_tis = self.job_runner._executable_task_instances_to_queued_orig(
-                    max_tis=scheduler_job.executor.slots_available, session=session
-                )
+            dr_ids, queued_tis = self.job_runner._executable_task_instances_to_queued(
+                max_tis=scheduler_job.executor.slots_available, session=session
+            )
             count += len(queued_tis)
             iterations += 1
 
-            for dr_id in dr_ids:
-                stmt = (
-                    update(DagRun)
-                    .where(DagRun.id == dr_id)
-                    .values(last_queueing_decision=func.current_timestamp())
-                    .execution_options(synchronize_session=False)
-                )
-                session.execute(stmt)
-                session.commit()
+        assert iterations == 1
+        assert count == task_num
 
-            print(f"x: {dr_ids}")
+        assert queued_tis is not None
+
+        dag_counts = Counter(ti.dag_id for ti in queued_tis)
+
+        # Tasks from all 6 dags should have been queued.
+        assert len(dag_counts) == 6
+        assert all(count == 4 for count in dag_counts.values()), (
+            "Count for each dag_id should be 4 but it isn't"
+        )
+
+    @conf_vars(
+        {
+            ("scheduler", "max_tis_per_query"): "100",
+            ("scheduler", "max_dagruns_to_create_per_loop"): "10",
+            ("scheduler", "max_dagruns_per_loop_to_schedule"): "20",
+            ("core", "parallelism"): "100",
+            ("core", "max_active_tasks_per_dag"): "4",
+            ("core", "max_active_runs_per_dag"): "10",
+            ("core", "default_pool_task_slot_count"): "64",
+        }
+    )
+    def test_sorting(self, dag_maker, mock_executors):
+        scheduler_job = Job()
+        scheduler_job.executor.parallelism = 100
+        scheduler_job.executor.slots_available = 12
+        scheduler_job.max_tis_per_query = 12
+        self.job_runner = SchedulerJobRunner(job=scheduler_job)
+        session = settings.Session()
+
+        task_maker(dag_maker, session, "dag_1300_tasks", 1300, 4)
+        task_maker(dag_maker, session, "dag_1200_tasks", 1200, 4)
+        task_maker(dag_maker, session, "dag_1100_tasks", 1100, 4)
+        task_maker(dag_maker, session, "dag_1000_tasks", 100, 4)
+        task_maker(dag_maker, session, "dag_900_tasks", 90, 4)
+        task_maker(dag_maker, session, "dag_800_tasks", 80, 4)
+
+        count = 0
+        iterations = 0
+
+        dr_ids = None
+        queued_tis = None
+        while iterations < 4:
+            # Use `_executable_task_instances_to_queued` because it returns a list of TIs
+            # while `_critical_section_enqueue_task_instances` just returns the number of the TIs.
+            dr_ids, queued_tis = self.job_runner._executable_task_instances_to_queued(
+                max_tis=scheduler_job.executor.slots_available, session=session
+            )
+
+            count += len(queued_tis)
+            iterations += 1
+
+            if dr_ids is not None:
+                for dr_id in dr_ids:
+                    stmt = (
+                        update(DagRun)
+                        .where(DagRun.id == dr_id)
+                        .values(last_queueing_decision=func.current_timestamp())
+                        .execution_options(synchronize_session=False)
+                    )
+                    session.execute(stmt)
+                    session.commit()
 
             for ti in queued_tis:
                 ti.state = TaskInstanceState.SUCCESS
                 session.merge(ti)
                 session.commit()
-
-        print(f"x: count: {count}, iterations: {iterations}")
-
 
     def test_find_executable_task_instances_order_priority_with_pools(self, dag_maker):
         """

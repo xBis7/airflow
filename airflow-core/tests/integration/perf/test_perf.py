@@ -520,9 +520,7 @@ class TestPerformanceIntegration:
         )
         monkeypatch.setattr(executor_loader, "_alias_to_executors", {"CeleryExecutor": executor_name})
 
-    def test_dag_execution_succeeds(
-        self, monkeypatch, celery_worker_env_vars, capfd, session
-    ):
+    def test_dag_execution_succeeds(self, monkeypatch, celery_worker_env_vars, capfd, session):
         scheduler_1_process = None
 
         celery_worker_1_process = None

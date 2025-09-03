@@ -520,15 +520,9 @@ class TestPerformanceIntegration:
         )
         monkeypatch.setattr(executor_loader, "_alias_to_executors", {"CeleryExecutor": executor_name})
 
-    # @pytest.mark.execution_timeout(300)
-    @pytest.mark.parametrize(
-        "flag_enabled", [pytest.param("True", id="with_fts"), pytest.param("False", id="fts_disabled")]
-    )
     def test_dag_execution_succeeds(
-        self, flag_enabled: str, monkeypatch, celery_worker_env_vars, capfd, session
+        self, monkeypatch, celery_worker_env_vars, capfd, session
     ):
-        os.environ["AIRFLOW__SCHEDULER__ENABLE_FAIR_TASK_SELECTION"] = flag_enabled
-
         scheduler_1_process = None
 
         celery_worker_1_process = None

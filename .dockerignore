@@ -34,9 +34,6 @@
 !chart
 !licenses
 
-# Certificates
-!certs
-
 # Add all "production" distributions
 !providers/
 !task-sdk/

@@ -31,7 +31,7 @@ default_args = {
 dag = DAG(
     "configurable_test_dag",
     default_args=default_args,
-    schedule_interval=None,
+    schedule=None,
     catchup=False,
     max_active_tasks=50,
     params={

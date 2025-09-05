@@ -30,6 +30,8 @@ import psutil
 import pytest
 from sqlalchemy import func
 
+from airflow.serialization.serialized_objects import SerializedDAG
+
 os.environ["AIRFLOW__METRICS__STATSD_ON"] = "True"
 os.environ["AIRFLOW__METRICS__STATSD_HOST"] = "statsd-exporter"
 os.environ["AIRFLOW__METRICS__STATSD_PORT"] = "9125"
@@ -490,9 +492,9 @@ class TestPerformanceIntegration:
                 if session.query(DagBundleModel).filter(DagBundleModel.name == "testing").count() == 0:
                     session.add(DagBundleModel(name="testing"))
                     session.commit()
-                dag.bulk_write_to_db(bundle_name="testing", bundle_version=None, dags=[dag], session=session)
+                SerializedDAG.bulk_write_to_db(bundle_name="testing", bundle_version=None, dags=[dag], session=session)
                 # Manually serialize the dag and write it to the db to avoid a db error.
-                SerializedDagModel.write_dag(dag, bundle_name="testing", session=session)
+                # SerializedDagModel.write_dag(dag, bundle_name="testing", session=session)
 
             session.commit()
 
@@ -519,6 +521,122 @@ class TestPerformanceIntegration:
             alias="CeleryExecutor",
         )
         monkeypatch.setattr(executor_loader, "_alias_to_executors", {"CeleryExecutor": executor_name})
+
+    def test_metrics(self, monkeypatch, celery_worker_env_vars, capfd, session):
+        scheduler_1_process = None
+
+        celery_worker_1_process = None
+        celery_worker_2_process = None
+        celery_worker_3_process = None
+
+        apiserver_process = None
+
+        dag_10_id = "dag_10_tasks"
+
+        dag_10_run_id = None
+
+        stop_evt = threading.Event()
+        monitor_thread = None
+        try:
+            # Start the processes here and not as fixtures or in a common setup,
+            # so that the test can capture their output.
+            (
+                scheduler_1_process,
+                celery_worker_1_process,
+                celery_worker_2_process,
+                celery_worker_3_process,
+                apiserver_process,
+            ) = self.start_schedulers_and_workers(second_sched=False)
+
+            assert len(self.dags) > 0
+            dag_10 = self.dags[dag_10_id]
+
+            assert dag_10 is not None
+
+            # --- after start_schedulers_and_workers() ----------------
+            proc_map = {
+                "sched1": scheduler_1_process,
+                "worker1": celery_worker_1_process,
+                "worker2": celery_worker_2_process,
+                "worker3": celery_worker_3_process,
+            }
+            dag_ids_to_watch = [
+                "dag_10_tasks",
+            ]
+
+            flag_label = "with_fts"
+
+            monitor_thread = threading.Thread(
+                target=monitor_system_to_stats,
+                args=(dag_ids_to_watch, proc_map, stop_evt, flag_label),
+                daemon=True,
+            )
+            monitor_thread.start()
+            # ----------------------------------------------------------
+
+            dag_10_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_10_id)
+
+            wait_for_dag_run(dag_id=dag_10_id, run_id=dag_10_run_id, max_wait_time=900)
+
+            time.sleep(10)
+        finally:
+            stop_evt.set()
+            if monitor_thread is not None:
+                monitor_thread.join()
+
+            if dag_10_run_id is not None:
+                print_ti_output_for_dag_run(dag_id=dag_10_id, run_id=dag_10_run_id)
+
+            # Terminate the processes.
+            if celery_worker_1_process is not None:
+                celery_worker_1_process.terminate()
+                celery_worker_1_process.wait()
+
+                celery_1_status = celery_worker_1_process.poll()
+                assert celery_1_status is not None, (
+                    "The celery_worker_1 process status is None, which means that it hasn't terminated as expected."
+                )
+
+            if celery_worker_2_process is not None:
+                celery_worker_2_process.terminate()
+                celery_worker_2_process.wait()
+
+                celery_2_status = celery_worker_2_process.poll()
+                assert celery_2_status is not None, (
+                    "The celery_worker_2 process status is None, which means that it hasn't terminated as expected."
+                )
+
+            if celery_worker_3_process is not None:
+                celery_worker_3_process.terminate()
+                celery_worker_3_process.wait()
+
+                celery_3_status = celery_worker_3_process.poll()
+                assert celery_3_status is not None, (
+                    "The celery_worker_3 process status is None, which means that it hasn't terminated as expected."
+                )
+
+            if scheduler_1_process is not None:
+                scheduler_1_process.terminate()
+                scheduler_1_process.wait()
+
+                scheduler_1_status = scheduler_1_process.poll()
+                assert scheduler_1_status is not None, (
+                    "The scheduler_1 process status is None, which means that it hasn't terminated as expected."
+                )
+
+            if apiserver_process is not None:
+                apiserver_process.terminate()
+                apiserver_process.wait()
+
+                apiserver_status = apiserver_process.poll()
+                assert apiserver_status is not None, (
+                    "The apiserver process status is None, which means that it hasn't terminated as expected."
+                )
+
+        out, err = capfd.readouterr()
+        log.info("out-start --\n%s\n-- out-end", out)
+        log.info("err-start --\n%s\n-- err-end", err)
+
 
     def test_dag_execution_succeeds(self, monkeypatch, celery_worker_env_vars, capfd, session):
         scheduler_1_process = None
@@ -596,7 +714,7 @@ class TestPerformanceIntegration:
                 "dag_470_tasks",
             ]
 
-            flag_label = "with_fts" if flag_enabled == "True" else "fts_disabled"
+            flag_label = "with_fts"
 
             monitor_thread = threading.Thread(
                 target=monitor_system_to_stats,

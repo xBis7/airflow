@@ -5,8 +5,6 @@ dbinit.py
 initdb.py
 secrets.py
 
-certs/
-
 # Airflow sqlite databases
 airflow.db
 

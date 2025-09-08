@@ -84,7 +84,7 @@
         "x": 0,
         "y": 0
       },
-      "id": 18,
+      "id": 26,
       "options": {
         "legend": {
           "calcs": [],
@@ -98,13 +98,13 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "label_replace(airflow_query_timer_with_fts, \"metric\", \"query_time_with_fts\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_query_timer_fts_disabled, \"metric\", \"query_time_fts_disabled\", \"__name__\", \".*\")",
+          "expr": "label_replace(airflow_current_queued_tis_with_fts, \"metric\", \"with_fts\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_current_queued_tis_without_fts, \"metric\", \"fts_disabled\", \"__name__\", \".*\")",
           "interval": "",
           "legendFormat": "",
           "refId": "A"
         }
       ],
-      "title": "Query Time",
+      "title": "current_queued_tis",
       "type": "timeseries"
     },
     {
@@ -165,7 +165,7 @@
         "x": 12,
         "y": 0
       },
-      "id": 4,
+      "id": 22,
       "options": {
         "legend": {
           "calcs": [],
@@ -179,21 +179,13 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "label_replace(airflow_dag_dag_470_tasks_scheduled_with_fts, \"metric\", \"dag_470\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_420_tasks_scheduled_with_fts, \"metric\", \"dag_420\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_250_tasks_scheduled_with_fts, \"metric\", \"dag_250\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_128_tasks_scheduled_with_fts, \"metric\", \"dag_128\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_45_tasks_scheduled_with_fts, \"metric\", \"dag_45\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_25_tasks_scheduled_with_fts, \"metric\", \"dag_25\", \"__name__\", \".*\")\n",
+          "expr": "label_replace(airflow_total_queued_tis_with_fts, \"metric\", \"with_fts\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_total_queued_tis_without_fts, \"metric\", \"fts_disabled\", \"__name__\", \".*\")",
           "interval": "",
           "legendFormat": "",
           "refId": "A"
-        },
-        {
-          "exemplar": true,
-          "expr": "label_replace(airflow_dag_dag_470_tasks_scheduled_fts_disabled, \"metric\", \"dag_470\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_420_tasks_scheduled_fts_disabled, \"metric\", \"dag_420\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_250_tasks_scheduled_fts_disabled, \"metric\", \"dag_250\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_128_tasks_scheduled_fts_disabled, \"metric\", \"dag_128\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_45_tasks_scheduled_fts_disabled, \"metric\", \"dag_45\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_25_tasks_scheduled_fts_disabled, \"metric\", \"dag_25\", \"__name__\", \".*\")\n",
-          "hide": false,
-          "interval": "",
-          "legendFormat": "",
-          "refId": "B"
         }
       ],
-      "title": "Scheduled",
+      "title": "total_queued_tis",
       "type": "timeseries"
     },
     {
@@ -254,7 +246,7 @@
         "x": 0,
         "y": 8
       },
-      "id": 16,
+      "id": 24,
       "options": {
         "legend": {
           "calcs": [],
@@ -268,434 +260,13 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "label_replace(airflow_dag_dag_470_tasks_queued_with_fts, \"metric\", \"dag_470\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_420_tasks_queued_with_fts, \"metric\", \"dag_420\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_250_tasks_queued_with_fts, \"metric\", \"dag_250\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_128_tasks_queued_with_fts, \"metric\", \"dag_128\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_45_tasks_queued_with_fts, \"metric\", \"dag_45\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_25_tasks_queued_with_fts, \"metric\", \"dag_25\", \"__name__\", \".*\")",
-          "interval": "",
-          "legendFormat": "",
-          "refId": "A"
-        },
-        {
-          "exemplar": true,
-          "expr": "label_replace(airflow_dag_dag_470_tasks_queued_fts_disabled, \"metric\", \"dag_470\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_420_tasks_queued_fts_disabled, \"metric\", \"dag_420\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_250_tasks_queued_fts_disabled, \"metric\", \"dag_250\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_128_tasks_queued_fts_disabled, \"metric\", \"dag_128\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_45_tasks_queued_fts_disabled, \"metric\", \"dag_45\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_25_tasks_queued_fts_disabled, \"metric\", \"dag_25\", \"__name__\", \".*\")\n",
-          "hide": false,
-          "interval": "",
-          "legendFormat": "",
-          "refId": "B"
-        }
-      ],
-      "title": "Queued",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 8
-      },
-      "id": 8,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "single"
-        }
-      },
-      "targets": [
-        {
-          "exemplar": true,
-          "expr": "label_replace(airflow_proc_sched1_cpu_usage_with_fts, \"metric\", \"dag_128\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_proc_sched1_cpu_usage_fts_disabled, \"metric\", \"dag_45\", \"__name__\", \".*\")\n",
+          "expr": "label_replace(airflow_task_instances_to_examine_with_fts, \"metric\", \"with_fts\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_task_instances_to_examine_without_fts, \"metric\", \"fts_disabled\", \"__name__\", \".*\")",
           "interval": "",
           "legendFormat": "",
           "refId": "A"
         }
       ],
-      "title": "Scheduler1 cpu usage",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 16
-      },
-      "id": 6,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "single"
-        }
-      },
-      "targets": [
-        {
-          "exemplar": true,
-          "expr": "label_replace(airflow_dag_dag_470_tasks_running_with_fts, \"metric\", \"dag_470\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_420_tasks_running_with_fts, \"metric\", \"dag_420\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_250_tasks_running_with_fts, \"metric\", \"dag_250\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_128_tasks_running_with_fts, \"metric\", \"dag_128\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_45_tasks_running_with_fts, \"metric\", \"dag_45\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_25_tasks_running_with_fts, \"metric\", \"dag_25\", \"__name__\", \".*\")\n",
-          "interval": "",
-          "legendFormat": "",
-          "refId": "A"
-        },
-        {
-          "exemplar": true,
-          "expr": "label_replace(airflow_dag_dag_470_tasks_running_fts_disabled, \"metric\", \"dag_470\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_420_tasks_running_fts_disabled, \"metric\", \"dag_420\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_250_tasks_running_fts_disabled, \"metric\", \"dag_250\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_128_tasks_running_fts_disabled, \"metric\", \"dag_128\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_45_tasks_running_fts_disabled, \"metric\", \"dag_45\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_dag_dag_25_tasks_running_fts_disabled, \"metric\", \"dag_25\", \"__name__\", \".*\")\n",
-          "hide": false,
-          "interval": "",
-          "legendFormat": "",
-          "refId": "B"
-        }
-      ],
-      "title": "Running",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 16
-      },
-      "id": 14,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "single"
-        }
-      },
-      "targets": [
-        {
-          "exemplar": true,
-          "expr": "label_replace(airflow_proc_worker3_cpu_usage_with_fts, \"metric\", \"dag_128\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_proc_worker3_cpu_usage_fts_disabled, \"metric\", \"dag_45\", \"__name__\", \".*\")\n",
-          "interval": "",
-          "legendFormat": "",
-          "refId": "A"
-        }
-      ],
-      "title": "Worker3 cpu usage",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 24
-      },
-      "id": 10,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "single"
-        }
-      },
-      "targets": [
-        {
-          "exemplar": true,
-          "expr": "label_replace(airflow_proc_worker1_cpu_usage_with_fts, \"metric\", \"dag_128\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_proc_worker1_cpu_usage_fts_disabled, \"metric\", \"dag_45\", \"__name__\", \".*\")\n",
-          "interval": "",
-          "legendFormat": "",
-          "refId": "A"
-        }
-      ],
-      "title": "Worker1 cpu usage",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 24
-      },
-      "id": 12,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "single"
-        }
-      },
-      "targets": [
-        {
-          "exemplar": true,
-          "expr": "label_replace(airflow_proc_worker2_cpu_usage_with_fts, \"metric\", \"dag_128\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_proc_worker2_cpu_usage_fts_disabled, \"metric\", \"dag_45\", \"__name__\", \".*\")\n",
-          "interval": "",
-          "legendFormat": "",
-          "refId": "A"
-        }
-      ],
-      "title": "Worker2 cpu usage",
+      "title": "task_instances_to_examine",
       "type": "timeseries"
     },
     {
@@ -709,8 +280,8 @@
       "gridPos": {
         "h": 9,
         "w": 12,
-        "x": 0,
-        "y": 32
+        "x": 12,
+        "y": 8
       },
       "hiddenSeries": false,
       "id": 2,
@@ -792,6 +363,87 @@
         "align": false,
         "alignLevel": null
       }
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "id": 20,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "exemplar": true,
+          "expr": "label_replace(airflow_total_scheduler_iterations_with_fts, \"metric\", \"with_fts\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_total_scheduler_iterations_without_fts, \"metric\", \"fts_disabled\", \"__name__\", \".*\")",
+          "interval": "",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "total_scheduler_iterations",
+      "type": "timeseries"
     }
   ],
   "refresh": "",
@@ -809,5 +461,5 @@
   "timezone": "",
   "title": "Airflow Metrics",
   "uid": "Ii6amwOGk",
-  "version": 7
+  "version": 1
 }

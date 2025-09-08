@@ -31,6 +31,7 @@ import pytest
 from sqlalchemy import func
 
 from airflow.serialization.serialized_objects import SerializedDAG
+from tests_common.test_utils.dag import sync_dag_to_db
 
 os.environ["AIRFLOW__METRICS__STATSD_ON"] = "True"
 os.environ["AIRFLOW__METRICS__STATSD_HOST"] = "statsd-exporter"
@@ -40,7 +41,6 @@ from airflow.dag_processing.bundles.manager import DagBundlesManager
 from airflow.executors import executor_loader
 from airflow.executors.executor_utils import ExecutorName
 from airflow.models import DAG, DagBag, DagRun
-from airflow.models.serialized_dag import SerializedDagModel
 from airflow.models.taskinstance import TaskInstance
 from airflow.stats import Stats
 from airflow.utils.session import create_session
@@ -425,7 +425,7 @@ class TestPerformanceIntegration:
         os.environ["AIRFLOW__SCHEDULER__SCHEDULER_HEALTH_CHECK_THRESHOLD"] = "15"
 
         # How many the scheduler can schedule at once.
-        os.environ["AIRFLOW__SCHEDULER__MAX_TIS_PER_QUERY"] = "1512"
+        os.environ["AIRFLOW__SCHEDULER__MAX_TIS_PER_QUERY"] = "100"
         os.environ["AIRFLOW__SCHEDULER__MAX_DAGRUNS_TO_CREATE_PER_LOOP"] = "10"
         os.environ["AIRFLOW__SCHEDULER__MAX_DAGRUNS_PER_LOOP_TO_SCHEDULE"] = "20"
         os.environ["AIRFLOW__SCHEDULER__PARSING_PROCESSES"] = "2"
@@ -438,10 +438,9 @@ class TestPerformanceIntegration:
 
         # Max number of tasks that can run concurrently per scheduler.
         # e.g. if parallelism is 32, for 2 schedulers the number will be 32 * 2 = 64
-        os.environ["AIRFLOW__CORE__PARALLELISM"] = "1512"
+        os.environ["AIRFLOW__CORE__PARALLELISM"] = "100"
         # Number of tasks that can run concurrently per dag.
-        # Worker concurrency is 30, therefore the queued - running tasks should be 8-8-8-6.
-        os.environ["AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG"] = "8"
+        os.environ["AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG"] = "4"
         # Number of active dag_runs per dag.
         os.environ["AIRFLOW__CORE__MAX_ACTIVE_RUNS_PER_DAG"] = "10"
         os.environ["AIRFLOW__CORE__DEFAULT_POOL_TASK_SLOT_COUNT"] = "64"
@@ -486,13 +485,14 @@ class TestPerformanceIntegration:
 
                 assert dag is not None, f"DAG with ID {dag_id} not found."
 
+                sync_dag_to_db(dag)
                 # Sync the DAG to the database.
-                from airflow.models.dagbundle import DagBundleModel
-
-                if session.query(DagBundleModel).filter(DagBundleModel.name == "testing").count() == 0:
-                    session.add(DagBundleModel(name="testing"))
-                    session.commit()
-                SerializedDAG.bulk_write_to_db(bundle_name="testing", bundle_version=None, dags=[dag], session=session)
+                # from airflow.models.dagbundle import DagBundleModel
+                #
+                # if session.query(DagBundleModel).filter(DagBundleModel.name == "testing").count() == 0:
+                #     session.add(DagBundleModel(name="testing"))
+                #     session.commit()
+                # SerializedDAG.bulk_write_to_db(bundle_name="testing", bundle_version=None, dags=[dag], session=session)
                 # Manually serialize the dag and write it to the db to avoid a db error.
                 # SerializedDagModel.write_dag(dag, bundle_name="testing", session=session)
 
@@ -522,7 +522,16 @@ class TestPerformanceIntegration:
         )
         monkeypatch.setattr(executor_loader, "_alias_to_executors", {"CeleryExecutor": executor_name})
 
-    def test_metrics(self, monkeypatch, celery_worker_env_vars, capfd, session):
+    @pytest.mark.parametrize(
+        "flag_enabled",
+        [
+            pytest.param("True", id="with_fts"),
+            pytest.param("False", id="fts_disabled")
+        ]
+    )
+    def test_metrics(self, flag_enabled: str, monkeypatch, celery_worker_env_vars, capfd, session):
+        os.environ["AIRFLOW__SCHEDULER__ENABLE_FAIR_TASK_SELECTION"] = flag_enabled
+
         scheduler_1_process = None
 
         celery_worker_1_process = None
@@ -564,7 +573,7 @@ class TestPerformanceIntegration:
                 "dag_10_tasks",
             ]
 
-            flag_label = "with_fts"
+            flag_label = "with_fts" if flag_enabled == "True" else "fts_disabled"
 
             monitor_thread = threading.Thread(
                 target=monitor_system_to_stats,
@@ -638,7 +647,16 @@ class TestPerformanceIntegration:
         log.info("err-start --\n%s\n-- err-end", err)
 
 
-    def test_dag_execution_succeeds(self, monkeypatch, celery_worker_env_vars, capfd, session):
+    @pytest.mark.parametrize(
+        "flag_enabled",
+        [
+            pytest.param("True", id="with_fts"),
+            pytest.param("False", id="fts_disabled")
+        ]
+    )
+    def test_dag_execution_succeeds(self, flag_enabled: str, monkeypatch, celery_worker_env_vars, capfd, session):
+        os.environ["AIRFLOW__SCHEDULER__ENABLE_FAIR_TASK_SELECTION"] = flag_enabled
+
         scheduler_1_process = None
 
         celery_worker_1_process = None
@@ -647,20 +665,13 @@ class TestPerformanceIntegration:
 
         apiserver_process = None
 
-        dag_10_id = "dag_10_tasks"
-        dag_15_id = "dag_15_tasks"
-        dag_25_id = "dag_25_tasks"
         dag_45_id = "dag_45_tasks"
-        dag_128_id = "dag_128_tasks"
         dag_250_id = "dag_250_tasks"
-        dag_420_id = "dag_420_tasks"
-        dag_470_id = "dag_470_tasks"
+        dag_1000_id = "dag_1000_tasks"
 
         dag_45_run_id = None
-        dag_128_run_id = None
         dag_250_run_id = None
-        # dag_420_run_id = None
-        # dag_470_run_id = None
+        dag_1000_run_id = None
 
         stop_evt = threading.Event()
         monitor_thread = None
@@ -669,7 +680,6 @@ class TestPerformanceIntegration:
             # so that the test can capture their output.
             (
                 scheduler_1_process,
-                # scheduler_2_process,
                 celery_worker_1_process,
                 celery_worker_2_process,
                 celery_worker_3_process,
@@ -677,44 +687,28 @@ class TestPerformanceIntegration:
             ) = self.start_schedulers_and_workers(second_sched=False)
 
             assert len(self.dags) > 0
-            dag_10 = self.dags[dag_10_id]
-            dag_15 = self.dags[dag_15_id]
-            dag_25 = self.dags[dag_25_id]
             dag_45 = self.dags[dag_45_id]
-            dag_128 = self.dags[dag_128_id]
             dag_250 = self.dags[dag_250_id]
-            dag_420 = self.dags[dag_420_id]
-            dag_470 = self.dags[dag_470_id]
+            dag_1000 = self.dags[dag_1000_id]
 
-            assert dag_10 is not None
-            assert dag_15 is not None
-            assert dag_25 is not None
             assert dag_45 is not None
-            assert dag_128 is not None
             assert dag_250 is not None
-            assert dag_420 is not None
-            assert dag_470 is not None
+            assert dag_1000 is not None
 
-            # --- after start_schedulers_and_workers() ----------------
+            # --- after start_scheduler_and_workers() ----------------
             proc_map = {
                 "sched1": scheduler_1_process,
-                # "sched2": scheduler_2_process,
                 "worker1": celery_worker_1_process,
                 "worker2": celery_worker_2_process,
                 "worker3": celery_worker_3_process,
             }
             dag_ids_to_watch = [
-                # "dag_10_tasks",
-                # "dag_15_tasks",
-                "dag_25_tasks",
                 "dag_45_tasks",
-                "dag_128_tasks",
                 "dag_250_tasks",
-                "dag_420_tasks",
-                "dag_470_tasks",
+                "dag_1000_tasks",
             ]
 
-            flag_label = "with_fts"
+            flag_label = "with_fts" if flag_enabled == "True" else "fts_disabled"
 
             monitor_thread = threading.Thread(
                 target=monitor_system_to_stats,
@@ -724,37 +718,17 @@ class TestPerformanceIntegration:
             monitor_thread.start()
             # ----------------------------------------------------------
 
+            dag_1000_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_1000_id)
             dag_250_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_250_id)
-            # dag_470_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_470_id)
-            dag_128_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_128_id)
-            # dag_25_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_25_id)
-            # dag_420_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_420_id)
             dag_45_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_45_id)
-
-            # dag_15_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_15_id)
-            # dag_10_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_10_id)
-
-            # wait_for_dag_run(dag_id=dag_10_id, run_id=dag_10_run_id, max_wait_time=200)
-
-            # wait_for_dag_run(dag_id=dag_15_id, run_id=dag_15_run_id, max_wait_time=250)
-
-            # wait_for_dag_run(
-            #     dag_id=dag_25_id, run_id=dag_25_run_id, max_wait_time=400
-            # )
 
             wait_for_dag_run(dag_id=dag_45_id, run_id=dag_45_run_id, max_wait_time=900)
 
-            wait_for_dag_run(dag_id=dag_128_id, run_id=dag_128_run_id, max_wait_time=9000)
-
             wait_for_dag_run(dag_id=dag_250_id, run_id=dag_250_run_id, max_wait_time=9000)
 
-            # wait_for_dag_run(
-            #     dag_id=dag_420_id, run_id=dag_420_run_id, max_wait_time=9000
-            # )
-
-            # wait_for_dag_run(
-            #     dag_id=dag_470_id, run_id=dag_470_run_id, max_wait_time=9000
-            # )
+            wait_for_dag_run(
+                dag_id=dag_1000_id, run_id=dag_1000_run_id, max_wait_time=90000
+            )
 
             time.sleep(10)
         finally:
@@ -762,18 +736,12 @@ class TestPerformanceIntegration:
             if monitor_thread is not None:
                 monitor_thread.join()
 
-            # print_ti_output_for_dag_run(dag_id=dag_10_id, run_id=dag_10_run_id)
-            # print_ti_output_for_dag_run(dag_id=dag_15_id, run_id=dag_15_run_id)
-
-            # print_ti_output_for_dag_run(dag_id=dag_25_id, run_id=dag_25_run_id)
             if dag_45_run_id is not None:
                 print_ti_output_for_dag_run(dag_id=dag_45_id, run_id=dag_45_run_id)
-            if dag_128_run_id is not None:
-                print_ti_output_for_dag_run(dag_id=dag_128_id, run_id=dag_128_run_id)
             if dag_250_run_id is not None:
                 print_ti_output_for_dag_run(dag_id=dag_250_id, run_id=dag_250_run_id)
-            # print_ti_output_for_dag_run(dag_id=dag_420_id, run_id=dag_420_run_id)
-            # print_ti_output_for_dag_run(dag_id=dag_470_id, run_id=dag_470_run_id)
+            if dag_1000_run_id is not None:
+                print_ti_output_for_dag_run(dag_id=dag_1000_id, run_id=dag_1000_run_id)
 
             # Terminate the processes.
             if celery_worker_1_process is not None:

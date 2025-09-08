@@ -31,17 +31,17 @@ default_args = {
 
 # Create the DAG
 dag = DAG(
-    'dag_250_tasks',
+    'dag_1000_tasks',
     default_args=default_args,
-    description='Test DAG with 250 tasks for scheduler testing',
+    description='Test DAG with 1000 tasks for scheduler testing',
     schedule=None,
     catchup=False,
     max_active_runs=1,
     tags=['test', 'scheduler'],
 )
 
-# Create 250 tasks
-for i in range(1, 251):
+# Create 1000 tasks
+for i in range(1, 1001):
     # Determine priority: every 10th task gets higher priority
     if i % 10 == 0:
         priority = 100  # High priority for every 10th task

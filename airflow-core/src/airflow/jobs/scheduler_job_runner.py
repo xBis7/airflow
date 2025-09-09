@@ -481,10 +481,12 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                 task_instances_to_examine: list[TI] = session.scalars(query).all()
 
                 self.log.debug("Length of the tis to examine is %d", len(task_instances_to_examine))
-                self.log.debug(
+                task_selection_dict = dict(Counter(ti.dag_id for ti in task_instances_to_examine))
+                self.log.info(
                     "TaskInstance selection is: %s",
-                    dict(Counter(ti.dag_id for ti in task_instances_to_examine)),
+                    task_selection_dict,
                 )
+                Stats.gauge("num_of_dags_with_fts", len(task_selection_dict))
                 Stats.gauge("task_instances_to_examine_with_fts", len(task_instances_to_examine))
 
                 timer.stop(send=True)

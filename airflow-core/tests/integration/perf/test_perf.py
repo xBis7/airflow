@@ -661,11 +661,15 @@ class TestPerformanceIntegration:
         dag_250_id = "dag_250_tasks"
         dag_470_id = "dag_470_tasks"
         dag_1000_id = "dag_1000_tasks"
+        dag_1100_id = "dag_1100_tasks"
+        dag_1200_id = "dag_1200_tasks"
 
         dag_45_run_id = None
         dag_250_run_id = None
         dag_470_run_id = None
         dag_1000_run_id = None
+        dag_1100_run_id = None
+        dag_1200_run_id = None
 
         stop_evt = threading.Event()
         monitor_thread = None
@@ -685,11 +689,15 @@ class TestPerformanceIntegration:
             dag_250 = self.dags[dag_250_id]
             dag_470 = self.dags[dag_470_id]
             dag_1000 = self.dags[dag_1000_id]
+            dag_1100 = self.dags[dag_1100_id]
+            dag_1200 = self.dags[dag_1200_id]
 
             assert dag_45 is not None
             assert dag_250 is not None
             assert dag_470 is not None
             assert dag_1000 is not None
+            assert dag_1100 is not None
+            assert dag_1200 is not None
 
             # --- after start_scheduler_and_workers() ----------------
             proc_map = {
@@ -703,6 +711,8 @@ class TestPerformanceIntegration:
                 "dag_250_tasks",
                 "dag_470_tasks",
                 "dag_1000_tasks",
+                "dag_1100_tasks",
+                "dag_1200_tasks",
             ]
 
             flag_label = "with_fts" if flag_enabled == "True" else "fts_disabled"
@@ -715,8 +725,10 @@ class TestPerformanceIntegration:
             monitor_thread.start()
             # ----------------------------------------------------------
 
+            dag_1200_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_1200_id)
             dag_470_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_470_id)
             dag_1000_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_1000_id)
+            dag_1100_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_1100_id)
             dag_250_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_250_id)
             dag_45_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_45_id)
 
@@ -727,6 +739,10 @@ class TestPerformanceIntegration:
             wait_for_dag_run(dag_id=dag_470_id, run_id=dag_470_run_id, max_wait_time=90000)
 
             wait_for_dag_run(dag_id=dag_1000_id, run_id=dag_1000_run_id, max_wait_time=90000)
+
+            wait_for_dag_run(dag_id=dag_1100_id, run_id=dag_1100_run_id, max_wait_time=90000)
+
+            wait_for_dag_run(dag_id=dag_1200_id, run_id=dag_1200_run_id, max_wait_time=90000)
 
             time.sleep(10)
         finally:
@@ -739,9 +755,13 @@ class TestPerformanceIntegration:
             if dag_250_run_id is not None:
                 print_ti_output_for_dag_run(dag_id=dag_250_id, run_id=dag_250_run_id)
             if dag_470_run_id is not None:
-                print_ti_output_for_dag_run(dag_id=dag_250_id, run_id=dag_470_run_id)
+                print_ti_output_for_dag_run(dag_id=dag_470_id, run_id=dag_470_run_id)
             if dag_1000_run_id is not None:
                 print_ti_output_for_dag_run(dag_id=dag_1000_id, run_id=dag_1000_run_id)
+            if dag_1100_run_id is not None:
+                print_ti_output_for_dag_run(dag_id=dag_1100_id, run_id=dag_1100_run_id)
+            if dag_1200_run_id is not None:
+                print_ti_output_for_dag_run(dag_id=dag_1200_id, run_id=dag_1200_run_id)
 
             # Terminate the processes.
             if celery_worker_1_process is not None:

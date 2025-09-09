@@ -84,7 +84,7 @@
         "x": 0,
         "y": 0
       },
-      "id": 26,
+      "id": 28,
       "options": {
         "legend": {
           "calcs": [],
@@ -98,13 +98,13 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "label_replace(airflow_current_queued_tis_with_fts, \"metric\", \"with_fts\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_current_queued_tis_without_fts, \"metric\", \"fts_disabled\", \"__name__\", \".*\")",
+          "expr": "label_replace(airflow_num_of_dags_with_fts, \"metric\", \"with_fts\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_num_of_dags_without_fts, \"metric\", \"fts_disabled\", \"__name__\", \".*\")",
           "interval": "",
           "legendFormat": "",
           "refId": "A"
         }
       ],
-      "title": "current_queued_tis",
+      "title": "num_of_dags",
       "type": "timeseries"
     },
     {
@@ -246,7 +246,7 @@
         "x": 0,
         "y": 8
       },
-      "id": 24,
+      "id": 26,
       "options": {
         "legend": {
           "calcs": [],
@@ -260,13 +260,13 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "label_replace(airflow_task_instances_to_examine_with_fts, \"metric\", \"with_fts\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_task_instances_to_examine_without_fts, \"metric\", \"fts_disabled\", \"__name__\", \".*\")",
+          "expr": "label_replace(airflow_current_queued_tis_with_fts, \"metric\", \"with_fts\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_current_queued_tis_without_fts, \"metric\", \"fts_disabled\", \"__name__\", \".*\")",
           "interval": "",
           "legendFormat": "",
           "refId": "A"
         }
       ],
-      "title": "task_instances_to_examine",
+      "title": "current_queued_tis",
       "type": "timeseries"
     },
     {
@@ -422,6 +422,87 @@
         "x": 0,
         "y": 16
       },
+      "id": 24,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "exemplar": true,
+          "expr": "label_replace(airflow_task_instances_to_examine_with_fts, \"metric\", \"with_fts\", \"__name__\", \".*\")\nor\nlabel_replace(airflow_task_instances_to_examine_without_fts, \"metric\", \"fts_disabled\", \"__name__\", \".*\")",
+          "interval": "",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "task_instances_to_examine",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
       "id": 20,
       "options": {
         "legend": {
@@ -446,7 +527,7 @@
       "type": "timeseries"
     }
   ],
-  "refresh": "",
+  "refresh": "5s",
   "schemaVersion": 32,
   "style": "dark",
   "tags": [],
@@ -454,7 +535,7 @@
     "list": []
   },
   "time": {
-    "from": "now-15m",
+    "from": "now-30m",
     "to": "now"
   },
   "timepicker": {},

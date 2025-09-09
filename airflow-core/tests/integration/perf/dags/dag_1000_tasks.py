@@ -14,30 +14,32 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
+from datetime import datetime
 
 from airflow import DAG
 from airflow.providers.standard.operators.bash import BashOperator
-from datetime import datetime
 
 # Default arguments for the DAG
 default_args = {
-    'owner': 'test',
-    'depends_on_past': False,
-    'start_date': datetime(2024, 1, 1),
-    'email_on_failure': False,
-    'email_on_retry': False,
-    'retries': 0,
+    "owner": "test",
+    "depends_on_past": False,
+    "start_date": datetime(2024, 1, 1),
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 0,
 }
 
 # Create the DAG
 dag = DAG(
-    'dag_1000_tasks',
+    "dag_1000_tasks",
     default_args=default_args,
-    description='Test DAG with 1000 tasks for scheduler testing',
+    description="Test DAG with 1000 tasks for scheduler testing",
     schedule=None,
     catchup=False,
     max_active_runs=1,
-    tags=['test', 'scheduler'],
+    tags=["test", "scheduler"],
 )
 
 # Create 1000 tasks

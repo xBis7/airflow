@@ -36,61 +36,61 @@ args = {
 @task
 def task1():
     logger.info("Starting task1.")
-    time.sleep(10)
+    time.sleep(3)
 
 
 @task
 def task2():
     logger.info("Starting task2.")
-    time.sleep(10)
+    time.sleep(3)
 
 
 @task
 def task3():
     logger.info("Starting task3.")
-    time.sleep(10)
+    time.sleep(3)
 
 
 @task
 def task4():
     logger.info("Starting task4.")
-    time.sleep(10)
+    time.sleep(3)
 
 
 @task
 def task5():
     logger.info("Starting task5.")
-    time.sleep(10)
+    time.sleep(3)
 
 
 @task
 def task6():
     logger.info("Starting task6.")
-    time.sleep(10)
+    time.sleep(3)
 
 
 @task
 def task7():
     logger.info("Starting task7.")
-    time.sleep(10)
+    time.sleep(3)
 
 
 @task
 def task8():
     logger.info("Starting task8.")
-    time.sleep(10)
+    time.sleep(3)
 
 
 @task
 def task9():
     logger.info("Starting task9.")
-    time.sleep(10)
+    time.sleep(3)
 
 
 @task
 def task10():
     logger.info("Starting task10.")
-    time.sleep(10)
+    time.sleep(3)
 
 
 with DAG(

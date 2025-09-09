@@ -30,7 +30,6 @@ import psutil
 import pytest
 from sqlalchemy import func
 
-from airflow.serialization.serialized_objects import SerializedDAG
 from tests_common.test_utils.dag import sync_dag_to_db
 
 os.environ["AIRFLOW__METRICS__STATSD_ON"] = "True"
@@ -523,11 +522,7 @@ class TestPerformanceIntegration:
         monkeypatch.setattr(executor_loader, "_alias_to_executors", {"CeleryExecutor": executor_name})
 
     @pytest.mark.parametrize(
-        "flag_enabled",
-        [
-            pytest.param("True", id="with_fts"),
-            pytest.param("False", id="fts_disabled")
-        ]
+        "flag_enabled", [pytest.param("True", id="with_fts"), pytest.param("False", id="fts_disabled")]
     )
     def test_metrics(self, flag_enabled: str, monkeypatch, celery_worker_env_vars, capfd, session):
         os.environ["AIRFLOW__SCHEDULER__ENABLE_FAIR_TASK_SELECTION"] = flag_enabled
@@ -646,15 +641,12 @@ class TestPerformanceIntegration:
         log.info("out-start --\n%s\n-- out-end", out)
         log.info("err-start --\n%s\n-- err-end", err)
 
-
     @pytest.mark.parametrize(
-        "flag_enabled",
-        [
-            pytest.param("True", id="with_fts"),
-            pytest.param("False", id="fts_disabled")
-        ]
+        "flag_enabled", [pytest.param("True", id="with_fts"), pytest.param("False", id="fts_disabled")]
     )
-    def test_dag_execution_succeeds(self, flag_enabled: str, monkeypatch, celery_worker_env_vars, capfd, session):
+    def test_dag_execution_succeeds(
+        self, flag_enabled: str, monkeypatch, celery_worker_env_vars, capfd, session
+    ):
         os.environ["AIRFLOW__SCHEDULER__ENABLE_FAIR_TASK_SELECTION"] = flag_enabled
 
         scheduler_1_process = None
@@ -667,10 +659,12 @@ class TestPerformanceIntegration:
 
         dag_45_id = "dag_45_tasks"
         dag_250_id = "dag_250_tasks"
+        dag_470_id = "dag_470_tasks"
         dag_1000_id = "dag_1000_tasks"
 
         dag_45_run_id = None
         dag_250_run_id = None
+        dag_470_run_id = None
         dag_1000_run_id = None
 
         stop_evt = threading.Event()
@@ -689,10 +683,12 @@ class TestPerformanceIntegration:
             assert len(self.dags) > 0
             dag_45 = self.dags[dag_45_id]
             dag_250 = self.dags[dag_250_id]
+            dag_470 = self.dags[dag_470_id]
             dag_1000 = self.dags[dag_1000_id]
 
             assert dag_45 is not None
             assert dag_250 is not None
+            assert dag_470 is not None
             assert dag_1000 is not None
 
             # --- after start_scheduler_and_workers() ----------------
@@ -705,6 +701,7 @@ class TestPerformanceIntegration:
             dag_ids_to_watch = [
                 "dag_45_tasks",
                 "dag_250_tasks",
+                "dag_470_tasks",
                 "dag_1000_tasks",
             ]
 
@@ -718,6 +715,7 @@ class TestPerformanceIntegration:
             monitor_thread.start()
             # ----------------------------------------------------------
 
+            dag_470_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_470_id)
             dag_1000_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_1000_id)
             dag_250_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_250_id)
             dag_45_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_45_id)
@@ -726,9 +724,9 @@ class TestPerformanceIntegration:
 
             wait_for_dag_run(dag_id=dag_250_id, run_id=dag_250_run_id, max_wait_time=9000)
 
-            wait_for_dag_run(
-                dag_id=dag_1000_id, run_id=dag_1000_run_id, max_wait_time=90000
-            )
+            wait_for_dag_run(dag_id=dag_470_id, run_id=dag_470_run_id, max_wait_time=90000)
+
+            wait_for_dag_run(dag_id=dag_1000_id, run_id=dag_1000_run_id, max_wait_time=90000)
 
             time.sleep(10)
         finally:
@@ -740,6 +738,8 @@ class TestPerformanceIntegration:
                 print_ti_output_for_dag_run(dag_id=dag_45_id, run_id=dag_45_run_id)
             if dag_250_run_id is not None:
                 print_ti_output_for_dag_run(dag_id=dag_250_id, run_id=dag_250_run_id)
+            if dag_470_run_id is not None:
+                print_ti_output_for_dag_run(dag_id=dag_250_id, run_id=dag_470_run_id)
             if dag_1000_run_id is not None:
                 print_ti_output_for_dag_run(dag_id=dag_1000_id, run_id=dag_1000_run_id)
 

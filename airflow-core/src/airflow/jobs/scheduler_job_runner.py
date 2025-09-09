@@ -486,6 +486,10 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                     "TaskInstance selection is: %s",
                     task_selection_dict,
                 )
+                self.log.info(
+                    "TaskInstance selection size is: %s",
+                    len(task_selection_dict),
+                )
                 Stats.gauge("num_of_dags_with_fts", len(task_selection_dict))
                 Stats.gauge("task_instances_to_examine_with_fts", len(task_instances_to_examine))
 
@@ -847,6 +851,16 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                 query = with_row_locks(query, of=TI, session=session, skip_locked=True)
                 task_instances_to_examine: list[TI] = session.scalars(query).all()
                 Stats.gauge("task_instances_to_examine_without_fts", len(task_instances_to_examine))
+                task_selection_dict = dict(Counter(ti.dag_id for ti in task_instances_to_examine))
+                self.log.info(
+                    "TaskInstance selection is: %s",
+                    task_selection_dict,
+                )
+                self.log.info(
+                    "TaskInstance selection size is: %s",
+                    len(task_selection_dict),
+                )
+                Stats.gauge("num_of_dags_without_fts", len(task_selection_dict))
 
                 timer.stop(send=True)
             except OperationalError as e:
@@ -1096,7 +1110,6 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
         for ti in executable_tis:
             make_transient(ti)
         return executable_tis
-
 
     def _enqueue_task_instances_with_queued_state(
         self, task_instances: list[TI], executor: BaseExecutor, session: Session

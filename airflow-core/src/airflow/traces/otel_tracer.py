@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING
 from opentelemetry import trace
 from opentelemetry.context import attach, create_key
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.resources import HOST_NAME, SERVICE_NAME, Resource
+from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import Span, SpanProcessor, Tracer as OpenTelemetryTracer, TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter, SimpleSpanProcessor
 from opentelemetry.sdk.trace.id_generator import IdGenerator
@@ -40,7 +40,6 @@ from airflow.traces.utils import (
     parse_tracestate,
 )
 from airflow.utils.dates import datetime_to_nano
-from airflow.utils.net import get_hostname
 
 if TYPE_CHECKING:
     from opentelemetry.context.context import Context
@@ -77,9 +76,19 @@ class OtelTrace:
             self.span_processor = BatchSpanProcessor(self.span_exporter)
         self.tag_string = tag_string
         self.otel_service = conf.get("traces", "otel_service")
-        self.resource = Resource.create(
-            attributes={HOST_NAME: get_hostname(), SERVICE_NAME: self.otel_service}
+        self.resource = Resource.create({})
+
+        import os
+
+        # Explicit check for service.name in env
+        service_from_env = os.getenv("OTEL_SERVICE_NAME") or (
+            "service.name=" in (os.getenv("OTEL_RESOURCE_ATTRIBUTES") or "")
         )
+
+        if SERVICE_NAME not in self.resource.attributes and not service_from_env:
+            # Fallback only if neither env var provided service.name
+            fallback = Resource.create({SERVICE_NAME: self.otel_service})
+            self.resource = self.resource.merge(fallback)
 
     def get_otel_tracer_provider(
         self, trace_id: int | None = None, span_id: int | None = None

@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import random
 from contextlib import AbstractContextManager
 from typing import TYPE_CHECKING
@@ -76,19 +77,17 @@ class OtelTrace:
             self.span_processor = BatchSpanProcessor(self.span_exporter)
         self.tag_string = tag_string
         self.otel_service = conf.get("traces", "otel_service")
-        self.resource = Resource.create({})
-
-        import os
-
         # Explicit check for service.name in env
-        service_from_env = os.getenv("OTEL_SERVICE_NAME") or (
-            "service.name=" in (os.getenv("OTEL_RESOURCE_ATTRIBUTES") or "")
+        service_from_env = os.environ.get("OTEL_SERVICE_NAME") or (
+            "service.name=" in (os.environ.get("OTEL_RESOURCE_ATTRIBUTES") or "")
         )
 
-        if SERVICE_NAME not in self.resource.attributes and not service_from_env:
-            # Fallback only if neither env var provided service.name
-            fallback = Resource.create({SERVICE_NAME: self.otel_service})
-            self.resource = self.resource.merge(fallback)
+        if service_from_env:
+            # Environment variable exists - let Resource.create read it automatically
+            self.resource = Resource.create({})
+        else:
+            # No environment variable - provide default
+            self.resource = Resource.create({SERVICE_NAME: self.otel_service})
 
     def get_otel_tracer_provider(
         self, trace_id: int | None = None, span_id: int | None = None

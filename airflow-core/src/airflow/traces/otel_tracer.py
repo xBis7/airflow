@@ -63,6 +63,19 @@ class OtelTrace:
         use_simple_processor: bool,
         tag_string: str | None = None,
     ):
+        self.endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+        self.service_name = os.getenv("OTEL_SERVICE_NAME", "Airflow")
+        self.protocol = os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc")
+        self.traces_exporter = os.getenv("OTEL_TRACES_EXPORTER", "otlp")
+
+        self.headers_raw = os.getenv("OTEL_EXPORTER_OTLP_HEADERS", "")
+        self.headers = _parse_headers(self.headers_raw)
+
+        self.resource_attributes_raw = os.getenv("OTEL_RESOURCE_ATTRIBUTES", "")
+        self.resource_attributes = _parse_attributes(self.resource_attributes_raw)
+
+        self.validate_otel_env_vars()
+
         self.span_exporter = span_exporter
         self.use_simple_processor = use_simple_processor
         if self.use_simple_processor:
@@ -82,6 +95,13 @@ class OtelTrace:
             "service.name=" in (os.environ.get("OTEL_RESOURCE_ATTRIBUTES") or "")
         )
 
+        # TODO: revisit this.
+        #   We store the result of the env var to `service_name`.
+        #   If there isn't a value, we give it a default of `Airflow`.
+        #   Here, it makes sense to always run
+        #       self.resource = Resource.create({SERVICE_NAME: self.otel_service})
+        #   without any more validations.
+        #   Probably, same for everything else.
         if service_from_env:
             self.otel_service = service_from_env
             # Environment variable exists - let Resource.create read it automatically
@@ -90,6 +110,24 @@ class OtelTrace:
             self.otel_service = "Airflow"
             # No environment variable - provide default
             self.resource = Resource.create({SERVICE_NAME: self.otel_service})
+
+    def validate_otel_env_vars(self):
+        """Load all env vars into instance variables."""
+        missing = []
+
+        if not self.endpoint:
+            missing.append("OTEL_EXPORTER_OTLP_ENDPOINT")
+
+        # TODO: check the URL based on the protocol.
+        #   gRPC - doesn't end in `v1/traces`
+        #   HTTP - ends in `v1/traces`
+
+        # Add other critical validations
+        if self.protocol not in ["grpc", "http/protobuf"]:
+            raise ValueError(f"Invalid OTEL_EXPORTER_OTLP_PROTOCOL: {self.protocol}")
+
+        if missing:
+            raise OSError(f"Missing required environment variables: {', '.join(missing)}")
 
     def get_otel_tracer_provider(
         self, trace_id: int | None = None, span_id: int | None = None
@@ -303,6 +341,28 @@ class OtelTrace:
         return TraceContextTextMapPropagator().extract(carrier)
 
 
+def _parse_headers(headers_str: str) -> dict[str, str]:
+    """Parse headers from string."""
+    headers = {}
+    if headers_str:
+        for pair in headers_str.split(","):
+            if "=" in pair:
+                key, value = pair.split("=", 1)
+                headers[key.strip()] = value.strip()
+    return headers
+
+
+def _parse_attributes(attributes_str: str) -> dict[str, str]:
+    """Parse attributes from string."""
+    attributes = {}
+    if attributes_str:
+        for pair in attributes_str.split(","):
+            if "=" in pair:
+                key, value = pair.split("=", 1)
+                attributes[key.strip()] = value.strip()
+    return attributes
+
+
 def gen_context(trace_id: int, span_id: int):
     """Generate a remote span context for given trace and span id."""
     span_ctx = SpanContext(trace_id=trace_id, span_id=span_id, is_remote=True, trace_flags=TraceFlags(0x01))
@@ -344,9 +404,9 @@ def get_otel_tracer(cls, use_simple_processor: bool = False) -> OtelTrace:
         "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
     )
 
-    if not endpoint:
-        # fallback
-        endpoint = "http://localhost:4318/v1/traces"
+    # if not endpoint:
+    # fallback
+    # endpoint = "http://localhost:4318/v1/traces"
 
     log.info("[OTLPSpanExporter] Connecting to OpenTelemetry Collector at %s", endpoint)
     log.info("Should use simple processor: %s", use_simple_processor)

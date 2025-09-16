@@ -76,16 +76,18 @@ class OtelTrace:
             log.info("(otel_tracer.__init__) - [BatchSpanProcessor] is being used")
             self.span_processor = BatchSpanProcessor(self.span_exporter)
         self.tag_string = tag_string
-        self.otel_service = conf.get("traces", "otel_service")
+        # self.otel_service = conf.get("traces", "otel_service")
         # Explicit check for service.name in env
         service_from_env = os.environ.get("OTEL_SERVICE_NAME") or (
             "service.name=" in (os.environ.get("OTEL_RESOURCE_ATTRIBUTES") or "")
         )
 
         if service_from_env:
+            self.otel_service = service_from_env
             # Environment variable exists - let Resource.create read it automatically
             self.resource = Resource.create({})
         else:
+            self.otel_service = "Airflow"
             # No environment variable - provide default
             self.resource = Resource.create({SERVICE_NAME: self.otel_service})
 
@@ -148,7 +150,7 @@ class OtelTrace:
     ):
         """Start a span; if service_name is not given, otel_service is used."""
         if component is None:
-            component = self.otel_service
+            component = __name__
 
         trace_id = self.get_current_span().get_span_context().trace_id
         tracer = self.get_tracer(component=component, trace_id=trace_id, span_id=span_id)
@@ -258,7 +260,8 @@ class OtelTrace:
         start_as_current: bool = True,
     ) -> AbstractContextManager[trace.span.Span] | trace.span.Span:
         if component is None:
-            component = self.otel_service
+            # Most common practice is to use the module name.
+            component = __name__
 
         tracer = self.get_tracer(component=component)
 
@@ -335,13 +338,16 @@ def gen_link_from_traceparent(traceparent: str):
 
 def get_otel_tracer(cls, use_simple_processor: bool = False) -> OtelTrace:
     """Get OTEL tracer from airflow configuration."""
-    host = conf.get("traces", "otel_host")
-    port = conf.getint("traces", "otel_port")
-    ssl_active = conf.getboolean("traces", "otel_ssl_active")
     tag_string = cls.get_constant_tags()
 
-    protocol = "https" if ssl_active else "http"
-    endpoint = f"{protocol}://{host}:{port}/v1/traces"
+    endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT") or os.environ.get(
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
+    )
+
+    if not endpoint:
+        # fallback
+        endpoint = "http://localhost:4318/v1/traces"
+
     log.info("[OTLPSpanExporter] Connecting to OpenTelemetry Collector at %s", endpoint)
     log.info("Should use simple processor: %s", use_simple_processor)
     return OtelTrace(

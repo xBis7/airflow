@@ -21,6 +21,8 @@ import logging
 import os
 import random
 from contextlib import AbstractContextManager
+from dataclasses import dataclass
+from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from opentelemetry import trace
@@ -50,6 +52,88 @@ log = logging.getLogger(__name__)
 _NEXT_ID = create_key("next_id")
 
 
+@dataclass(frozen=True)
+class OtelConfig:
+    """Immutable class for holding and validating OTel config environment variables."""
+
+    endpoint: str
+    protocol: str  # "grpc" or "http/protobuf"
+    traces_exporter: str  # usually "otlp"
+    service_name: str  # default "Airflow"
+    headers_raw: str
+    headers: dict[str, str]
+    resource_attributes_raw: str
+    resource_attributes: dict[str, str]
+
+    def __post_init__(self):
+        # Validate env vars.
+        if not self.endpoint:
+            raise OSError(
+                "Missing required environment variable: OTEL_EXPORTER_OTLP_ENDPOINT (or ...TRACES_ENDPOINT)"
+            )
+        if self.protocol not in ("grpc", "http/protobuf"):
+            raise ValueError(f"Invalid OTEL_EXPORTER_OTLP_PROTOCOL: {self.protocol}")
+        # Optional: protocol/URL consistency checks
+        if self.protocol == "http/protobuf" and not self.endpoint.rstrip("/").endswith("/v1/traces"):
+            # Not fatal, but commonly misconfigured.
+            log.error("Misconfigured OTEL_EXPORTER_OTLP_ENDPOINT: ", self.endpoint)
+            pass
+
+
+def _env_snapshot() -> tuple[
+    str | None, str | None, str | None, str | None, str | None, str | None, str | None
+]:
+    """
+    Return a tuple of the relevant env values.
+
+    If any of these change, the snapshot changes, invalidating the cache entry.
+    """
+    return (
+        os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
+        os.getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"),
+        os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL"),
+        os.getenv("OTEL_TRACES_EXPORTER"),
+        os.getenv("OTEL_SERVICE_NAME"),
+        os.getenv("OTEL_EXPORTER_OTLP_HEADERS"),
+        os.getenv("OTEL_RESOURCE_ATTRIBUTES"),
+    )
+
+
+@lru_cache
+def load_otel_config(_snap: tuple | None = None) -> OtelConfig:
+    """
+    Read and validate OTel config env vars once per unique snapshot.
+
+    `_env_snapshot()` is passed as the argument whenever this function is called.
+    If the env changes, the snapshot changes, so this recomputes.
+    """
+    # Read with fallbacks
+    endpoint = (
+        os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT") or os.getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") or ""
+    )
+    protocol = os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc")
+    traces_exporter = os.getenv("OTEL_TRACES_EXPORTER", "otlp")
+    service_name = os.getenv("OTEL_SERVICE_NAME", "Airflow")
+    headers_raw = os.getenv("OTEL_EXPORTER_OTLP_HEADERS", "")
+    resource_attributes_raw = os.getenv("OTEL_RESOURCE_ATTRIBUTES", "")
+
+    return OtelConfig(
+        endpoint=endpoint,
+        protocol=protocol,
+        traces_exporter=traces_exporter,
+        service_name=service_name,
+        headers_raw=headers_raw,
+        headers=_parse_headers(headers_raw),
+        resource_attributes_raw=resource_attributes_raw,
+        resource_attributes=_parse_attributes(resource_attributes_raw),
+    )
+
+
+def invalidate_otel_config_cache() -> None:
+    """Manually force a refresh."""
+    load_otel_config.cache_clear()
+
+
 class OtelTrace:
     """
     Handle all tracing requirements such as getting the tracer, and starting a new span.
@@ -63,18 +147,7 @@ class OtelTrace:
         use_simple_processor: bool,
         tag_string: str | None = None,
     ):
-        self.endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
-        self.service_name = os.getenv("OTEL_SERVICE_NAME", "Airflow")
-        self.protocol = os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc")
-        self.traces_exporter = os.getenv("OTEL_TRACES_EXPORTER", "otlp")
-
-        self.headers_raw = os.getenv("OTEL_EXPORTER_OTLP_HEADERS", "")
-        self.headers = _parse_headers(self.headers_raw)
-
-        self.resource_attributes_raw = os.getenv("OTEL_RESOURCE_ATTRIBUTES", "")
-        self.resource_attributes = _parse_attributes(self.resource_attributes_raw)
-
-        self.validate_otel_env_vars()
+        otel_config = load_otel_config(_env_snapshot())
 
         self.span_exporter = span_exporter
         self.use_simple_processor = use_simple_processor
@@ -89,45 +162,9 @@ class OtelTrace:
             log.info("(otel_tracer.__init__) - [BatchSpanProcessor] is being used")
             self.span_processor = BatchSpanProcessor(self.span_exporter)
         self.tag_string = tag_string
-        # self.otel_service = conf.get("traces", "otel_service")
-        # Explicit check for service.name in env
-        service_from_env = os.environ.get("OTEL_SERVICE_NAME") or (
-            "service.name=" in (os.environ.get("OTEL_RESOURCE_ATTRIBUTES") or "")
-        )
 
-        # TODO: revisit this.
-        #   We store the result of the env var to `service_name`.
-        #   If there isn't a value, we give it a default of `Airflow`.
-        #   Here, it makes sense to always run
-        #       self.resource = Resource.create({SERVICE_NAME: self.otel_service})
-        #   without any more validations.
-        #   Probably, same for everything else.
-        if service_from_env:
-            self.otel_service = service_from_env
-            # Environment variable exists - let Resource.create read it automatically
-            self.resource = Resource.create({})
-        else:
-            self.otel_service = "Airflow"
-            # No environment variable - provide default
-            self.resource = Resource.create({SERVICE_NAME: self.otel_service})
-
-    def validate_otel_env_vars(self):
-        """Load all env vars into instance variables."""
-        missing = []
-
-        if not self.endpoint:
-            missing.append("OTEL_EXPORTER_OTLP_ENDPOINT")
-
-        # TODO: check the URL based on the protocol.
-        #   gRPC - doesn't end in `v1/traces`
-        #   HTTP - ends in `v1/traces`
-
-        # Add other critical validations
-        if self.protocol not in ["grpc", "http/protobuf"]:
-            raise ValueError(f"Invalid OTEL_EXPORTER_OTLP_PROTOCOL: {self.protocol}")
-
-        if missing:
-            raise OSError(f"Missing required environment variables: {', '.join(missing)}")
+        service_from_env = otel_config.service_name
+        self.resource = Resource.create({SERVICE_NAME: service_from_env})
 
     def get_otel_tracer_provider(
         self, trace_id: int | None = None, span_id: int | None = None
@@ -186,8 +223,9 @@ class OtelTrace:
         links=None,
         start_time=None,
     ):
-        """Start a span; if service_name is not given, otel_service is used."""
+        """Start a span."""
         if component is None:
+            # Most common practice is to use the module name.
             component = __name__
 
         trace_id = self.get_current_span().get_span_context().trace_id
@@ -400,13 +438,8 @@ def get_otel_tracer(cls, use_simple_processor: bool = False) -> OtelTrace:
     """Get OTEL tracer from airflow configuration."""
     tag_string = cls.get_constant_tags()
 
-    endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT") or os.environ.get(
-        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
-    )
-
-    # if not endpoint:
-    # fallback
-    # endpoint = "http://localhost:4318/v1/traces"
+    otel_config = load_otel_config(_env_snapshot())
+    endpoint = otel_config.endpoint
 
     log.info("[OTLPSpanExporter] Connecting to OpenTelemetry Collector at %s", endpoint)
     log.info("Should use simple processor: %s", use_simple_processor)

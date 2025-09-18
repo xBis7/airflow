@@ -38,6 +38,12 @@ def name():
     return "test_traces_run"
 
 
+@pytest.fixture(autouse=True)
+def _clear_otel_config_cache():
+    """Make sure that each test starts with a fresh config."""
+    otel_tracer.invalidate_otel_config_cache()
+
+
 class TestOtelTrace:
     def test_get_otel_tracer_from_trace_metaclass(self):
         """Test that `Trace.some_method()`, uses an `OtelTrace` instance when otel is configured."""
@@ -88,18 +94,13 @@ class TestOtelTrace:
         with env_vars(
             {
                 "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318",
+                "OTEL_SERVICE_NAME": "my_test_service",
                 # necessary to speed up the span to be emitted
                 "OTEL_BSP_SCHEDULE_DELAY": "1",
             }
         ):
             log = logging.getLogger("TestOtelTrace.test_tracer")
             log.setLevel(logging.DEBUG)
-            # hijacking airflow conf with pre-defined
-            # values
-            # conf_a.get.return_value = "abc"
-            # conf_a.getint.return_value = 123
-            # this will enable debug to set - which outputs the result to console
-            # conf_a.getboolean.return_value = True
 
             # mocking console exporter with in mem exporter for better assertion
             in_mem_exporter = InMemorySpanExporter()
@@ -108,9 +109,6 @@ class TestOtelTrace:
             tracer = otel_tracer.get_otel_tracer(Trace)
             assert otel_conf.called
             otel_conf.assert_called_once()
-            # assert conf_a.get.called
-            # assert conf_a.getint.called
-            # assert conf_a.getboolean.called
             with tracer.start_span(span_name="span1") as s1:
                 with tracer.start_span(span_name="span2") as s2:
                     s2.set_attribute("attr2", "val2")
@@ -124,11 +122,10 @@ class TestOtelTrace:
             assert span2["context"]["trace_id"] == trace_id
             assert span2["parent_id"] == s1_span_id
             assert span2["attributes"]["attr2"] == "val2"
-            assert span2["resource"]["attributes"]["service.name"] == "unknown_service"
+            assert span2["resource"]["attributes"]["service.name"] == "my_test_service"
 
     @patch("opentelemetry.sdk.trace.export.ConsoleSpanExporter")
-    @patch("airflow.traces.otel_tracer.conf")
-    def test_dag_tracer(self, conf_a, exporter):
+    def test_dag_tracer(self, exporter):
         with env_vars(
             {
                 "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318",
@@ -138,10 +135,6 @@ class TestOtelTrace:
         ):
             log = logging.getLogger("TestOtelTrace.test_dag_tracer")
             log.setLevel(logging.DEBUG)
-            conf_a.get.return_value = "abc"
-            conf_a.getint.return_value = 123
-            # this will enable debug to set - which outputs the result to console
-            conf_a.getboolean.return_value = True
 
             # mocking console exporter with in mem exporter for better assertion
             in_mem_exporter = InMemorySpanExporter()

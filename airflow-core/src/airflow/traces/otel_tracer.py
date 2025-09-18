@@ -69,7 +69,7 @@ class OtelConfig:
         # Validate env vars.
         if not self.endpoint:
             raise OSError(
-                "Missing required environment variable: OTEL_EXPORTER_OTLP_ENDPOINT (or ...TRACES_ENDPOINT)"
+                "Missing required environment variable: OTEL_EXPORTER_OTLP_ENDPOINT or OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
             )
         if self.protocol not in ("grpc", "http/protobuf"):
             raise ValueError(f"Invalid OTEL_EXPORTER_OTLP_PROTOCOL: {self.protocol}")

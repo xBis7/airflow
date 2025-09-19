@@ -28,6 +28,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from airflow.traces import otel_tracer
 from airflow.traces.otel_tracer import OtelTrace
 from airflow.traces.tracer import DebugTrace, EmptyTrace, Trace
+from airflow.utils import otel_config
 from airflow.utils.dates import datetime_to_nano
 
 from tests_common.test_utils.config import env_vars
@@ -41,7 +42,7 @@ def name():
 @pytest.fixture(autouse=True)
 def _clear_otel_config_cache():
     """Make sure that each test starts with a fresh config."""
-    otel_tracer.invalidate_otel_traces_config_cache()
+    otel_config.invalidate_otel_config_cache()
 
 
 class TestOtelTrace:
@@ -89,7 +90,7 @@ class TestOtelTrace:
             assert isinstance(DebugTrace.factory(), EmptyTrace)
 
     @patch("opentelemetry.sdk.trace.export.ConsoleSpanExporter")
-    @patch("airflow.traces.otel_tracer.OtelTracesConfig")
+    @patch("airflow.utils.otel_config.OtelConfig")
     def test_tracer(self, otel_conf, exporter):
         with env_vars(
             {

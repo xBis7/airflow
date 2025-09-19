@@ -41,7 +41,7 @@ def name():
 @pytest.fixture(autouse=True)
 def _clear_otel_config_cache():
     """Make sure that each test starts with a fresh config."""
-    otel_tracer.invalidate_otel_config_cache()
+    otel_tracer.invalidate_otel_traces_config_cache()
 
 
 class TestOtelTrace:
@@ -89,7 +89,7 @@ class TestOtelTrace:
             assert isinstance(DebugTrace.factory(), EmptyTrace)
 
     @patch("opentelemetry.sdk.trace.export.ConsoleSpanExporter")
-    @patch("airflow.traces.otel_tracer.OtelConfig")
+    @patch("airflow.traces.otel_tracer.OtelTracesConfig")
     def test_tracer(self, otel_conf, exporter):
         with env_vars(
             {

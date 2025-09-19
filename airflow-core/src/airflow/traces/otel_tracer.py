@@ -53,7 +53,7 @@ _NEXT_ID = create_key("next_id")
 
 
 @dataclass(frozen=True)
-class OtelConfig:
+class OtelTracesConfig:
     """Immutable class for holding and validating OTel config environment variables."""
 
     endpoint: str
@@ -80,7 +80,7 @@ class OtelConfig:
             pass
 
 
-def _env_snapshot() -> tuple[
+def _traces_env_snapshot() -> tuple[
     str | None, str | None, str | None, str | None, str | None, str | None, str | None
 ]:
     """
@@ -100,11 +100,11 @@ def _env_snapshot() -> tuple[
 
 
 @lru_cache
-def load_otel_config(_snap: tuple | None = None) -> OtelConfig:
+def load_otel_traces_config(_snap: tuple | None = None) -> OtelTracesConfig:
     """
     Read and validate OTel config env vars once per unique snapshot.
 
-    `_env_snapshot()` is passed as the argument whenever this function is called.
+    `_traces_env_snapshot()` is passed as the argument whenever this function is called.
     If the env changes, the snapshot changes, so this recomputes.
     """
     # Read with fallbacks
@@ -117,7 +117,7 @@ def load_otel_config(_snap: tuple | None = None) -> OtelConfig:
     headers_raw = os.getenv("OTEL_EXPORTER_OTLP_HEADERS", "")
     resource_attributes_raw = os.getenv("OTEL_RESOURCE_ATTRIBUTES", "")
 
-    return OtelConfig(
+    return OtelTracesConfig(
         endpoint=endpoint,
         protocol=protocol,
         traces_exporter=traces_exporter,
@@ -129,9 +129,9 @@ def load_otel_config(_snap: tuple | None = None) -> OtelConfig:
     )
 
 
-def invalidate_otel_config_cache() -> None:
+def invalidate_otel_traces_config_cache() -> None:
     """Manually force a refresh."""
-    load_otel_config.cache_clear()
+    load_otel_traces_config.cache_clear()
 
 
 class OtelTrace:
@@ -147,7 +147,7 @@ class OtelTrace:
         use_simple_processor: bool,
         tag_string: str | None = None,
     ):
-        otel_config = load_otel_config(_env_snapshot())
+        otel_config = load_otel_traces_config(_traces_env_snapshot())
 
         self.span_exporter = span_exporter
         self.use_simple_processor = use_simple_processor
@@ -438,7 +438,7 @@ def get_otel_tracer(cls, use_simple_processor: bool = False) -> OtelTrace:
     """Get OTEL tracer from airflow configuration."""
     tag_string = cls.get_constant_tags()
 
-    otel_config = load_otel_config(_env_snapshot())
+    otel_config = load_otel_traces_config(_traces_env_snapshot())
     endpoint = otel_config.endpoint
 
     log.info("[OTLPSpanExporter] Connecting to OpenTelemetry Collector at %s", endpoint)

@@ -1189,21 +1189,21 @@ metrics:
       type: boolean
       example: ~
       default: "False"
-    otel_host:
-      description: |
-        Specifies the hostname or IP address of the OpenTelemetry Collector to which Airflow sends
-        metrics and traces.
-      version_added: 2.6.0
-      type: string
-      example: ~
-      default: "localhost"
-    otel_port:
-      description: |
-        Specifies the port of the OpenTelemetry Collector that is listening to.
-      version_added: 2.6.0
-      type: integer
-      example: ~
-      default: "8889"
+      #    otel_host:
+      #      description: |
+      #        Specifies the hostname or IP address of the OpenTelemetry Collector to which Airflow sends
+      #        metrics and traces.
+      #      version_added: 2.6.0
+      #      type: string
+      #      example: ~
+      #      default: "localhost"
+      #    otel_port:
+      #      description: |
+      #        Specifies the port of the OpenTelemetry Collector that is listening to.
+      #      version_added: 2.6.0
+      #      type: integer
+      #      example: ~
+      #      default: "8889"
     otel_prefix:
       description: |
         The prefix for the Airflow metrics.
@@ -1226,23 +1226,23 @@ metrics:
       type: boolean
       example: ~
       default: "False"
-    otel_service:
-      description: |
-        The default service name of traces.
-      version_added: 2.10.3
-      type: string
-      example: ~
-      default: "Airflow"
-    otel_ssl_active:
-      description: |
-        If ``True``, SSL will be enabled. Defaults to ``False``.
-        To establish an HTTPS connection to the OpenTelemetry collector,
-        you need to configure the SSL certificate and key within the OpenTelemetry collector's
-        ``config.yml`` file.
-      version_added: 2.7.0
-      type: boolean
-      example: ~
-      default: "False"
+      #    otel_service:
+      #      description: |
+      #        The default service name of traces.
+      #      version_added: 2.10.3
+      #      type: string
+      #      example: ~
+      #      default: "Airflow"
+      #    otel_ssl_active:
+      #      description: |
+      #        If ``True``, SSL will be enabled. Defaults to ``False``.
+      #        To establish an HTTPS connection to the OpenTelemetry collector,
+      #        you need to configure the SSL certificate and key within the OpenTelemetry collector's
+      #        ``config.yml`` file.
+      #      version_added: 2.7.0
+      #      type: boolean
+      #      example: ~
+      #      default: "False"
 traces:
   description: |
     Distributed traces integration settings.

@@ -18,9 +18,12 @@ from __future__ import annotations
 
 import datetime
 import logging
+import os
 import random
 import warnings
 from collections.abc import Callable
+from dataclasses import dataclass
+from functools import cache
 from typing import TYPE_CHECKING
 
 from opentelemetry import metrics
@@ -137,6 +140,105 @@ def _skip_due_to_rate(rate: float) -> bool:
     if rate < 0:
         raise ValueError("rate must be a positive value.")
     return rate < 1 and random.random() > rate
+
+
+def _parse_headers(headers_str: str) -> dict[str, str]:
+    headers = {}
+    if headers_str:
+        for pair in headers_str.split(","):
+            if "=" in pair:
+                k, v = pair.split("=", 1)
+                headers[k.strip()] = v.strip()
+    return headers
+
+
+def _parse_attributes(attributes_str: str) -> dict[str, str]:
+    attrs = {}
+    if attributes_str:
+        for pair in attributes_str.split(","):
+            if "=" in pair:
+                k, v = pair.split("=", 1)
+                attrs[k.strip()] = v.strip()
+    return attrs
+
+
+@dataclass(frozen=True)
+class OtelMetricsConfig:
+    """Immutable class for holding and validating OTel config environment variables."""
+
+    endpoint: str  # e.g. http://collector:4318/v1/metrics or grpc host:port
+    protocol: str  # "grpc" or "http/protobuf"
+    metrics_exporter: str  # usually "otlp"
+    service_name: str  # default "Airflow"
+    headers_raw: str
+    headers: dict[str, str]
+    resource_attributes_raw: str
+    resource_attributes: dict[str, str]
+
+    def __post_init__(self):
+        if not self.endpoint:
+            raise OSError(
+                "Missing required environment variable: "
+                "OTEL_EXPORTER_OTLP_ENDPOINT or OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"
+            )
+        if self.protocol not in ("grpc", "http/protobuf"):
+            raise ValueError(f"Invalid OTEL_EXPORTER_OTLP_PROTOCOL for metrics: {self.protocol}")
+        # Gentle guard for common HTTP misconfig (not fatal—flip to ValueError to hard-fail if you prefer)
+        if self.protocol == "http/protobuf" and not self.endpoint.rstrip("/").endswith("/v1/metrics"):
+            pass
+
+
+def _metrics_env_snapshot() -> tuple[
+    str | None, str | None, str | None, str | None, str | None, str | None, str | None
+]:
+    """
+    Return a tuple of the env vals that affect metrics config.
+
+    Changing any of these will produce a new cache key => re-read.
+    """
+    return (
+        os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
+        os.getenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"),
+        os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL"),
+        os.getenv("OTEL_METRICS_EXPORTER"),
+        os.getenv("OTEL_SERVICE_NAME"),
+        os.getenv("OTEL_EXPORTER_OTLP_HEADERS"),
+        os.getenv("OTEL_RESOURCE_ATTRIBUTES"),
+    )
+
+
+@cache
+def load_otel_metrics_config(_snap: tuple | None = None) -> OtelMetricsConfig:
+    """
+    Read and validate OTel config env vars once per unique snapshot.
+
+    `_metrics_env_snapshot()` is passed as the argument whenever this function is called.
+    If the env changes, the snapshot changes, so this recomputes.
+    """
+    endpoint = (
+        os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT") or os.getenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") or ""
+    )
+    protocol = os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc")
+    metrics_exporter = os.getenv("OTEL_METRICS_EXPORTER", "otlp")
+    service_name = os.getenv("OTEL_SERVICE_NAME", "Airflow")
+    headers_raw = os.getenv("OTEL_EXPORTER_OTLP_HEADERS", "")
+    resource_attributes_raw = os.getenv("OTEL_RESOURCE_ATTRIBUTES", "")
+
+    return OtelMetricsConfig(
+        endpoint=endpoint,
+        protocol=protocol,
+        metrics_exporter=metrics_exporter,
+        service_name=service_name,
+        headers_raw=headers_raw,
+        headers=_parse_headers(headers_raw),
+        resource_attributes_raw=resource_attributes_raw,
+        resource_attributes=_parse_attributes(resource_attributes_raw),
+    )
+
+
+def invalidate_otel_metrics_config_cache() -> None:
+    """Manually force a refresh."""
+    load_otel_metrics_config.cache_clear()
 
 
 class _OtelTimer(Timer):

@@ -18,11 +18,8 @@
 from __future__ import annotations
 
 import logging
-import os
 import random
 from contextlib import AbstractContextManager
-from dataclasses import dataclass
-from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from opentelemetry import trace
@@ -43,6 +40,7 @@ from airflow.traces.utils import (
     parse_tracestate,
 )
 from airflow.utils.dates import datetime_to_nano
+from airflow.utils.otel_config import load_traces_config
 
 if TYPE_CHECKING:
     from opentelemetry.context.context import Context
@@ -50,88 +48,6 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 _NEXT_ID = create_key("next_id")
-
-
-@dataclass(frozen=True)
-class OtelTracesConfig:
-    """Immutable class for holding and validating OTel config environment variables."""
-
-    endpoint: str
-    protocol: str  # "grpc" or "http/protobuf"
-    traces_exporter: str  # usually "otlp"
-    service_name: str  # default "Airflow"
-    headers_raw: str
-    headers: dict[str, str]
-    resource_attributes_raw: str
-    resource_attributes: dict[str, str]
-
-    def __post_init__(self):
-        # Validate env vars.
-        if not self.endpoint:
-            raise OSError(
-                "Missing required environment variable: OTEL_EXPORTER_OTLP_ENDPOINT or OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
-            )
-        if self.protocol not in ("grpc", "http/protobuf"):
-            raise ValueError(f"Invalid OTEL_EXPORTER_OTLP_PROTOCOL: {self.protocol}")
-        # Optional: protocol/URL consistency checks
-        if self.protocol == "http/protobuf" and not self.endpoint.rstrip("/").endswith("/v1/traces"):
-            # Not fatal, but commonly misconfigured.
-            log.error("Misconfigured OTEL_EXPORTER_OTLP_ENDPOINT: ", self.endpoint)
-            pass
-
-
-def _traces_env_snapshot() -> tuple[
-    str | None, str | None, str | None, str | None, str | None, str | None, str | None
-]:
-    """
-    Return a tuple of the relevant env values.
-
-    If any of these change, the snapshot changes, invalidating the cache entry.
-    """
-    return (
-        os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
-        os.getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"),
-        os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL"),
-        os.getenv("OTEL_TRACES_EXPORTER"),
-        os.getenv("OTEL_SERVICE_NAME"),
-        os.getenv("OTEL_EXPORTER_OTLP_HEADERS"),
-        os.getenv("OTEL_RESOURCE_ATTRIBUTES"),
-    )
-
-
-@lru_cache
-def load_otel_traces_config(_snap: tuple | None = None) -> OtelTracesConfig:
-    """
-    Read and validate OTel config env vars once per unique snapshot.
-
-    `_traces_env_snapshot()` is passed as the argument whenever this function is called.
-    If the env changes, the snapshot changes, so this recomputes.
-    """
-    # Read with fallbacks
-    endpoint = (
-        os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT") or os.getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") or ""
-    )
-    protocol = os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc")
-    traces_exporter = os.getenv("OTEL_TRACES_EXPORTER", "otlp")
-    service_name = os.getenv("OTEL_SERVICE_NAME", "Airflow")
-    headers_raw = os.getenv("OTEL_EXPORTER_OTLP_HEADERS", "")
-    resource_attributes_raw = os.getenv("OTEL_RESOURCE_ATTRIBUTES", "")
-
-    return OtelTracesConfig(
-        endpoint=endpoint,
-        protocol=protocol,
-        traces_exporter=traces_exporter,
-        service_name=service_name,
-        headers_raw=headers_raw,
-        headers=_parse_headers(headers_raw),
-        resource_attributes_raw=resource_attributes_raw,
-        resource_attributes=_parse_attributes(resource_attributes_raw),
-    )
-
-
-def invalidate_otel_traces_config_cache() -> None:
-    """Manually force a refresh."""
-    load_otel_traces_config.cache_clear()
 
 
 class OtelTrace:
@@ -147,7 +63,7 @@ class OtelTrace:
         use_simple_processor: bool,
         tag_string: str | None = None,
     ):
-        otel_config = load_otel_traces_config(_traces_env_snapshot())
+        otel_config = load_traces_config()
 
         self.span_exporter = span_exporter
         self.use_simple_processor = use_simple_processor
@@ -379,28 +295,6 @@ class OtelTrace:
         return TraceContextTextMapPropagator().extract(carrier)
 
 
-def _parse_headers(headers_str: str) -> dict[str, str]:
-    """Parse headers from string."""
-    headers = {}
-    if headers_str:
-        for pair in headers_str.split(","):
-            if "=" in pair:
-                key, value = pair.split("=", 1)
-                headers[key.strip()] = value.strip()
-    return headers
-
-
-def _parse_attributes(attributes_str: str) -> dict[str, str]:
-    """Parse attributes from string."""
-    attributes = {}
-    if attributes_str:
-        for pair in attributes_str.split(","):
-            if "=" in pair:
-                key, value = pair.split("=", 1)
-                attributes[key.strip()] = value.strip()
-    return attributes
-
-
 def gen_context(trace_id: int, span_id: int):
     """Generate a remote span context for given trace and span id."""
     span_ctx = SpanContext(trace_id=trace_id, span_id=span_id, is_remote=True, trace_flags=TraceFlags(0x01))
@@ -438,7 +332,7 @@ def get_otel_tracer(cls, use_simple_processor: bool = False) -> OtelTrace:
     """Get OTEL tracer from airflow configuration."""
     tag_string = cls.get_constant_tags()
 
-    otel_config = load_otel_traces_config(_traces_env_snapshot())
+    otel_config = load_traces_config()
     endpoint = otel_config.endpoint
 
     log.info("[OTLPSpanExporter] Connecting to OpenTelemetry Collector at %s", endpoint)

@@ -69,6 +69,7 @@ class OtelConfig:
     headers: dict[str, str]
     resource_attributes_raw: str
     resource_attributes: dict[str, str]
+    interval: float
 
     def __post_init__(self):
         if not self.endpoint:
@@ -140,11 +141,13 @@ def load_otel_config(kind: OtelKind, snapshot: tuple | None = None) -> OtelConfi
             os.getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT") or ""
         )
         exporter = os.getenv("OTEL_TRACES_EXPORTER", "otlp")
+        interval = 0
     else:
         endpoint = (
             os.getenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT") or ""
         )
         exporter = os.getenv("OTEL_METRICS_EXPORTER", "otlp")
+        interval = int(os.getenv("OTEL_METRIC_EXPORT_INTERVAL", "60000"))
 
     return OtelConfig(
         kind=kind,
@@ -156,6 +159,7 @@ def load_otel_config(kind: OtelKind, snapshot: tuple | None = None) -> OtelConfi
         headers=_parse_headers(headers_raw),
         resource_attributes_raw=resource_attributes_raw,
         resource_attributes=_parse_attributes(resource_attributes_raw),
+        interval=interval,
     )
 
 

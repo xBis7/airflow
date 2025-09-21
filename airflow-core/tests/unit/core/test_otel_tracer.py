@@ -94,7 +94,7 @@ class TestOtelTrace:
     def test_tracer(self, otel_conf, exporter):
         with env_vars(
             {
-                "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318",
+                # "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318",
                 "OTEL_SERVICE_NAME": "my_test_service",
                 # necessary to speed up the span to be emitted
                 "OTEL_BSP_SCHEDULE_DELAY": "1",

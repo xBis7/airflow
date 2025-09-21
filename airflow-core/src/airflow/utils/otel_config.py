@@ -93,7 +93,6 @@ class OtelConfig:
                 # Not fatal, but commonly misconfigured.
                 log.error("Misconfigured OTEL_EXPORTER_OTLP_ENDPOINT: ", self.endpoint)
                 pass
-                pass
 
 
 def _env_snapshot(kind: OtelKind) -> tuple[str | None, ...]:
@@ -147,6 +146,8 @@ def load_otel_config(kind: OtelKind, snapshot: tuple | None = None) -> OtelConfi
             os.getenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT") or ""
         )
         exporter = os.getenv("OTEL_METRICS_EXPORTER", "otlp")
+        # Instead of directly providing a default value of int,
+        # use a value of str and convert to int to get rid of a static-code check error.
         interval = int(os.getenv("OTEL_METRIC_EXPORT_INTERVAL", "60000"))
 
     return OtelConfig(

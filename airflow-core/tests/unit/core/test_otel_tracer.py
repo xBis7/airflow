@@ -41,7 +41,7 @@ def name():
 
 @pytest.fixture(autouse=True)
 def _clear_otel_config_cache():
-    """Make sure that each test starts with a fresh config."""
+    """Start each test with a fresh config."""
     otel_config.invalidate_otel_config_cache()
 
 

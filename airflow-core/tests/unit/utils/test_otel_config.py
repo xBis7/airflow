@@ -19,22 +19,58 @@ from __future__ import annotations
 import pytest
 
 from airflow.utils.otel_config import (
+    OtelDataType,
+    _env_vars_snapshot,
     _parse_kv_str_to_dict,
     load_metrics_config,
+    load_otel_config,
     load_traces_config,
 )
 
 from tests_common.test_utils.config import env_vars
 
 
-def test_env_vars_snapshot():
+@pytest.mark.parametrize(
+    "data_type",
+    [
+        pytest.param({OtelDataType.TRACES}, id="traces"),
+        pytest.param({OtelDataType.METRICS}, id="metrics"),
+    ],
+)
+def test_env_vars_snapshot(data_type: OtelDataType):
+    url = "http://localhost:4318"
     # pass a list of env vars and execute the method.
     # test the result
-    pass
+    with env_vars({"OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": url}):
+        tuple_res = _env_vars_snapshot(data_type=data_type)
+        assert url in tuple_res
 
 
 def test_config_validation():
-    # load_otel_config()
+    is_valid = False
+    data_type = OtelDataType.TRACES
+
+    otel_vars = {
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "",
+        "OTEL_SERVICE_NAME": "",
+        "OTEL_EXPORTER_OTLP_HEADERS": "",
+        "OTEL_RESOURCE_ATTRIBUTES": "",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "",
+        "OTEL_TRACES_EXPORTER": "",
+        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "",
+        "OTEL_METRICS_EXPORTER": "",
+        "OTEL_METRIC_EXPORT_INTERVAL": "30000",
+    }
+
+    snap = tuple(otel_vars.values())
+
+    if is_valid:
+        pass
+    else:
+        with pytest.raises(OSError):
+            load_otel_config(data_type=data_type, vars_snapshot=snap)
+
     # once for traces and once for metrics
     # pass a list of env vars and validate.
     # Could parameterize it and pass invalid and valid configs.

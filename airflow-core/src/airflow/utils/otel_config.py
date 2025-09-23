@@ -68,17 +68,15 @@ class OtelConfig:
 
     def __post_init__(self):
         """Validate the environment variables where necessary."""
-        if not self.endpoint:
-            type_specific = (
-                "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
-                if self.data_type == OtelDataType.TRACES
-                else "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"
-            )
-        else:
-            type_specific = ""  # TODO: revisit this.
+        endpoint_type_specific = (
+            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
+            if self.data_type == OtelDataType.TRACES
+            else "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"
+        )
+
         if not self.endpoint:
             raise OSError(
-                f"Missing required environment variable: {type_specific} or 'OTEL_EXPORTER_OTLP_ENDPOINT'"
+                f"Missing required environment variable: {endpoint_type_specific} or 'OTEL_EXPORTER_OTLP_ENDPOINT'"
             )
         if self.protocol not in ("grpc", "http/protobuf"):
             raise ValueError(f"Invalid value for OTEL_EXPORTER_OTLP_PROTOCOL: {self.protocol}")
@@ -88,8 +86,8 @@ class OtelConfig:
             suffix = "/v1/traces" if self.data_type == OtelDataType.TRACES else "/v1/metrics"
             if not self.endpoint.rstrip("/").endswith(suffix):
                 log.error(
-                    "Invalid value for %s with protocol %s: ",
-                    ("OTEL_EXPORTER_OTLP_ENDPOINT" if type_specific == "" else type_specific),
+                    "Invalid value for config 'OTEL_EXPORTER_OTLP_ENDPOINT' or '%s' with protocol value '%s': ",
+                    endpoint_type_specific,
                     self.protocol,
                     self.endpoint,
                 )
@@ -123,7 +121,7 @@ def _env_vars_snapshot(data_type: OtelDataType) -> tuple[str | None, ...]:
 
 
 @lru_cache
-def load_otel_config(data_type: OtelDataType, snapshot: tuple | None = None) -> OtelConfig:
+def load_otel_config(data_type: OtelDataType, vars_snapshot: tuple | None = None) -> OtelConfig:
     """
     Read and validate OTel config env vars once per unique snapshot.
 

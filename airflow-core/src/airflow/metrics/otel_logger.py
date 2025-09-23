@@ -27,7 +27,7 @@ from opentelemetry import metrics
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics._internal.export import ConsoleMetricExporter, PeriodicExportingMetricReader
-from opentelemetry.sdk.resources import HOST_NAME, SERVICE_NAME, Resource
+from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 
 from airflow.configuration import conf
 from airflow.metrics.protocols import Timer
@@ -38,7 +38,6 @@ from airflow.metrics.validators import (
     get_validator,
     stat_name_otel_handler,
 )
-from airflow.utils.net import get_hostname
 from airflow.utils.otel_config import load_metrics_config
 
 if TYPE_CHECKING:
@@ -376,13 +375,13 @@ def get_otel_logger(cls) -> SafeOtelLogger:
 
     prefix = conf.get("metrics", "otel_prefix")  # ex: "airflow"
     debug = conf.getboolean("metrics", "otel_debugging_on")
+
     service_name = otel_config.service_name
-
-    resource = Resource.create(attributes={HOST_NAME: get_hostname(), SERVICE_NAME: service_name})
-
     endpoint = otel_config.endpoint
     # PeriodicExportingMetricReader will default to an interval of 60000 millis.
     interval = otel_config.interval
+
+    resource = Resource.create(attributes={SERVICE_NAME: service_name})
 
     log.info("[Metric Exporter] Connecting to OpenTelemetry Collector at %s", endpoint)
     readers = [

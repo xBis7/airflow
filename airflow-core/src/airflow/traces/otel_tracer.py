@@ -79,8 +79,8 @@ class OtelTrace:
             self.span_processor = BatchSpanProcessor(self.span_exporter)
         self.tag_string = tag_string
 
-        service_from_env = otel_config.service_name
-        self.resource = Resource.create({SERVICE_NAME: service_from_env})
+        service = otel_config.service_name
+        self.resource = Resource.create(attributes={SERVICE_NAME: service})
 
     def get_otel_tracer_provider(
         self, trace_id: int | None = None, span_id: int | None = None
@@ -141,7 +141,7 @@ class OtelTrace:
     ):
         """Start a span."""
         if component is None:
-            # Most common practice is to use the module name.
+            # Common practice is to use the module name.
             component = __name__
 
         trace_id = self.get_current_span().get_span_context().trace_id
@@ -252,7 +252,7 @@ class OtelTrace:
         start_as_current: bool = True,
     ) -> AbstractContextManager[trace.span.Span] | trace.span.Span:
         if component is None:
-            # Most common practice is to use the module name.
+            # Common practice is to use the module name.
             component = __name__
 
         tracer = self.get_tracer(component=component)

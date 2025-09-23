@@ -21,22 +21,19 @@ import time
 from unittest import mock
 
 import pytest
+from opentelemetry.metrics import MeterProvider
 
 from airflow.exceptions import InvalidStatsNameException
 from airflow.metrics.otel_logger import (
     OTEL_NAME_MAX_LENGTH,
     UP_DOWN_COUNTERS,
     MetricsMap,
+    SafeOtelLogger,
     _generate_key_name,
     _is_up_down_counter,
     full_name,
-    get_otel_logger,
 )
 from airflow.metrics.validators import BACK_COMPAT_METRIC_NAMES, MetricNameLengthExemptionWarning
-from airflow.stats import Stats
-from airflow.utils import otel_config
-
-from tests_common.test_utils.config import env_vars
 
 INVALID_STAT_NAME_CASES = [
     (None, "can not be None"),
@@ -51,52 +48,10 @@ def name():
     return "test_stats_run"
 
 
-@pytest.fixture(autouse=True)
-def _clear_otel_config_cache():
-    """Start each test with a fresh config."""
-    otel_config.invalidate_otel_config_cache()
-
-
 class TestOtelMetrics:
     def setup_method(self):
-        with env_vars({"OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "http://localhost:4318/v1/metrics"}):
-            self.stats = get_otel_logger(Stats)
-
-        # Spy on the real meter so we can assert create_* calls
-        stats_meter = self.stats.meter
-        meter_spy = mock.Mock(spec=type(stats_meter), wraps=stats_meter)
-
-        # Wrap created counters so `.add` is called on a mock.
-        real_create_counter = stats_meter.create_counter
-        real_create_updown = getattr(stats_meter, "create_up_down_counter", None)
-
-        class _CounterSpy:
-            def __init__(self, real_counter):
-                self._real = real_counter
-                # Set mock that forwards to the real method.
-                self.add = mock.Mock(wraps=real_counter.add)
-
-        def _create_counter_spy(**kwargs):
-            real = real_create_counter(**kwargs)
-            return _CounterSpy(real)
-
-        meter_spy.create_counter = mock.Mock(side_effect=_create_counter_spy)
-
-        if real_create_updown is not None:
-
-            def _create_updown_spy(**kwargs):
-                real = real_create_updown(**kwargs)
-                return _CounterSpy(real)
-
-            meter_spy.create_up_down_counter = mock.Mock(side_effect=_create_updown_spy)
-
-        # Set the spy everywhere.
-        self.stats.meter = meter_spy
-        self.stats.metrics_map.meter = meter_spy
-
-        # Class instance variable for assertions.
-        self.meter = meter_spy
-
+        self.meter = mock.Mock(MeterProvider)
+        self.stats = SafeOtelLogger(otel_provider=self.meter)
         self.map = self.stats.metrics_map.map
         self.logger = logging.getLogger(__name__)
 
@@ -147,12 +102,14 @@ class TestOtelMetrics:
         with pytest.warns(MetricNameLengthExemptionWarning):
             self.stats.incr(name)
 
-        self.meter.create_counter.assert_called_once_with(name=(full_name(name)[:OTEL_NAME_MAX_LENGTH]))
+        self.meter.get_meter().create_counter.assert_called_once_with(
+            name=(full_name(name)[:OTEL_NAME_MAX_LENGTH])
+        )
 
     def test_incr_new_metric(self, name):
         self.stats.incr(name)
 
-        self.meter.create_counter.assert_called_once_with(name=full_name(name))
+        self.meter.get_meter().create_counter.assert_called_once_with(name=full_name(name))
 
     def test_incr_new_metric_with_tags(self, name):
         tags = {"hello": "world"}
@@ -160,7 +117,7 @@ class TestOtelMetrics:
 
         self.stats.incr(name, tags=tags)
 
-        self.meter.create_counter.assert_called_once_with(name=full_name(name))
+        self.meter.get_meter().create_counter.assert_called_once_with(name=full_name(name))
         self.map[key].add.assert_called_once_with(1, attributes=tags)
 
     def test_incr_existing_metric(self, name):
@@ -170,7 +127,7 @@ class TestOtelMetrics:
         self.stats.incr(name)
 
         assert self.map[full_name(name)].add.call_count == 2
-        self.meter.create_counter.assert_called_once_with(name=full_name(name))
+        self.meter.get_meter().create_counter.assert_called_once_with(name=full_name(name))
 
     @mock.patch("random.random", side_effect=[0.1, 0.9])
     def test_incr_with_rate_limit_works(self, mock_random, name):
@@ -224,7 +181,7 @@ class TestOtelMetrics:
     def test_gauge_new_metric(self, name):
         self.stats.gauge(name, value=1)
 
-        self.meter.create_gauge.assert_called_once_with(name=full_name(name))
+        self.meter.get_meter().create_gauge.assert_called_once_with(name=full_name(name))
         assert self.map[full_name(name)].value == 1
 
     def test_gauge_new_metric_with_tags(self, name):
@@ -233,21 +190,21 @@ class TestOtelMetrics:
 
         self.stats.gauge(name, value=1, tags=tags)
 
-        self.meter.create_gauge.assert_called_once_with(name=full_name(name))
+        self.meter.get_meter().create_gauge.assert_called_once_with(name=full_name(name))
         self.map[key].attributes == tags
 
     def test_gauge_existing_metric(self, name):
         self.stats.gauge(name, value=1)
         self.stats.gauge(name, value=2)
 
-        self.meter.create_gauge.assert_called_once_with(name=full_name(name))
+        self.meter.get_meter().create_gauge.assert_called_once_with(name=full_name(name))
         assert self.map[full_name(name)].value == 2
 
     def test_gauge_existing_metric_with_delta(self, name):
         self.stats.gauge(name, value=1)
         self.stats.gauge(name, value=2, delta=True)
 
-        self.meter.create_gauge.assert_called_once_with(name=full_name(name))
+        self.meter.get_meter().create_gauge.assert_called_once_with(name=full_name(name))
         assert self.map[full_name(name)].value == 3
 
     @mock.patch("random.random", side_effect=[0.1, 0.9])
@@ -274,7 +231,7 @@ class TestOtelMetrics:
 
         self.stats.timing(name, dt=datetime.timedelta(seconds=123))
 
-        self.meter.create_gauge.assert_called_once_with(name=full_name(name))
+        self.meter.get_meter().create_gauge.assert_called_once_with(name=full_name(name))
         expected_value = 123000.0
         assert self.map[full_name(name)].value == expected_value
 
@@ -284,14 +241,14 @@ class TestOtelMetrics:
 
         self.stats.timing(name, dt=1, tags=tags)
 
-        self.meter.create_gauge.assert_called_once_with(name=full_name(name))
+        self.meter.get_meter().create_gauge.assert_called_once_with(name=full_name(name))
         self.map[key].attributes == tags
 
     def test_timing_existing_metric(self, name):
         self.stats.timing(name, dt=1)
         self.stats.timing(name, dt=2)
 
-        self.meter.create_gauge.assert_called_once_with(name=full_name(name))
+        self.meter.get_meter().create_gauge.assert_called_once_with(name=full_name(name))
         assert self.map[full_name(name)].value == 2
 
     # For the four test_timer_foo tests below:
@@ -307,7 +264,7 @@ class TestOtelMetrics:
         expected_duration = 3140.0
         assert timer.duration == expected_duration
         assert mock_time.call_count == 2
-        self.meter.create_gauge.assert_called_once_with(name=full_name(name))
+        self.meter.get_meter().create_gauge.assert_called_once_with(name=full_name(name))
 
     @mock.patch.object(time, "perf_counter", side_effect=[0.0, 3.14])
     def test_timer_no_name_returns_float_but_does_not_store_value(self, mock_time, name):
@@ -318,7 +275,7 @@ class TestOtelMetrics:
         expected_duration = 3140.0
         assert timer.duration == expected_duration
         assert mock_time.call_count == 2
-        self.meter.create_gauge.assert_not_called()
+        self.meter.get_meter().create_gauge.assert_not_called()
 
     @mock.patch.object(time, "perf_counter", side_effect=[0.0, 3.14])
     def test_timer_start_and_stop_manually_send_false(self, mock_time, name):
@@ -331,7 +288,7 @@ class TestOtelMetrics:
         expected_value = 3140.0
         assert timer.duration == expected_value
         assert mock_time.call_count == 2
-        self.meter.create_gauge.assert_not_called()
+        self.meter.get_meter().create_gauge.assert_not_called()
 
     @mock.patch.object(time, "perf_counter", side_effect=[0.0, 3.14])
     def test_timer_start_and_stop_manually_send_true(self, mock_time, name):
@@ -344,4 +301,4 @@ class TestOtelMetrics:
         expected_value = 3140.0
         assert timer.duration == expected_value
         assert mock_time.call_count == 2
-        self.meter.create_gauge.assert_called_once_with(name=full_name(name))
+        self.meter.get_meter().create_gauge.assert_called_once_with(name=full_name(name))

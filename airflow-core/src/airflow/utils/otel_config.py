@@ -27,75 +27,75 @@ from functools import lru_cache
 log = logging.getLogger(__name__)
 
 
-def _parse_headers(headers_str: str) -> dict[str, str]:
-    """Parse headers from string."""
-    headers = {}
-    if headers_str:
-        for pair in headers_str.split(","):
+def _parse_kv_str_to_dict(str_var: str) -> dict[str, str]:
+    """
+    Convert a string of key-value pairs to a dictionary.
+
+    Environment variables like 'OTEL_RESOURCE_ATTRIBUTES' or 'OTEL_EXPORTER_OTLP_HEADERS'
+    accept values with the format "key1=value1,key2=value2,..."
+    """
+    configs = {}
+    if str_var:
+        for pair in str_var.split(","):
             if "=" in pair:
                 k, v = pair.split("=", 1)
-                headers[k.strip()] = v.strip()
-    return headers
+                configs[k.strip()] = v.strip()
+    return configs
 
 
-def _parse_attributes(attributes_str: str) -> dict[str, str]:
-    """Parse attributes from string."""
-    attrs = {}
-    if attributes_str:
-        for pair in attributes_str.split(","):
-            if "=" in pair:
-                k, v = pair.split("=", 1)
-                attrs[k.strip()] = v.strip()
-    return attrs
-
-
-class OtelKind(str, Enum):
-    """Enum with the different kinds of config variables."""
+class OtelDataType(str, Enum):
+    """Enum with the different telemetry data types."""
 
     TRACES = "traces"
     METRICS = "metrics"
+    LOGS = "logs"
 
 
 @dataclass(frozen=True)
 class OtelConfig:
     """Immutable class for holding and validating OTel config environment variables."""
 
-    kind: OtelKind  # traces | metrics
-    endpoint: str  # resolved endpoint for this kind
+    data_type: OtelDataType  # traces | metrics
+    endpoint: str  # url
     protocol: str  # "grpc" or "http/protobuf"
     exporter: str  # OTEL_TRACES_EXPORTER | OTEL_METRICS_EXPORTER
     service_name: str  # default "Airflow"
-    headers_raw: str
+    headers_kv_str: str
     headers: dict[str, str]
-    resource_attributes_raw: str
+    resource_attributes_kv_str: str
     resource_attributes: dict[str, str]
     interval: float
 
     def __post_init__(self):
+        """Validate the environment variables where necessary."""
         if not self.endpoint:
-            specific = (
+            type_specific = (
                 "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
-                if self.kind == OtelKind.TRACES
+                if self.data_type == OtelDataType.TRACES
                 else "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"
             )
         else:
-            specific = ""
+            type_specific = ""  # TODO: revisit this.
         if not self.endpoint:
             raise OSError(
-                f"Missing required environment variable: {specific or 'OTEL_EXPORTER_OTLP_ENDPOINT'}"
+                f"Missing required environment variable: {type_specific} or 'OTEL_EXPORTER_OTLP_ENDPOINT'"
             )
         if self.protocol not in ("grpc", "http/protobuf"):
-            raise ValueError(f"Invalid OTEL_EXPORTER_OTLP_PROTOCOL: {self.protocol}")
+            raise ValueError(f"Invalid value for OTEL_EXPORTER_OTLP_PROTOCOL: {self.protocol}")
 
+        # If the protocol is http, then the endpoint url should end with '/v1/<traces|metrics>'.
         if self.protocol == "http/protobuf":
-            suffix = "/v1/traces" if self.kind == OtelKind.TRACES else "/v1/metrics"
+            suffix = "/v1/traces" if self.data_type == OtelDataType.TRACES else "/v1/metrics"
             if not self.endpoint.rstrip("/").endswith(suffix):
-                # Not fatal, but commonly misconfigured.
-                log.error("Misconfigured OTEL_EXPORTER_OTLP_ENDPOINT: ", self.endpoint)
-                pass
+                log.error(
+                    "Invalid value for %s with protocol %s: ",
+                    ("OTEL_EXPORTER_OTLP_ENDPOINT" if type_specific == "" else type_specific),
+                    self.protocol,
+                    self.endpoint,
+                )
 
 
-def _env_snapshot(kind: OtelKind) -> tuple[str | None, ...]:
+def _env_vars_snapshot(data_type: OtelDataType) -> tuple[str | None, ...]:
     """
     Return a tuple of the relevant env values.
 
@@ -109,33 +109,33 @@ def _env_snapshot(kind: OtelKind) -> tuple[str | None, ...]:
         os.getenv("OTEL_EXPORTER_OTLP_HEADERS"),
         os.getenv("OTEL_RESOURCE_ATTRIBUTES"),
     )
-    if kind == OtelKind.TRACES:
-        specific = (
+    if data_type == OtelDataType.TRACES:
+        type_specific = (
             os.getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"),
             os.getenv("OTEL_TRACES_EXPORTER"),
         )
     else:
-        specific = (
+        type_specific = (
             os.getenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"),
             os.getenv("OTEL_METRICS_EXPORTER"),
         )
-    return (kind.value, *specific, *common)
+    return (data_type.value, *type_specific, *common)
 
 
 @lru_cache
-def load_otel_config(kind: OtelKind, snapshot: tuple | None = None) -> OtelConfig:
+def load_otel_config(data_type: OtelDataType, snapshot: tuple | None = None) -> OtelConfig:
     """
     Read and validate OTel config env vars once per unique snapshot.
 
-    `_env_snapshot()` is passed as the argument whenever this function is called.
+    `_env_vars_snapshot()` is passed as the argument whenever this function is called.
     If the env changes, the snapshot changes, so this recomputes.
     """
     protocol = os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc")
     service_name = os.getenv("OTEL_SERVICE_NAME", "Airflow")
-    headers_raw = os.getenv("OTEL_EXPORTER_OTLP_HEADERS", "")
-    resource_attributes_raw = os.getenv("OTEL_RESOURCE_ATTRIBUTES", "")
+    headers_kv_str = os.getenv("OTEL_EXPORTER_OTLP_HEADERS", "")
+    resource_attributes_kv_str = os.getenv("OTEL_RESOURCE_ATTRIBUTES", "")
 
-    if kind == OtelKind.TRACES:
+    if data_type == OtelDataType.TRACES:
         endpoint = (
             os.getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT") or ""
         )
@@ -151,26 +151,25 @@ def load_otel_config(kind: OtelKind, snapshot: tuple | None = None) -> OtelConfi
         interval = int(os.getenv("OTEL_METRIC_EXPORT_INTERVAL", "60000"))
 
     return OtelConfig(
-        kind=kind,
+        data_type=data_type,
         endpoint=endpoint,
         protocol=protocol,
         exporter=exporter,
         service_name=service_name,
-        headers_raw=headers_raw,
-        headers=_parse_headers(headers_raw),
-        resource_attributes_raw=resource_attributes_raw,
-        resource_attributes=_parse_attributes(resource_attributes_raw),
+        headers_kv_str=headers_kv_str,
+        headers=_parse_kv_str_to_dict(headers_kv_str),
+        resource_attributes_kv_str=resource_attributes_kv_str,
+        resource_attributes=_parse_kv_str_to_dict(resource_attributes_kv_str),
         interval=interval,
     )
 
 
-# Convenience wrappers so callers don't deal with enums/snapshots.
 def load_traces_config() -> OtelConfig:
-    return load_otel_config(OtelKind.TRACES, _env_snapshot(OtelKind.TRACES))
+    return load_otel_config(OtelDataType.TRACES, _env_vars_snapshot(OtelDataType.TRACES))
 
 
 def load_metrics_config() -> OtelConfig:
-    return load_otel_config(OtelKind.METRICS, _env_snapshot(OtelKind.METRICS))
+    return load_otel_config(OtelDataType.METRICS, _env_vars_snapshot(OtelDataType.METRICS))
 
 
 def invalidate_otel_config_cache() -> None:

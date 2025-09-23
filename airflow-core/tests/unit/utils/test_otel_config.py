@@ -18,9 +18,33 @@ from __future__ import annotations
 
 import pytest
 
-from airflow.utils.otel_config import load_metrics_config, load_traces_config
+from airflow.utils.otel_config import (
+    _parse_kv_str_to_dict,
+    load_metrics_config,
+    load_traces_config,
+)
 
 from tests_common.test_utils.config import env_vars
+
+
+def test_env_vars_snapshot():
+    # pass a list of env vars and execute the method.
+    # test the result
+    pass
+
+
+def test_config_validation():
+    # load_otel_config()
+    # once for traces and once for metrics
+    # pass a list of env vars and validate.
+    # Could parameterize it and pass invalid and valid configs.
+    # traces - invalid endpoint
+    # traces - invalid protocol
+    # ...
+    # metrics - invalid endpoint
+    # metrics - invalid protocol
+    # ...
+    pass
 
 
 def test_metrics_validation():
@@ -38,8 +62,8 @@ def test_metrics_validation():
         # Default values.
         assert config.service_name == "Airflow"
         assert config.protocol == "grpc"
-        assert not config.headers_raw
-        assert not config.resource_attributes_raw
+        assert not config.headers_kv_str
+        assert not config.resource_attributes_kv_str
         # Check that the value is an int and not str.
         assert config.interval != "60000"
         assert config.interval == 60000
@@ -60,5 +84,15 @@ def test_traces_validation():
         # Default values.
         assert config.service_name == "Airflow"
         assert config.protocol == "grpc"
-        assert not config.headers_raw
-        assert not config.resource_attributes_raw
+        assert not config.headers_kv_str
+        assert not config.resource_attributes_kv_str
+
+
+def test_parsing_kv_str_configs():
+    config_str = "service.name=my-service,service.version=1.0.0"
+
+    config_dict = _parse_kv_str_to_dict(config_str)
+
+    assert len(config_dict) == 2
+    assert ("service.name", "my-service") in config_dict.items()
+    assert ("service.version", "1.0.0") in config_dict.items()

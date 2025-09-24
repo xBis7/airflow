@@ -86,7 +86,7 @@ class OtelConfig:
             suffix = "/v1/traces" if self.data_type == OtelDataType.TRACES else "/v1/metrics"
             if not self.endpoint.rstrip("/").endswith(suffix):
                 log.error(
-                    "Invalid value for config 'OTEL_EXPORTER_OTLP_ENDPOINT' or '%s' with protocol value '%s': ",
+                    "Invalid value for config 'OTEL_EXPORTER_OTLP_ENDPOINT' or '%s' with protocol value '%s': %s",
                     endpoint_type_specific,
                     self.protocol,
                     self.endpoint,

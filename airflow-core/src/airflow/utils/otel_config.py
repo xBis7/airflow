@@ -108,16 +108,17 @@ def _env_vars_snapshot(data_type: OtelDataType) -> tuple[str | None, ...]:
         os.getenv("OTEL_RESOURCE_ATTRIBUTES"),
     )
     if data_type == OtelDataType.TRACES:
-        type_specific = (
+        traces_specific = (
             os.getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"),
             os.getenv("OTEL_TRACES_EXPORTER"),
         )
-    else:
-        type_specific = (
-            os.getenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"),
-            os.getenv("OTEL_METRICS_EXPORTER"),
-        )
-    return (data_type.value, *type_specific, *common)
+        return data_type.value, *traces_specific, *common
+    metrics_specific = (
+        os.getenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"),
+        os.getenv("OTEL_METRICS_EXPORTER"),
+        os.getenv("OTEL_METRIC_EXPORT_INTERVAL"),
+    )
+    return data_type.value, *metrics_specific, *common
 
 
 @lru_cache

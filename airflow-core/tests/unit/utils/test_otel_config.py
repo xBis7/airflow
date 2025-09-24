@@ -43,7 +43,7 @@ def test_env_vars_snapshot(data_type: OtelDataType):
 
     exporter = "otlp"
     service = "test_service"
-    # interval = "30000"
+    interval = "30000"
 
     protocol1 = "grpc"
     url1 = "http://localhost:4317"
@@ -61,15 +61,15 @@ def test_env_vars_snapshot(data_type: OtelDataType):
         f"OTEL_{type_upper}_EXPORTER": exporter,
     }
 
-    # if type_lower == "metrics":
-    #     otel_vars["OTEL_METRIC_EXPORT_INTERVAL"] = interval
+    if type_lower == "metrics":
+        otel_vars["OTEL_METRIC_EXPORT_INTERVAL"] = interval
 
     with env_vars(otel_vars):
         tuple_res = _env_vars_snapshot(data_type=data_type)
         assert exporter in tuple_res
         assert service in tuple_res
-        # if type_lower == "metrics":
-        #     assert int(interval) in tuple_res
+        if type_lower == "metrics":
+            assert interval in tuple_res
 
         assert url1 in tuple_res
         assert protocol1 in tuple_res
@@ -82,8 +82,8 @@ def test_env_vars_snapshot(data_type: OtelDataType):
         tuple_res = _env_vars_snapshot(data_type=data_type)
         assert exporter in tuple_res
         assert service in tuple_res
-        # if type_lower == "metrics":
-        #     assert interval in tuple_res
+        if type_lower == "metrics":
+            assert interval in tuple_res
 
         assert url1 not in tuple_res
         assert protocol1 not in tuple_res

@@ -38,12 +38,58 @@ from tests_common.test_utils.config import env_vars
     ],
 )
 def test_env_vars_snapshot(data_type: OtelDataType):
-    url = "http://localhost:4318"
-    # pass a list of env vars and execute the method.
-    # test the result
-    with env_vars({"OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": url}):
+    type_lower = data_type.value
+    type_upper = data_type.value.upper()
+
+    exporter = "otlp"
+    service = "test_service"
+    # interval = "30000"
+
+    protocol1 = "grpc"
+    url1 = "http://localhost:4317"
+
+    protocol2 = "http/protobuf"
+    url2 = "http://localhost:4318/v1/" + type_lower
+
+    otel_vars = {
+        "OTEL_EXPORTER_OTLP_PROTOCOL": protocol1,
+        "OTEL_SERVICE_NAME": service,
+        "OTEL_EXPORTER_OTLP_HEADERS": "",
+        "OTEL_RESOURCE_ATTRIBUTES": "",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": url1,
+        f"OTEL_EXPORTER_OTLP_{type_upper}_ENDPOINT": url1,
+        f"OTEL_{type_upper}_EXPORTER": exporter,
+    }
+
+    # if type_lower == "metrics":
+    #     otel_vars["OTEL_METRIC_EXPORT_INTERVAL"] = interval
+
+    with env_vars(otel_vars):
         tuple_res = _env_vars_snapshot(data_type=data_type)
-        assert url in tuple_res
+        assert exporter in tuple_res
+        assert service in tuple_res
+        # if type_lower == "metrics":
+        #     assert int(interval) in tuple_res
+
+        assert url1 in tuple_res
+        assert protocol1 in tuple_res
+
+    otel_vars["OTEL_EXPORTER_OTLP_PROTOCOL"] = protocol2
+    otel_vars["OTEL_EXPORTER_OTLP_ENDPOINT"] = url2
+    otel_vars[f"OTEL_EXPORTER_OTLP_{type_upper}_ENDPOINT"] = url2
+
+    with env_vars(otel_vars):
+        tuple_res = _env_vars_snapshot(data_type=data_type)
+        assert exporter in tuple_res
+        assert service in tuple_res
+        # if type_lower == "metrics":
+        #     assert interval in tuple_res
+
+        assert url1 not in tuple_res
+        assert protocol1 not in tuple_res
+
+        assert url2 in tuple_res
+        assert protocol2 in tuple_res
 
 
 def test_config_validation():

@@ -43,6 +43,11 @@ Configure the SDK, by exporting the regular OTel variables to your environment
 
 .. code-block:: ini
 
+    - exporter
+      |_ values: 'otlp', 'console'
+      |_ default: 'otlp'
+    OTEL_TRACES_EXPORTER
+
     - export protocol
       |_ values: 'grpc', 'http/protobuf'
       |_ default: 'grpc'

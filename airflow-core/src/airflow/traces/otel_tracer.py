@@ -34,7 +34,6 @@ from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapProp
 from opentelemetry.trace.span import INVALID_SPAN_ID, INVALID_TRACE_ID
 
 from airflow._shared.timezones import timezone
-from airflow.configuration import conf
 from airflow.traces.utils import (
     parse_traceparent,
     parse_tracestate,
@@ -63,7 +62,7 @@ class OtelTrace:
         use_simple_processor: bool,
         tag_string: str | None = None,
     ):
-        otel_config = load_traces_config()
+        self.otel_config = load_traces_config()
 
         self.span_exporter = span_exporter
         self.use_simple_processor = use_simple_processor
@@ -79,7 +78,7 @@ class OtelTrace:
             self.span_processor = BatchSpanProcessor(self.span_exporter)
         self.tag_string = tag_string
 
-        service = otel_config.service_name
+        service = self.otel_config.service_name
         self.resource = Resource.create(attributes={SERVICE_NAME: service})
 
     def get_otel_tracer_provider(
@@ -98,7 +97,7 @@ class OtelTrace:
             )
         else:
             tracer_provider = TracerProvider(resource=self.resource)
-        debug = conf.getboolean("traces", "otel_debugging_on")
+        debug = self.otel_config.exporter == "console"
         if debug is True:
             log.info("[ConsoleSpanExporter] is being used")
             if self.use_simple_processor:

@@ -50,9 +50,9 @@ class TestOtelTrace:
         """Test that `Trace.some_method()`, uses an `OtelTrace` instance when otel is configured."""
         with env_vars(
             {
-                "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318",
                 "AIRFLOW__TRACES__OTEL_ON": "True",
-                "AIRFLOW__TRACES__OTEL_DEBUGGING_ON": "True",
+                "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318",
+                "OTEL_TRACES_EXPORTER": "colsone",
             }
         ):
             tracer = otel_tracer.get_otel_tracer(Trace)
@@ -73,9 +73,9 @@ class TestOtelTrace:
         """Test that `DebugTrace.some_method()`, uses the correct instance when the debug_traces flag is configured."""
         with env_vars(
             {
-                "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318",
                 "AIRFLOW__TRACES__OTEL_ON": "True",
-                "AIRFLOW__TRACES__OTEL_DEBUGGING_ON": "False",
+                "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318",
+                "OTEL_TRACES_EXPORTER": "otlp",
             }
         ):
             assert DebugTrace.check_debug_traces_flag is True

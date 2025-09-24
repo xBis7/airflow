@@ -374,7 +374,7 @@ def get_otel_logger(cls) -> SafeOtelLogger:
     otel_config = load_metrics_config()
 
     prefix = conf.get("metrics", "otel_prefix")  # ex: "airflow"
-    debug = conf.getboolean("metrics", "otel_debugging_on")
+    debug = otel_config.exporter == "console"
 
     service_name = otel_config.service_name
     endpoint = otel_config.endpoint

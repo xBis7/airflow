@@ -1196,13 +1196,6 @@ metrics:
       type: string
       example: ~
       default: "airflow"
-    otel_debugging_on:
-      description: |
-        If ``True``, all metrics are also emitted to the console. Defaults to ``False``.
-      version_added: 2.7.0
-      type: boolean
-      example: ~
-      default: "False"
 traces:
   description: |
     Distributed traces integration settings.
@@ -1210,13 +1203,6 @@ traces:
     otel_on:
       description: |
         Enables sending traces to OpenTelemetry.
-      version_added: 2.10.0
-      type: boolean
-      example: ~
-      default: "False"
-    otel_debugging_on:
-      description: |
-        If True, all traces are also emitted to the console. Defaults to False.
       version_added: 2.10.0
       type: boolean
       example: ~

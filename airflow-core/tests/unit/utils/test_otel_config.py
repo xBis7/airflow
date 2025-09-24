@@ -33,8 +33,8 @@ from tests_common.test_utils.config import env_vars
 @pytest.mark.parametrize(
     "data_type",
     [
-        pytest.param({OtelDataType.TRACES}, id="traces"),
-        pytest.param({OtelDataType.METRICS}, id="metrics"),
+        pytest.param(OtelDataType.TRACES, id="traces"),
+        pytest.param(OtelDataType.METRICS, id="metrics"),
     ],
 )
 def test_env_vars_snapshot(data_type: OtelDataType):

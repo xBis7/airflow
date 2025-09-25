@@ -30,7 +30,7 @@ from tests_common.test_utils.config import env_vars
 
 
 def setup_test_env_vars(
-    data_type: OtelDataType, protocol: str, service: str, url: str, exporter: str, interval: str
+    data_type: OtelDataType, protocol: str, service: str, url: str, exporter: str, interval_ms: str
 ) -> dict[str, str]:
     type_lower = data_type.value
     type_upper = data_type.value.upper()
@@ -46,7 +46,7 @@ def setup_test_env_vars(
     }
 
     if type_lower == "metrics":
-        otel_vars["OTEL_METRIC_EXPORT_INTERVAL"] = interval
+        otel_vars["OTEL_METRIC_EXPORT_INTERVAL"] = interval_ms
 
     return otel_vars
 
@@ -65,7 +65,7 @@ class TestOtelConfig:
 
         exporter = "otlp"
         service = "test_service"
-        interval = "30000"
+        interval_ms = "30000"
 
         protocol1 = "grpc"
         url1 = "http://localhost:4317"
@@ -79,7 +79,7 @@ class TestOtelConfig:
             service=service,
             url=url1,
             exporter=exporter,
-            interval=interval,
+            interval_ms=interval_ms,
         )
 
         with env_vars(otel_vars):
@@ -87,7 +87,7 @@ class TestOtelConfig:
             assert exporter in tuple_res
             assert service in tuple_res
             if type_lower == "metrics":
-                assert interval in tuple_res
+                assert interval_ms in tuple_res
 
             assert url1 in tuple_res
             assert protocol1 in tuple_res
@@ -102,7 +102,7 @@ class TestOtelConfig:
             assert exporter in tuple_res
             assert service in tuple_res
             if type_lower == "metrics":
-                assert interval in tuple_res
+                assert interval_ms in tuple_res
 
             assert url1 not in tuple_res
             assert protocol1 not in tuple_res
@@ -121,28 +121,39 @@ class TestOtelConfig:
         type_lower = data_type.value
         type_upper = data_type.value.upper()
 
-        if type_lower == "metrics":
-            with pytest.raises(OSError) as endpointExc:
-                load_metrics_config()
-        else:
-            with pytest.raises(OSError) as endpointExc:
-                load_traces_config()
+        with env_vars(
+            {
+                "OTEL_EXPORTER_OTLP_ENDPOINT": "",
+                f"OTEL_EXPORTER_OTLP_{type_upper}_ENDPOINT": "",
+            }
+        ):
+            if type_lower == "metrics":
+                with pytest.raises(OSError) as endpointExc:
+                    load_metrics_config()
+            else:
+                with pytest.raises(OSError) as endpointExc:
+                    load_traces_config()
 
-        assert f"OTEL_EXPORTER_OTLP_{type_upper}_ENDPOINT" in str(endpointExc.value)
+            assert f"OTEL_EXPORTER_OTLP_{type_upper}_ENDPOINT" in str(endpointExc.value)
 
         url = f"http://localhost:4318/v1/{type_lower}"
 
-        otel_vars = {
-            f"OTEL_EXPORTER_OTLP_{type_upper}_ENDPOINT": url,
-        }
+        otel_vars = setup_test_env_vars(
+            data_type=data_type,
+            protocol="grpc",
+            service="Airflow",
+            url=url,
+            exporter="otlp",
+            interval_ms="60000",
+        )
 
         with env_vars(otel_vars):
             if type_lower == "metrics":
                 config = load_metrics_config()
 
                 # Check that the value is an int and not str.
-                assert config.interval != "60000"
-                assert config.interval == 60000
+                assert config.interval_ms != "60000"
+                assert config.interval_ms == 60000
             else:
                 config = load_traces_config()
 
@@ -158,13 +169,14 @@ class TestOtelConfig:
         with env_vars(otel_vars):
             if type_lower == "metrics":
                 with pytest.raises(ValueError) as protocolExc:
-                    load_metrics_config()  # TODO: maybe use load_otel_config?
+                    load_metrics_config()
             else:
                 with pytest.raises(ValueError) as protocolExc:
                     load_traces_config()
 
             assert "Invalid value for OTEL_EXPORTER_OTLP_PROTOCOL" in str(protocolExc.value)
 
+        otel_vars["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://localhost:4317"
         otel_vars[f"OTEL_EXPORTER_OTLP_{type_upper}_ENDPOINT"] = "http://localhost:4317"
         otel_vars["OTEL_EXPORTER_OTLP_PROTOCOL"] = "http/protobuf"
 

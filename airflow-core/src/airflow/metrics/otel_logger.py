@@ -374,12 +374,11 @@ def get_otel_logger(cls) -> SafeOtelLogger:
     otel_config = load_metrics_config()
 
     prefix = conf.get("metrics", "otel_prefix")  # ex: "airflow"
+    # PeriodicExportingMetricReader will default to an interval of 60000 millis.
+    interval_ms = otel_config.interval_ms
     debug = otel_config.exporter == "console"
-
     service_name = otel_config.service_name
     endpoint = otel_config.endpoint
-    # PeriodicExportingMetricReader will default to an interval of 60000 millis.
-    interval = otel_config.interval
 
     resource = Resource.create(attributes={SERVICE_NAME: service_name})
 
@@ -387,7 +386,7 @@ def get_otel_logger(cls) -> SafeOtelLogger:
     readers = [
         PeriodicExportingMetricReader(
             OTLPMetricExporter(endpoint=endpoint),
-            export_interval_millis=interval,
+            export_interval_millis=interval_ms,
         )
     ]
 

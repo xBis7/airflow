@@ -28,7 +28,6 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from airflow.traces import otel_tracer
 from airflow.traces.otel_tracer import OtelTrace
 from airflow.traces.tracer import DebugTrace, EmptyTrace, Trace
-from airflow.utils import otel_config
 from airflow.utils.dates import datetime_to_nano
 
 from tests_common.test_utils.config import env_vars
@@ -39,12 +38,6 @@ def name():
     return "test_traces_run"
 
 
-@pytest.fixture(autouse=True)
-def _clear_otel_config_cache():
-    """Start each test with a fresh config."""
-    otel_config.invalidate_otel_config_cache()
-
-
 class TestOtelTrace:
     def test_get_otel_tracer_from_trace_metaclass(self):
         """Test that `Trace.some_method()`, uses an `OtelTrace` instance when otel is configured."""
@@ -52,7 +45,7 @@ class TestOtelTrace:
             {
                 "AIRFLOW__TRACES__OTEL_ON": "True",
                 "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318",
-                "OTEL_TRACES_EXPORTER": "colsone",
+                "OTEL_TRACES_EXPORTER": "console",
             }
         ):
             tracer = otel_tracer.get_otel_tracer(Trace)
@@ -94,7 +87,6 @@ class TestOtelTrace:
     def test_tracer(self, otel_conf, exporter):
         with env_vars(
             {
-                # "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318",
                 "OTEL_SERVICE_NAME": "my_test_service",
                 # necessary to speed up the span to be emitted
                 "OTEL_BSP_SCHEDULE_DELAY": "1",
@@ -159,8 +151,7 @@ class TestOtelTrace:
             assert span1["context"]["span_id"] == span2["parent_id"]
 
     @patch("opentelemetry.sdk.trace.export.ConsoleSpanExporter")
-    @patch("airflow.traces.otel_tracer.conf")
-    def test_context_propagation(self, conf_a, exporter):
+    def test_context_propagation(self, exporter):
         with env_vars(
             {
                 "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318",
@@ -170,10 +161,6 @@ class TestOtelTrace:
         ):
             log = logging.getLogger("TestOtelTrace.test_context_propagation")
             log.setLevel(logging.DEBUG)
-            conf_a.get.return_value = "abc"
-            conf_a.getint.return_value = 123
-            # this will enable debug to set - which outputs the result to console
-            conf_a.getboolean.return_value = True
 
             # mocking console exporter with in mem exporter for better assertion
             in_mem_exporter = InMemorySpanExporter()

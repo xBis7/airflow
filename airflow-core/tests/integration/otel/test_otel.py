@@ -613,6 +613,7 @@ class TestOtelIntegration:
     @classmethod
     def setup_class(cls):
         os.environ["AIRFLOW__TRACES__OTEL_ON"] = "True"
+        os.environ["OTEL_EXPORTER_OTLP_PROTOCOL"] = "http/protobuf"
         os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://breeze-otel-collector:4318/v1/traces"
         if cls.use_otel != "true":
             os.environ["OTEL_TRACES_EXPORTER"] = "console"

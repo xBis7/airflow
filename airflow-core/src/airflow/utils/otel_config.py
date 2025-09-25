@@ -64,7 +64,7 @@ class OtelConfig:
     headers: dict[str, str]
     resource_attributes_kv_str: str
     resource_attributes: dict[str, str]
-    interval: float
+    interval_ms: int
 
     def __post_init__(self):
         """Validate the environment variables where necessary."""
@@ -76,30 +76,34 @@ class OtelConfig:
 
         if not self.endpoint:
             raise OSError(
-                f"Missing required environment variable: {endpoint_type_specific} or 'OTEL_EXPORTER_OTLP_ENDPOINT'"
+                f"Missing required environment variable: 'OTEL_EXPORTER_OTLP_ENDPOINT' or {endpoint_type_specific}"
             )
-        if self.protocol not in ("grpc", "http/protobuf"):
+
+        stripped_protocol = (self.protocol or "").strip().strip('"').strip("'").lower()
+        if stripped_protocol not in ("grpc", "http/protobuf"):
             raise ValueError(f"Invalid value for OTEL_EXPORTER_OTLP_PROTOCOL: {self.protocol}")
 
         # If the protocol is http, then the endpoint url should end with '/v1/<traces|metrics>'.
-        if self.protocol == "http/protobuf":
+        if stripped_protocol == "http/protobuf":
             suffix = "/v1/traces" if self.data_type == OtelDataType.TRACES else "/v1/metrics"
             if not self.endpoint.rstrip("/").endswith(suffix):
+                # No need for a fatal error, the OTel code will fail.
+                # Just log an error to help the user understand the issue.
                 log.error(
                     "Invalid value for config 'OTEL_EXPORTER_OTLP_ENDPOINT' or '%s' with protocol value '%s': %s",
                     endpoint_type_specific,
-                    self.protocol,
+                    stripped_protocol,
                     self.endpoint,
                 )
 
 
 def _env_vars_snapshot(data_type: OtelDataType) -> tuple[str | None, ...]:
     """
-    Return a tuple of the relevant env values.
+    Return a tuple of the env values, representing a snapshot.
 
-    If any of these change, the snapshot changes, invalidating the cache entry.
+    If any of the values changes, then the snapshot will be new, and the cache entry will be invalidated.
     """
-    # common
+    # Common.
     common = (
         os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
         os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL"),
@@ -107,12 +111,16 @@ def _env_vars_snapshot(data_type: OtelDataType) -> tuple[str | None, ...]:
         os.getenv("OTEL_EXPORTER_OTLP_HEADERS"),
         os.getenv("OTEL_RESOURCE_ATTRIBUTES"),
     )
+
+    # Traces.
     if data_type == OtelDataType.TRACES:
         traces_specific = (
             os.getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"),
             os.getenv("OTEL_TRACES_EXPORTER"),
         )
         return data_type.value, *traces_specific, *common
+
+    # Metrics.
     metrics_specific = (
         os.getenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"),
         os.getenv("OTEL_METRICS_EXPORTER"),
@@ -121,13 +129,13 @@ def _env_vars_snapshot(data_type: OtelDataType) -> tuple[str | None, ...]:
     return data_type.value, *metrics_specific, *common
 
 
-@lru_cache
+@lru_cache(maxsize=3)
 def load_otel_config(data_type: OtelDataType, vars_snapshot: tuple | None = None) -> OtelConfig:
     """
     Read and validate OTel config env vars once per unique snapshot.
 
     `_env_vars_snapshot()` is passed as the argument whenever this function is called.
-    If the env changes, the snapshot changes, so this recomputes.
+    If the env changes, then the snapshot changes, and so this recomputes and validates the vars.
     """
     protocol = os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc")
     service_name = os.getenv("OTEL_SERVICE_NAME", "Airflow")
@@ -135,19 +143,19 @@ def load_otel_config(data_type: OtelDataType, vars_snapshot: tuple | None = None
     resource_attributes_kv_str = os.getenv("OTEL_RESOURCE_ATTRIBUTES", "")
 
     if data_type == OtelDataType.TRACES:
-        endpoint = (
-            os.getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT") or ""
-        )
+        endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+        if endpoint is None:
+            endpoint = os.getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") or ""
         exporter = os.getenv("OTEL_TRACES_EXPORTER", "otlp")
-        interval = 0
+        interval_ms = 0
     else:
-        endpoint = (
-            os.getenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT") or ""
-        )
+        endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+        if endpoint is None:
+            endpoint = os.getenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") or ""
         exporter = os.getenv("OTEL_METRICS_EXPORTER", "otlp")
         # Instead of directly providing a default value of int,
         # use a value of str and convert to int to get rid of a static-code check error.
-        interval = int(os.getenv("OTEL_METRIC_EXPORT_INTERVAL", "60000"))
+        interval_ms = int(os.getenv("OTEL_METRIC_EXPORT_INTERVAL", "60000"))
 
     return OtelConfig(
         data_type=data_type,
@@ -159,7 +167,7 @@ def load_otel_config(data_type: OtelDataType, vars_snapshot: tuple | None = None
         headers=_parse_kv_str_to_dict(headers_kv_str),
         resource_attributes_kv_str=resource_attributes_kv_str,
         resource_attributes=_parse_kv_str_to_dict(resource_attributes_kv_str),
-        interval=interval,
+        interval_ms=interval_ms,
     )
 
 
@@ -169,8 +177,3 @@ def load_traces_config() -> OtelConfig:
 
 def load_metrics_config() -> OtelConfig:
     return load_otel_config(OtelDataType.METRICS, _env_vars_snapshot(OtelDataType.METRICS))
-
-
-def invalidate_otel_config_cache() -> None:
-    """Manually force a refresh."""
-    load_otel_config.cache_clear()

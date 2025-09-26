@@ -145,12 +145,14 @@ def load_otel_config(data_type: OtelDataType, vars_snapshot: tuple | None = None
     if data_type == OtelDataType.TRACES:
         endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
         if endpoint is None:
+            # If it's still None, give it a default empty value to avoid a static-code check error.
             endpoint = os.getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") or ""
         exporter = os.getenv("OTEL_TRACES_EXPORTER", "otlp")
         interval_ms = 0
     else:
         endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
         if endpoint is None:
+            # If it's still None, give it a default empty value to avoid a static-code check error.
             endpoint = os.getenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") or ""
         exporter = os.getenv("OTEL_METRICS_EXPORTER", "otlp")
         # Instead of directly providing a default value of int,

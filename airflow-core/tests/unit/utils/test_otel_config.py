@@ -29,7 +29,7 @@ from airflow.utils.otel_config import (
 from tests_common.test_utils.config import env_vars
 
 
-def setup_test_env_vars(
+def get_test_env_vars(
     data_type: OtelDataType, protocol: str, service: str, url: str, exporter: str, interval_ms: str
 ) -> dict[str, str]:
     type_lower = data_type.value
@@ -73,7 +73,7 @@ class TestOtelConfig:
         protocol2 = "http/protobuf"
         url2 = "http://localhost:4318/v1/" + type_lower
 
-        otel_vars = setup_test_env_vars(
+        otel_vars = get_test_env_vars(
             data_type=data_type,
             protocol=protocol1,
             service=service,
@@ -117,7 +117,7 @@ class TestOtelConfig:
             pytest.param(OtelDataType.METRICS, id="metrics"),
         ],
     )
-    def test_config_validation(self, data_type: OtelDataType, caplog):
+    def test_config_validation_no_endpoint(self, data_type: OtelDataType):
         type_lower = data_type.value
         type_upper = data_type.value.upper()
 
@@ -136,9 +136,19 @@ class TestOtelConfig:
 
             assert f"OTEL_EXPORTER_OTLP_{type_upper}_ENDPOINT" in str(endpointExc.value)
 
+    @pytest.mark.parametrize(
+        "data_type",
+        [
+            pytest.param(OtelDataType.TRACES, id="traces"),
+            pytest.param(OtelDataType.METRICS, id="metrics"),
+        ],
+    )
+    def test_successful_config_validation(self, data_type: OtelDataType):
+        type_lower = data_type.value
+
         url = f"http://localhost:4318/v1/{type_lower}"
 
-        otel_vars = setup_test_env_vars(
+        otel_vars = get_test_env_vars(
             data_type=data_type,
             protocol="grpc",
             service="Airflow",
@@ -164,7 +174,26 @@ class TestOtelConfig:
             assert not config.headers_kv_str
             assert not config.resource_attributes_kv_str
 
-        otel_vars["OTEL_EXPORTER_OTLP_PROTOCOL"] = "json"
+    @pytest.mark.parametrize(
+        "data_type",
+        [
+            pytest.param(OtelDataType.TRACES, id="traces"),
+            pytest.param(OtelDataType.METRICS, id="metrics"),
+        ],
+    )
+    def test_config_invalid_protocol(self, data_type: OtelDataType):
+        type_lower = data_type.value
+
+        url = f"http://localhost:4318/v1/{type_lower}"
+
+        otel_vars = get_test_env_vars(
+            data_type=data_type,
+            protocol="json",
+            service="Airflow",
+            url=url,
+            exporter="otlp",
+            interval_ms="60000",
+        )
 
         with env_vars(otel_vars):
             if type_lower == "metrics":
@@ -176,9 +205,27 @@ class TestOtelConfig:
 
             assert "Invalid value for OTEL_EXPORTER_OTLP_PROTOCOL" in str(protocolExc.value)
 
-        otel_vars["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://localhost:4317"
-        otel_vars[f"OTEL_EXPORTER_OTLP_{type_upper}_ENDPOINT"] = "http://localhost:4317"
-        otel_vars["OTEL_EXPORTER_OTLP_PROTOCOL"] = "http/protobuf"
+    @pytest.mark.parametrize(
+        "data_type",
+        [
+            pytest.param(OtelDataType.TRACES, id="traces"),
+            pytest.param(OtelDataType.METRICS, id="metrics"),
+        ],
+    )
+    def test_config_invalid_endpoint_protocol_combination(self, data_type: OtelDataType, caplog):
+        type_lower = data_type.value
+        type_upper = data_type.value.upper()
+
+        url = "http://localhost:4317"
+
+        otel_vars = get_test_env_vars(
+            data_type=data_type,
+            protocol="http/protobuf",
+            service="Airflow",
+            url=url,
+            exporter="otlp",
+            interval_ms="60000",
+        )
 
         with env_vars(otel_vars):
             if type_lower == "metrics":

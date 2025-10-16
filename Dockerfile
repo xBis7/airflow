@@ -97,7 +97,28 @@ ARG PIP_PROGRESS_BAR="on"
 ##############################################################################################
 # This is the script image where we keep all inlined bash scripts needed in other segments
 ##############################################################################################
-FROM scratch as scripts
+FROM ${BASE_IMAGE} as setup
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+COPY ./certs/ /usr/local/share/ca-certificates/
+RUN chmod 644 /usr/local/share/ca-certificates/* && \
+    update-ca-certificates --fresh
+
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+
+# Checks to verify that the installation succeeded.
+# RUN ls -lah /usr/local/share/ca-certificates/
+# RUN ls -lah /etc/ssl/certs/ | grep 'outbound-cert'
+# RUN openssl x509 -text -noout -in /etc/ssl/certs/outbound-cert-2024.pem
+# Try to install a package with curl
+# RUN apt-get update && apt-get install -y curl
+# RUN curl -v https://download.docker.com/linux/debian/gpg \
+#   --output /tmp/docker.asc
+
+FROM setup as scripts
 
 ##############################################################################################
 # Please DO NOT modify the inlined scripts manually. The content of those files will be
@@ -1683,7 +1704,7 @@ EOF
 ##############################################################################################
 # This is the build image where we build all dependencies
 ##############################################################################################
-FROM ${BASE_IMAGE} as airflow-build-image
+FROM setup as airflow-build-image
 
 # Nolog bash flag is currently ignored - but you can replace it with
 # xtrace - to show commands executed)
@@ -1858,6 +1879,10 @@ ARG USE_CONSTRAINTS_FOR_CONTEXT_DISTRIBUTIONS="false"
 # account for removed dependencies (we do not install them in the first place) and in case
 # INSTALL_DISTRIBUTIONS_FROM_CONTEXT is not set (because then caching it from main makes no sense).
 
+# 'install_packaging_tools.sh' is using pip. Pip needs these env variables.
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+
 # By default PIP installs everything to ~/.local and it's also treated as VIRTUALENV
 ENV VIRTUAL_ENV="${AIRFLOW_USER_HOME_DIR}/.local"
 ENV PATH="/usr/python/bin:$PATH"
@@ -1917,7 +1942,7 @@ RUN --mount=type=cache,id=prod-$TARGETARCH-$DEPENDENCY_CACHE_EPOCH,target=/tmp/.
 # This is the actual Airflow image - much smaller than the build one. We copy
 # installed Airflow and all its dependencies from the build image to make it smaller.
 ##############################################################################################
-FROM ${BASE_IMAGE} as main
+FROM setup as main
 
 # Nolog bash flag is currently ignored - but you can replace it with other flags (for example
 # xtrace - to show commands executed)

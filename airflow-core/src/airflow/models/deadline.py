@@ -40,7 +40,7 @@ from airflow.stats import Stats
 from airflow.triggers.deadline import PAYLOAD_BODY_KEY, PAYLOAD_STATUS_KEY, DeadlineCallbackTrigger
 from airflow.utils.log.logging_mixin import LoggingMixin
 from airflow.utils.session import provide_session
-from airflow.utils.sqlalchemy import UtcDateTime, mapped_column
+from airflow.utils.sqlalchemy import UtcDateTime, get_dialect_name, mapped_column
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -105,7 +105,7 @@ class Deadline(Base):
     )
 
     # The time after which the Deadline has passed and the callback should be triggered.
-    deadline_time: Mapped[UtcDateTime] = mapped_column(UtcDateTime, nullable=False)
+    deadline_time: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
     # The (serialized) callback to be called when the Deadline has passed.
     _callback: Mapped[dict] = mapped_column(
         "callback", sqlalchemy_jsonfield.JSONField(json=json), nullable=False
@@ -355,7 +355,7 @@ class ReferenceModels:
 
         _datetime: datetime
 
-        def _evaluate_with(self, *, session: Session, **kwargs: Any) -> datetime:
+        def _evaluate_with(self, *, session: Session, **kwargs: Any) -> datetime | None:
             return self._datetime
 
         def serialize_reference(self) -> dict:
@@ -373,7 +373,7 @@ class ReferenceModels:
 
         required_kwargs = {"dag_id", "run_id"}
 
-        def _evaluate_with(self, *, session: Session, **kwargs: Any) -> datetime:
+        def _evaluate_with(self, *, session: Session, **kwargs: Any) -> datetime | None:
             from airflow.models import DagRun
 
             return _fetch_from_db(DagRun.logical_date, session=session, **kwargs)
@@ -384,7 +384,7 @@ class ReferenceModels:
         required_kwargs = {"dag_id", "run_id"}
 
         @provide_session
-        def _evaluate_with(self, *, session: Session, **kwargs: Any) -> datetime:
+        def _evaluate_with(self, *, session: Session, **kwargs: Any) -> datetime | None:
             from airflow.models import DagRun
 
             return _fetch_from_db(DagRun.queued_at, session=session, **kwargs)
@@ -411,7 +411,7 @@ class ReferenceModels:
             dag_id = kwargs["dag_id"]
 
             # Get database dialect to use appropriate time difference calculation
-            dialect = session.bind.dialect.name
+            dialect = get_dialect_name(session)
 
             # Create database-specific expression for calculating duration in seconds
             if dialect == "postgresql":
@@ -483,7 +483,7 @@ DeadlineReferenceType = ReferenceModels.BaseDeadlineReference
 
 
 @provide_session
-def _fetch_from_db(model_reference: Mapped, session=None, **conditions) -> datetime:
+def _fetch_from_db(model_reference: Mapped, session=None, **conditions) -> datetime | None:
     """
     Fetch a datetime value from the database using the provided model reference and filtering conditions.
 

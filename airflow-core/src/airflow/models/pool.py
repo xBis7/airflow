@@ -357,13 +357,15 @@ class Pool(Base):
 
     @staticmethod
     @provide_session
-    def get_team_name(pool_name: str, session=NEW_SESSION) -> str | None:
+    def get_team_name(pool_name: str, session: Session = NEW_SESSION) -> str | None:
         stmt = select(Team.name).join(Pool, Team.id == Pool.team_id).where(Pool.pool == pool_name)
         return session.scalar(stmt)
 
     @staticmethod
     @provide_session
-    def get_name_to_team_name_mapping(pool_names: list[str], session=NEW_SESSION) -> dict[str, str | None]:
+    def get_name_to_team_name_mapping(
+        pool_names: list[str], session: Session = NEW_SESSION
+    ) -> dict[str, str | None]:
         stmt = (
             select(Pool.pool, Team.name).join(Team, Pool.team_id == Team.id).where(Pool.pool.in_(pool_names))
         )

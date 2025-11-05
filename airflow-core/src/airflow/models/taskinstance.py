@@ -1253,8 +1253,6 @@ class TaskInstance(Base, LoggingMixin):
         else:
             raise NotImplementedError("no metric emission setup for state %s", new_state)
 
-        # If enabled on the config, publish metrics twice,
-        # once with backward compatible name, and then with tags.
         DualStatsManager.timing(
             f"task.{metric_name}",
             timing,
@@ -1523,8 +1521,6 @@ class TaskInstance(Base, LoggingMixin):
         ti.end_date = timezone.utcnow()
         ti.set_duration()
 
-        # If enabled on the config, publish metrics twice,
-        # once with backward compatible name, and then with tags.
         DualStatsManager.incr(
             "operator_failures",
             tags=ti.stats_tags,

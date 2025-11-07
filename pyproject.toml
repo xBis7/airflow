@@ -80,6 +80,10 @@ packages = []
 "async" = [
     "apache-airflow-core[async]"
 ]
+"datadog" = [
+    "apache-airflow-core[datadog]",
+    "apache-airflow-task-sdk[datadog]"
+]
 "graphviz" = [
     "apache-airflow-core[graphviz]"
 ]
@@ -98,8 +102,14 @@ packages = []
 "all-task-sdk" = [
     "apache-airflow-task-sdk[all]"
 ]
+"otel" = [
+    "apache-airflow-task-sdk[otel]"
+]
 "sentry" = [
     "apache-airflow-task-sdk[sentry]"
+]
+"statsd" = [
+    "apache-airflow-task-sdk[statsd]"
 ]
 "airbyte" = [
     "apache-airflow-providers-airbyte>=5.0.0"

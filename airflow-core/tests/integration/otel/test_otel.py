@@ -729,13 +729,15 @@ class TestOtelIntegration:
 
     def test_export_metrics(self, monkeypatch, celery_worker_env_vars, capfd, session):
         # Metrics.
-        os.environ["AIRFLOW__METRICS__OTEL_ON"] = "True"
-        os.environ["AIRFLOW__METRICS__OTEL_HOST"] = "breeze-otel-collector"
-        os.environ["AIRFLOW__METRICS__OTEL_PORT"] = "4318"
-        os.environ["AIRFLOW__METRICS__OTEL_INTERVAL_MILLISECONDS"] = "5000"
-
         if self.use_otel != "true":
-            os.environ["AIRFLOW__METRICS__OTEL_DEBUGGING_ON"] = "True"
+            os.environ["AIRFLOW__METRICS__STATSD_ON"] = "True"
+            os.environ["AIRFLOW__METRICS__STATSD_HOST"] = "statsd-exporter"
+            os.environ["AIRFLOW__METRICS__STATSD_PORT"] = "9125"
+        else:
+            os.environ["AIRFLOW__METRICS__OTEL_ON"] = "True"
+            os.environ["AIRFLOW__METRICS__OTEL_HOST"] = "breeze-otel-collector"
+            os.environ["AIRFLOW__METRICS__OTEL_PORT"] = "4318"
+            os.environ["AIRFLOW__METRICS__OTEL_INTERVAL_MILLISECONDS"] = "1000"
 
         celery_worker_process = None
         scheduler_process = None

@@ -395,7 +395,7 @@ def get_otel_logger(cls) -> SafeOtelLogger:
         PeriodicExportingMetricReader(
             OTLPMetricExporter(endpoint=metrics_endpoint),
             export_interval_millis=interval,  # type: ignore[arg-type]
-            export_timeout_millis=30000,
+            export_timeout_millis=1000,
         )
     ]
 

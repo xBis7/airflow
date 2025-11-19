@@ -19,7 +19,6 @@
 
 from __future__ import annotations
 
-import atexit
 import contextlib
 import contextvars
 import functools
@@ -37,7 +36,6 @@ from urllib.parse import quote
 import attrs
 import lazy_object_proxy
 import structlog
-from opentelemetry import metrics
 from pydantic import AwareDatetime, ConfigDict, Field, JsonValue, TypeAdapter
 
 from airflow.dag_processing.bundles.base import BaseDagBundle, BundleVersionLock
@@ -925,10 +923,13 @@ def run(
         DownstreamTasksSkipped,
         TaskDeferred,
     )
+    from airflow.metrics import otel_logger
 
     if TYPE_CHECKING:
         assert ti.task is not None
         assert isinstance(ti.task, BaseOperator)
+
+    otel_logger.atexit_register_metrics_flush()
 
     parent_pid = os.getpid()
 
@@ -1063,20 +1064,10 @@ def run(
     return state, msg, error
 
 
-def _flush_otel():
-    try:
-        provider = metrics.get_meter_provider()
-        provider.force_flush()
-        provider.shutdown()
-    except Exception:
-        pass
-
-
 def _handle_current_task_success(
     context: Context,
     ti: RuntimeTaskInstance,
 ) -> tuple[SucceedTask, TaskInstanceState]:
-    atexit.register(_flush_otel)
     end_date = datetime.now(tz=timezone.utc)
     ti.end_date = end_date
 

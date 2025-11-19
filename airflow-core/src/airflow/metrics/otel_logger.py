@@ -16,6 +16,7 @@
 # under the License.
 from __future__ import annotations
 
+import atexit
 import datetime
 import logging
 import os
@@ -371,6 +372,14 @@ class MetricsMap:
         self.map[key].set_value(value, delta)
 
 
+def atexit_register_metrics_flush():
+    def flush_otel_metrics():
+        provider = metrics.get_meter_provider()
+        provider.force_flush()
+
+    atexit.register(flush_otel_metrics)
+
+
 def get_otel_logger(cls) -> SafeOtelLogger:
     host = conf.get("metrics", "otel_host")  # ex: "breeze-otel-collector"
     port = conf.getint("metrics", "otel_port")  # ex: 4318
@@ -395,7 +404,6 @@ def get_otel_logger(cls) -> SafeOtelLogger:
         PeriodicExportingMetricReader(
             OTLPMetricExporter(endpoint=metrics_endpoint),
             export_interval_millis=interval,  # type: ignore[arg-type]
-            export_timeout_millis=3000,
         )
     ]
 
@@ -407,7 +415,7 @@ def get_otel_logger(cls) -> SafeOtelLogger:
         MeterProvider(
             resource=resource,
             metric_readers=readers,
-            shutdown_on_exit=True,
+            shutdown_on_exit=False,
         ),
     )
 

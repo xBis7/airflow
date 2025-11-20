@@ -419,4 +419,6 @@ def get_otel_logger(cls) -> SafeOtelLogger:
         ),
     )
 
+    atexit_register_metrics_flush()
+
     return SafeOtelLogger(metrics.get_meter_provider(), prefix, get_validator())

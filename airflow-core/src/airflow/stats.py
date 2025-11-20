@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import socket
 from collections.abc import Callable
 from typing import TYPE_CHECKING
@@ -36,12 +37,24 @@ class _Stats(type):
     instance: StatsLogger | NoStatsLogger | None = None
 
     def __getattr__(cls, name: str) -> str:
+        current_pid = os.getpid()
+        if cls.instance and cls._instance_pid != current_pid:
+            log.info(
+                "Stats instance was created in PID %s but accessed in PID %s. Re-initializing.",
+                cls._instance_pid,
+                current_pid,
+            )
+            cls.instance = None
+            cls._instance_pid = None
+
         if not cls.instance:
             try:
                 cls.instance = cls.factory()
+                cls._instance_pid = current_pid
             except (socket.gaierror, ImportError) as e:
                 log.error("Could not configure StatsClient: %s, using NoStatsLogger instead.", e)
                 cls.instance = NoStatsLogger()
+                cls._instance_pid = current_pid
         return getattr(cls.instance, name)
 
     def __init__(cls, *args, **kwargs) -> None:
@@ -58,6 +71,8 @@ class _Stats(type):
                 cls.__class__.factory = statsd_logger.get_statsd_logger
             elif conf.getboolean("metrics", "otel_on"):
                 from airflow.metrics import otel_logger
+
+                print("x: here")
 
                 cls.__class__.factory = otel_logger.get_otel_logger
             else:

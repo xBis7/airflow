@@ -905,13 +905,10 @@ def run(
         DownstreamTasksSkipped,
         TaskDeferred,
     )
-    from airflow.metrics import otel_logger
 
     if TYPE_CHECKING:
         assert ti.task is not None
         assert isinstance(ti.task, BaseOperator)
-
-    otel_logger.atexit_register_metrics_flush()
 
     parent_pid = os.getpid()
 

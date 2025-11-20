@@ -869,11 +869,23 @@ def test_task_run_with_user_impersonation_remove_krb5ccname_on_reexecuted_proces
     ],
 )
 @pytest.mark.usefixtures("mock_supervisor_comms")
+@conf_vars(
+    {
+        ("metrics", "otel_on"): "True",
+        ("metrics", "otel_host"): "breeze-otel-collector",
+        ("metrics", "otel_port"): "4318",
+        ("metrics", "otel_interval_milliseconds"): "1000",
+        ("metrics", "otel_debugging_on"): "True",
+    }
+)
 def test_startup_and_run_dag_with_templated_fields(
     command, rendered_command, create_runtime_ti, time_machine
 ):
     """Test startup of a Dag with various templated fields."""
     from airflow.providers.standard.operators.bash import BashOperator
+    from airflow.stats import Stats
+
+    Stats.incr("my_metric")
 
     task = BashOperator(task_id="templated_task", bash_command=command)
 

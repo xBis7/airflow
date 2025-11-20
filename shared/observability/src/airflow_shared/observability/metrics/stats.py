@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import socket
 from collections.abc import Callable
 from typing import TYPE_CHECKING
@@ -38,6 +39,16 @@ class _Stats(type):
         factory = type.__getattribute__(cls, "factory")
         instance = type.__getattribute__(cls, "instance")
 
+        current_pid = os.getpid()
+        if cls.instance and cls._instance_pid != current_pid:
+            log.info(
+                "Stats instance was created in PID %s but accessed in PID %s. Re-initializing.",
+                cls._instance_pid,
+                current_pid,
+            )
+            cls.instance = None
+            cls._instance_pid = None
+
         if instance is None:
             if factory is None:
                 factory = NoStatsLogger
@@ -45,9 +56,11 @@ class _Stats(type):
 
             try:
                 instance = factory()
+                cls._instance_pid = current_pid
             except (socket.gaierror, ImportError) as e:
                 log.error("Could not configure StatsClient: %s, using NoStatsLogger instead.", e)
                 instance = NoStatsLogger()
+                cls._instance_pid = current_pid
 
             type.__setattr__(cls, "instance", instance)
 

@@ -425,6 +425,8 @@ def get_otel_logger(
         ),
     )
 
+    atexit_register_metrics_flush()
+
     validator = get_validator(metrics_allow_list, metrics_block_list)
 
     return SafeOtelLogger(

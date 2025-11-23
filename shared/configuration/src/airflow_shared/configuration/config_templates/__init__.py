@@ -15,15 +15,3 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Shared configuration parser for Airflow distributions."""
-
-from __future__ import annotations
-
-__all__ = [
-    "AirflowConfigException",
-    "AirflowConfigParser",
-    "conf",
-]
-
-from .exceptions import AirflowConfigException
-from .parser import AirflowConfigParser, conf

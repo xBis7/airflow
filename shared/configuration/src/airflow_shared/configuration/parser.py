@@ -30,6 +30,7 @@ import shlex
 import subprocess
 import sys
 import warnings
+from base64 import b64encode
 from collections.abc import Callable, Generator, Iterable
 from configparser import ConfigParser, NoOptionError, NoSectionError
 from contextlib import contextmanager
@@ -37,6 +38,8 @@ from enum import Enum
 from json.decoder import JSONDecodeError
 from re import Pattern
 from typing import IO, Any, TypeVar, overload
+
+import yaml
 
 from .exceptions import AirflowConfigException
 
@@ -1708,3 +1711,94 @@ class AirflowConfigParser(ConfigParser):
     def _reload_provider_configs(self) -> None:
         """Reload providers configuration."""
         raise NotImplementedError("Subclasses must implement _reload_provider_configs method")
+
+
+def _default_config_file_path(file_name: str) -> str:
+    templates_dir = os.path.join(os.path.dirname(__file__), "config_templates")
+    return os.path.join(templates_dir, file_name)
+
+
+def get_all_expansion_variables() -> dict[str, Any]:
+    return {k: v for d in [globals(), locals()] for k, v in d.items() if not k.startswith("_")}
+
+
+def retrieve_configuration_description(
+    include_airflow: bool = True,
+    include_providers: bool = True,
+    selected_provider: str | None = None,
+) -> dict[str, dict[str, Any]]:
+    """
+    Read Airflow configuration description from YAML file.
+
+    :param include_airflow: Include Airflow configs
+    :param include_providers: Include provider configs
+    :param selected_provider: If specified, include selected provider only
+    :return: Python dictionary containing configs & their info
+    """
+    base_configuration_description: dict[str, dict[str, Any]] = {}
+    if include_airflow:
+        with open(_default_config_file_path("config.yml")) as config_file:
+            base_configuration_description.update(yaml.safe_load(config_file))
+    # if include_providers:
+    #     from airflow.providers_manager import ProvidersManager
+    #
+    #     for provider, config in ProvidersManager().provider_configs:
+    #         if not selected_provider or provider == selected_provider:
+    #             base_configuration_description.update(config)
+    return base_configuration_description
+
+
+def create_default_config_parser(configuration_description: dict[str, dict[str, Any]]) -> ConfigParser:
+    """
+    Create default config parser based on configuration description.
+
+    It creates ConfigParser with all default values retrieved from the configuration description and
+    expands all the variables from the global and local variables defined in this module.
+
+    :param configuration_description: configuration description - retrieved from config.yaml files
+        following the schema defined in "config.yml.schema.json" in the config_templates folder.
+    :return: Default Config Parser that can be used to read configuration values from.
+    """
+    parser = ConfigParser()
+    all_vars = get_all_expansion_variables()
+    for section, section_desc in configuration_description.items():
+        parser.add_section(section)
+        options = section_desc["options"]
+        for key in options:
+            default_value = options[key]["default"]
+            is_template = options[key].get("is_template", False)
+            if default_value is not None:
+                if is_template or not isinstance(default_value, str):
+                    parser.set(section, key, default_value)
+                else:
+                    parser.set(section, key, default_value.format(**all_vars))
+    return parser
+
+
+def initialize_config() -> AirflowConfigParser:
+    """
+    Initialize SDK configuration parser.
+
+    Called automatically when SDK is imported.
+    """
+    configuration_description = retrieve_configuration_description()
+    # Create default values parser
+    _default_values = create_default_config_parser(configuration_description)
+    airflow_config_parser = AirflowConfigParser(configuration_description, _default_values)
+    if airflow_config_parser.getboolean("core", "unit_test_mode", fallback=False):
+        airflow_config_parser.load_test_config()
+    return airflow_config_parser
+
+
+def get_airflow_home() -> str:
+    """Get path to Airflow Home."""
+    return expand_env_var(os.environ.get("AIRFLOW_HOME", "~/airflow"))
+
+
+AIRFLOW_HOME = get_airflow_home()
+
+SECRET_KEY = b64encode(os.urandom(16)).decode("utf-8")
+FERNET_KEY = ""  # Set only if needed when generating a new file
+JWT_SECRET_KEY = ""
+
+conf: AirflowConfigParser = initialize_config()

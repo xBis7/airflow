@@ -22,8 +22,8 @@ import socket
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
+from airflow._shared.configuration import conf
 from airflow._shared.observability.metrics.base_stats_logger import NoStatsLogger
-from airflow.configuration import conf
 
 if TYPE_CHECKING:
     from airflow._shared.observability.metrics.base_stats_logger import StatsLogger

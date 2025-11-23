@@ -25,11 +25,11 @@ import pytest
 from opentelemetry.sdk import util
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from airflow._shared.configuration import conf
 from airflow._shared.observability.traces import otel_tracer
 from airflow._shared.observability.traces.base_tracer import DebugTrace, EmptyTrace, Trace
 from airflow._shared.observability.traces.otel_tracer import OtelTrace
 from airflow._shared.observability.traces.utils import datetime_to_nano
-from airflow.configuration import conf
 
 from tests_common.test_utils.config import env_vars
 

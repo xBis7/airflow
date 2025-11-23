@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 import structlog
 
-from airflow.configuration import conf
+from airflow._shared.configuration import conf
 
 if TYPE_CHECKING:
     from airflow.typing_compat import Self

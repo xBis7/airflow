@@ -22,6 +22,7 @@ from collections.abc import Callable
 from functools import wraps
 from typing import TYPE_CHECKING, TypeVar, cast
 
+from airflow._shared.configuration import conf
 from airflow._shared.configuration.exceptions import AirflowConfigException
 from airflow._shared.observability.metrics.protocols import Timer
 from airflow._shared.observability.metrics.validators import (
@@ -30,7 +31,6 @@ from airflow._shared.observability.metrics.validators import (
     get_validator,
     validate_stat,
 )
-from airflow.configuration import conf
 
 if TYPE_CHECKING:
     from statsd import StatsClient

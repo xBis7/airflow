@@ -30,6 +30,7 @@ from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics._internal.export import ConsoleMetricExporter, PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 
+from airflow._shared.configuration import conf
 from airflow._shared.observability.metrics.protocols import Timer
 from airflow._shared.observability.metrics.validators import (
     OTEL_NAME_MAX_LENGTH,
@@ -38,7 +39,6 @@ from airflow._shared.observability.metrics.validators import (
     get_validator,
     stat_name_otel_handler,
 )
-from airflow.configuration import conf
 
 if TYPE_CHECKING:
     from opentelemetry.metrics import Instrument

@@ -253,6 +253,8 @@ chakra
 Changelog
 changelog
 charset
+chatbot
+chatbots
 Checklicence
 checklicence
 CheckOperator
@@ -364,6 +366,7 @@ csrf
 CSRFProtect
 css
 csv
+Ctl
 ctor
 Ctrl
 cubeName

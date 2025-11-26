@@ -20,6 +20,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import itertools
+import json
 import logging
 import math
 import uuid
@@ -193,6 +194,7 @@ def clear_task_instances(
     session: Session,
     dag_run_state: DagRunState | Literal[False] = DagRunState.QUEUED,
     run_on_latest_version: bool = False,
+    prevent_running_task: bool | None = None,
 ) -> None:
     """
     Clear a set of task instances, but make sure the running ones get killed.
@@ -212,16 +214,25 @@ def clear_task_instances(
     :meta private:
     """
     task_instance_ids: list[str] = []
+    from airflow.exceptions import AirflowClearRunningTaskException
     from airflow.models.dagbag import DBDagBag
 
     scheduler_dagbag = DBDagBag(load_op_links=False)
     for ti in tis:
         task_instance_ids.append(ti.id)
         ti.prepare_db_for_next_try(session)
+
         if ti.state == TaskInstanceState.RUNNING:
-            # If a task is cleared when running, set its state to RESTARTING so that
-            # the task is terminated and becomes eligible for retry.
+            if prevent_running_task:
+                raise AirflowClearRunningTaskException(
+                    "AirflowClearRunningTaskException: Disable 'prevent_running_task' to proceed, or wait until the task is not running, queued, or scheduled state."
+                )
+                # Prevents the task from re-running and clearing when prevent_running_task from the frontend and the tas is running is True.
+
             ti.state = TaskInstanceState.RESTARTING
+        # If a task is cleared when running and the prevent_running_task is false,
+        # set its state to RESTARTING so that
+        # the task is terminated and becomes eligible for retry.
         else:
             dr = ti.dag_run
             if run_on_latest_version:
@@ -957,14 +968,15 @@ class TaskInstance(Base, LoggingMixin):
         from airflow.sdk.definitions._internal.abstractoperator import MAX_RETRY_DELAY
 
         delay = self.task.retry_delay
-        if self.task.retry_exponential_backoff:
+        multiplier = self.task.retry_exponential_backoff if self.task.retry_exponential_backoff != 0 else 1.0
+        if multiplier != 1.0 and multiplier > 0:
             try:
                 # If the min_backoff calculation is below 1, it will be converted to 0 via int. Thus,
                 # we must round up prior to converting to an int, otherwise a divide by zero error
                 # will occur in the modded_hash calculation.
                 # this probably gives unexpected results if a task instance has previously been cleared,
                 # because try_number can increase without bound
-                min_backoff = math.ceil(delay.total_seconds() * (2 ** (self.try_number - 1)))
+                min_backoff = math.ceil(delay.total_seconds() * (multiplier ** (self.try_number - 1)))
             except OverflowError:
                 min_backoff = MAX_RETRY_DELAY
                 self.log.warning(
@@ -986,7 +998,7 @@ class TaskInstance(Base, LoggingMixin):
                 ).hexdigest(),
                 16,
             )
-            # between 1 and 1.0 * delay * (2^retry_number)
+            # between 1 and 1.0 * delay * (multiplier^retry_number)
             modded_hash = min_backoff + ti_hash % min_backoff
             # timedelta has a maximum representable value. The exponentiation
             # here means this value can be exceeded after a certain number
@@ -1169,7 +1181,8 @@ class TaskInstance(Base, LoggingMixin):
 
         # Closing all pooled connections to prevent
         # "max number of connections reached"
-        settings.engine.dispose()
+        if settings.engine is not None:
+            settings.engine.dispose()
         if verbose:
             if mark_success:
                 cls.logger().info("Marking success for %s on %s", ti.task, ti.logical_date)
@@ -1389,7 +1402,7 @@ class TaskInstance(Base, LoggingMixin):
                     session=session,
                 )
 
-        def _asset_event_extras_from_aliases() -> dict[tuple[AssetUniqueKey, frozenset], set[str]]:
+        def _asset_event_extras_from_aliases() -> dict[tuple[AssetUniqueKey, str], set[str]]:
             d = defaultdict(set)
             for event in outlet_events:
                 try:
@@ -1399,19 +1412,20 @@ class TaskInstance(Base, LoggingMixin):
                 if alias_name not in outlet_alias_names:
                     continue
                 asset_key = AssetUniqueKey(**event["dest_asset_key"])
-                extra_key = frozenset(event["extra"].items())
-                d[asset_key, extra_key].add(alias_name)
+                extra_json = json.dumps(event["extra"], sort_keys=True)
+                d[asset_key, extra_json].add(alias_name)
             return d
 
         outlet_alias_names = {o.name for o in task_outlets if o.type == AssetAlias.__name__ and o.name}
         if outlet_alias_names and (event_extras_from_aliases := _asset_event_extras_from_aliases()):
-            for (asset_key, extra_key), event_aliase_names in event_extras_from_aliases.items():
+            for (asset_key, extra_json), event_aliase_names in event_extras_from_aliases.items():
+                extra = json.loads(extra_json)
                 ti.log.debug("register event for asset %s with aliases %s", asset_key, event_aliase_names)
                 event = asset_manager.register_asset_change(
                     task_instance=ti,
                     asset=asset_key,
                     source_alias_names=event_aliase_names,
-                    extra=dict(extra_key),
+                    extra=extra,
                     session=session,
                 )
                 if event is None:
@@ -1422,7 +1436,7 @@ class TaskInstance(Base, LoggingMixin):
                         task_instance=ti,
                         asset=asset_key,
                         source_alias_names=event_aliase_names,
-                        extra=dict(extra_key),
+                        extra=extra,
                         session=session,
                     )
 
@@ -1636,7 +1650,7 @@ class TaskInstance(Base, LoggingMixin):
         """
         # Do not use provide_session here -- it expunges everything on exit!
         if not session:
-            session = settings.Session()
+            session = settings.get_session()()
 
         from airflow.exceptions import NotMapped
         from airflow.models.mappedoperator import get_mapped_ti_count

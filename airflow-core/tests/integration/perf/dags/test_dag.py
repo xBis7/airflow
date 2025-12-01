@@ -70,36 +70,6 @@ with DAG(
 
 
 # ---------------------------------------------------------------------------
-# 3. Branching DAG: start -> level1[5] -> level2[15] -> end
-# ---------------------------------------------------------------------------
-
-with DAG(
-    dag_id="bench_branching_tree",
-    default_args=DEFAULT_ARGS,
-    start_date=datetime(2024, 1, 1),
-    schedule_interval=None,
-    catchup=False,
-    max_active_runs=20,
-    tags=["bench", "branching"],
-) as bench_branching_tree:
-    start = EmptyOperator(task_id="start")
-
-    level1 = [EmptyOperator(task_id=f"l1_{i}") for i in range(1, 6)]
-    level2 = [EmptyOperator(task_id=f"l2_{i}") for i in range(1, 16)]
-    end = EmptyOperator(task_id="end")
-
-    start >> level1
-
-    # simple mapping: each l1 fans out to three l2 tasks
-    for i, parent in enumerate(level1):
-        children = level2[i * 3 : (i + 1) * 3]
-        parent >> children
-
-    for node in level2:
-        node >> end
-
-
-# ---------------------------------------------------------------------------
 # 4. Many small DAGs: 50 DAGs, each with 10 tasks in a line
 #    DAG ids: bench_many_small_000 ... bench_many_small_049
 # ---------------------------------------------------------------------------

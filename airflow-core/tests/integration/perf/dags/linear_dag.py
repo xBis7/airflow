@@ -14,41 +14,45 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-Medium linear DAG: 50 tasks in a chain
-Tests: Sequential scheduling at scale
-"""
 
 from __future__ import annotations
 
-import time
 from datetime import datetime
 
 from airflow import DAG
-from airflow.operators.python import PythonOperator
+from airflow.providers.standard.operators.bash import BashOperator
 
+"""
+Linear DAG: 10 nodes in sequence
 
-def simple_task(**context):
-    time.sleep(0.1)
-    return f"Done: {context['task_instance'].task_id}"
+node__0 → node__1 → node__2 → node__3 → node__4 → node__5 → node__6 → node__7 → node__8 → node__9 → node__10
+"""
 
+DEFAULT_ARGS = {
+    "owner": "test",
+    "depends_on_past": False,
+    "start_date": datetime(2024, 1, 1),
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 0,
+}
 
 with DAG(
-    dag_id="benchmark_02_linear_medium",
-    start_date=datetime(2024, 1, 1),
+    dag_id="linear_dag",
+    default_args=DEFAULT_ARGS,
     schedule=None,
     catchup=False,
-    tags=["benchmark", "linear", "medium"],
+    max_active_runs=5,
 ) as dag:
-    # Generate 50 tasks programmatically
+    # Create all nodes
     tasks = []
-    for i in range(1, 51):
-        task = PythonOperator(
-            task_id=f"task_{i:02d}",
-            python_callable=simple_task,
+    for i in range(0, 11):
+        t = BashOperator(
+            task_id=f"node__{i}",
+            bash_command=f'echo "Linear DAG -- Executing node__{i} (step {i})"',
         )
-        tasks.append(task)
+        tasks.append(t)
 
-        # Link to previous task
-        if i > 1:
-            tasks[i - 2] >> task
+    # Wire in straight line
+    for i in range(len(tasks) - 1):
+        tasks[i] >> tasks[i + 1]

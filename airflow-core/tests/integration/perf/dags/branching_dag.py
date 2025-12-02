@@ -23,7 +23,7 @@ from airflow import DAG
 from airflow.providers.standard.operators.bash import BashOperator
 
 """
-Branching DAG: level 0 (root node) -> level 1 (5 nodes) -> level 2 (15 nodes).
+Branching DAG: level 0 (root task) -> level 1 (5 tasks) -> level 2 (15 tasks).
 
 
                                                   0
@@ -55,7 +55,7 @@ with DAG(
 ) as dag:
     # Root
     start = BashOperator(
-        task_id="node__0",
+        task_id="task__0",
         bash_command='echo "Branching DAG -- START"',
     )
 
@@ -63,8 +63,8 @@ with DAG(
     level1_tasks = []
     for i in range(1, 6):
         t = BashOperator(
-            task_id=f"node__1_{i}",
-            bash_command=f'echo "Branching DAG -- Executing level 1, task node__1_{i}, branch {i}"',
+            task_id=f"task__1_{i}",
+            bash_command=f'echo "Branching DAG -- Executing level 1, task task__1_{i}, branch {i}"',
         )
         level1_tasks.append(t)
 
@@ -72,8 +72,8 @@ with DAG(
     level2_tasks = []
     for i in range(1, 16):
         t = BashOperator(
-            task_id=f"node__2_{i}",
-            bash_command=f'echo "Branching DAG -- Executing level 2, task node__2_{i}, leaf node {i}"',
+            task_id=f"task__2_{i}",
+            bash_command=f'echo "Branching DAG -- Executing level 2, task task__2_{i}, leaf task {i}"',
         )
         level2_tasks.append(t)
 
@@ -85,11 +85,11 @@ with DAG(
     # Wiring: start -> all l1
     start >> level1_tasks
 
-    # Wiring: each node__1_i fans out to 3 node__2_* tasks
+    # Wiring: each task__1_i fans out to 3 task__2_* tasks
     for idx, parent in enumerate(level1_tasks):
         children = level2_tasks[idx * 3 : (idx + 1) * 3]
         parent >> children
 
-    # Wiring: all node__2_* -> end
+    # Wiring: all task__2_* -> end
     for t in level2_tasks:
         t >> end

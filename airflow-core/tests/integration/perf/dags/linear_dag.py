@@ -23,9 +23,9 @@ from airflow import DAG
 from airflow.providers.standard.operators.bash import BashOperator
 
 """
-Linear DAG: 10 nodes in sequence
+Linear DAG: 10 tasks in a sequence.
 
-node__0 → node__1 → node__2 → node__3 → node__4 → node__5 → node__6 → node__7 → node__8 → node__9 → node__10
+0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 """
 
 DEFAULT_ARGS = {
@@ -44,15 +44,15 @@ with DAG(
     catchup=False,
     max_active_runs=5,
 ) as dag:
-    # Create all nodes
+    # Create all tasks.
     tasks = []
     for i in range(0, 11):
         t = BashOperator(
-            task_id=f"node__{i}",
-            bash_command=f'echo "Linear DAG -- Executing node__{i} (step {i})"',
+            task_id=f"task__{i}",
+            bash_command=f'echo "Linear DAG -- Executing task__{i} (step {i})"',
         )
         tasks.append(t)
 
-    # Wire in straight line
+    # Linear dependencies in a sequence.
     for i in range(len(tasks) - 1):
         tasks[i] >> tasks[i + 1]

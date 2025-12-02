@@ -23,13 +23,9 @@ from airflow import DAG
 from airflow.providers.standard.operators.bash import BashOperator
 
 """
-Fan-out DAG: level 0 (root node) -> level 1 (100 parallel nodes)
+Single root with parallels DAG: level 0 (root task) -> level 1 (100 parallel tasks).
 
-              node__0
-                 |
-      _____________________________________________ ... _____________________________________________
-     |        |        |        |        |                           |                          |
- node__1_1  node__1_2 node__1_3 ...   node__1_50                 ... node__1_99             node__1_100
+0 -> (1_1, 1_2, 1_3, 1_4, ..., 1_100 -- parallel)
 """
 
 DEFAULT_ARGS = {
@@ -50,18 +46,18 @@ with DAG(
 ) as dag:
     # Root
     start = BashOperator(
-        task_id="node__0",
-        bash_command='echo "Fan-out DAG -- START (root node__0)"',
+        task_id="task__0",
+        bash_command='echo "Single root with parallels DAG -- START (root task__0)"',
     )
 
     # Level 1: 100 parallel tasks
     level1_tasks = []
     for i in range(1, 101):
         t = BashOperator(
-            task_id=f"node__1_{i}",
-            bash_command=f'echo "Fan-out DAG -- Executing level 1, task node__1_{i}, leaf {i}"',
+            task_id=f"task__1_{i}",
+            bash_command=f'echo "Single root with parallels DAG -- Executing level 1, task task__1_{i}, leaf {i}"',
         )
         level1_tasks.append(t)
 
-    # Wiring: node__0 -> all node__1_*
+    # Wiring: task__0 -> all task__1_*
     start >> level1_tasks

@@ -135,8 +135,7 @@ class TriggerDagRunOperator(BaseOperator):
     :param skip_when_already_exists: Set to true to mark the task as SKIPPED if a DAG run of the triggered
         DAG for the same logical date already exists.
     :param fail_when_dag_is_paused: If the dag to trigger is paused, DagIsPaused will be raised.
-    :param deferrable: If waiting for completion, whether or not to defer the task until done,
-        default is ``False``.
+    :param deferrable: If waiting for completion, whether to defer the task until done, default is ``False``.
     :param openlineage_inject_parent_info: whether to include OpenLineage metadata about the parent task
         in the triggered DAG run's conf, enabling improved lineage tracking. The metadata is only injected
         if OpenLineage is enabled and running. This option does not modify any other part of the conf,
@@ -193,7 +192,7 @@ class TriggerDagRunOperator(BaseOperator):
         self.skip_when_already_exists = skip_when_already_exists
         self.fail_when_dag_is_paused = fail_when_dag_is_paused
         self.openlineage_inject_parent_info = openlineage_inject_parent_info
-        self._defer = deferrable
+        self.deferrable = deferrable
         self.logical_date = logical_date
         if logical_date is NOTSET:
             self.logical_date = NOTSET
@@ -277,7 +276,7 @@ class TriggerDagRunOperator(BaseOperator):
             allowed_states=self.allowed_states,
             failed_states=self.failed_states,
             poke_interval=self.poke_interval,
-            deferrable=self._defer,
+            deferrable=self.deferrable,
         )
 
     def _trigger_dag_af_2(self, context, run_id, parsed_logical_date):
@@ -318,7 +317,7 @@ class TriggerDagRunOperator(BaseOperator):
 
         if self.wait_for_completion:
             # Kick off the deferral process
-            if self._defer:
+            if self.deferrable:
                 self.defer(
                     trigger=DagStateTrigger(
                         dag_id=self.trigger_dag_id,
@@ -349,21 +348,40 @@ class TriggerDagRunOperator(BaseOperator):
                     return
 
     def execute_complete(self, context: Context, event: tuple[str, dict[str, Any]]):
-        run_ids = event[1]["run_ids"]
+        """
+        Handle task completion after returning from a deferral.
+
+        Args:
+            context: The Airflow context dictionary.
+            event: A tuple containing the class path of the trigger and the trigger event data.
+        """
+        # Example event tuple content:
+        # (
+        #  "airflow.providers.standard.triggers.external_task.DagStateTrigger",
+        #  {
+        #   'dag_id': 'some_dag',
+        #   'states': ['success', 'failed'],
+        #   'poll_interval': 15,
+        #   'run_ids': ['manual__2025-11-19T17:49:20.907083+00:00'],
+        #   'execution_dates': [
+        #    DateTime(2025, 11, 19, 17, 49, 20, 907083, tzinfo=Timezone('UTC'))
+        #   ]
+        #  }
+        # )
+        _, event_data = event
+        run_ids = event_data["run_ids"]
         # Re-set as attribute after coming back from deferral - to be used by listeners.
         # Just a safety check on length, we should always have single run_id here.
         self.trigger_run_id = run_ids[0] if len(run_ids) == 1 else None
         if AIRFLOW_V_3_0_PLUS:
-            self._trigger_dag_run_af_3_execute_complete(event=event)
+            self._trigger_dag_run_af_3_execute_complete(event_data=event_data)
         else:
-            self._trigger_dag_run_af_2_execute_complete(event=event)
+            self._trigger_dag_run_af_2_execute_complete(event_data=event_data)
 
-    def _trigger_dag_run_af_3_execute_complete(self, event: tuple[str, dict[str, Any]]):
-        run_ids = event[1]["run_ids"]
-        event_data = event[1]
+    def _trigger_dag_run_af_3_execute_complete(self, event_data: dict[str, Any]):
         failed_run_id_conditions = []
 
-        for run_id in run_ids:
+        for run_id in event_data["run_ids"]:
             state = event_data.get(run_id)
             if state in self.failed_states:
                 failed_run_id_conditions.append(run_id)
@@ -387,10 +405,10 @@ class TriggerDagRunOperator(BaseOperator):
 
         @provide_session
         def _trigger_dag_run_af_2_execute_complete(
-            self, event: tuple[str, dict[str, Any]], session: Session = NEW_SESSION
+            self, event_data: dict[str, Any], session: Session = NEW_SESSION
         ):
             # This logical_date is parsed from the return trigger event
-            provided_logical_date = event[1]["execution_dates"][0]
+            provided_logical_date = event_data["execution_dates"][0]
             try:
                 # Note: here execution fails on database isolation mode. Needs structural changes for AIP-72
                 dag_run = session.execute(

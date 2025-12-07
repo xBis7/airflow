@@ -41,7 +41,7 @@ from airflow.executors import executor_loader
 from airflow.executors.executor_utils import ExecutorName
 from airflow.models import DAG, DagBag, DagRun
 from airflow.models.taskinstance import TaskInstance
-from airflow.stats import Stats
+from airflow.observability.stats import Stats
 from airflow.utils.session import create_session
 from airflow.utils.state import State
 
@@ -66,11 +66,15 @@ def rotate_metrics_file_once():
         metrics_file.replace(backup)
 
 
-def unpause_trigger_dag_and_get_run_id(dag_id: str) -> str:
-    unpause_command = ["airflow", "dags", "unpause", dag_id]
+def unpause_trigger_dag_and_get_run_id(dag_id: str, unpause: bool = True) -> str:
+    """
+    Running this multiple times for the same dag without unpause, will create multiple dag_runs.
+    """
+    if unpause:
+        unpause_command = ["airflow", "dags", "unpause", dag_id]
 
-    # Unpause the dag using the cli.
-    subprocess.run(unpause_command, check=True, env=os.environ.copy())
+        # Unpause the dag using the cli.
+        subprocess.run(unpause_command, check=True, env=os.environ.copy())
 
     execution_date = timezone.utcnow()
     run_id = f"manual__{execution_date.isoformat()}"
@@ -375,7 +379,8 @@ def monitor_system_to_stats(
 @pytest.mark.backend("postgres")
 class TestPerformanceIntegration:
     test_dir = os.path.dirname(os.path.abspath(__file__))
-    dag_folder = os.path.join(test_dir, "dags")
+    # TODO: adjust the last folder to avoid loading everything. Or remove it.
+    dag_folder = os.path.join(test_dir, "dags", "topologies")
 
     dag_num = os.getenv("dag_num", default="2")
     log_level = os.getenv("log_level", default="none")
@@ -646,9 +651,248 @@ class TestPerformanceIntegration:
     @pytest.mark.parametrize(
         "flag_enabled", [pytest.param("True", id="with_fts"), pytest.param("False", id="fts_disabled")]
     )
-    def test_dag_execution_succeeds(
-        self, flag_enabled: str, monkeypatch, celery_worker_env_vars, capfd, session
-    ):
+    def test_topologies(self, flag_enabled: str, monkeypatch, celery_worker_env_vars, capfd, session):
+        os.environ["AIRFLOW__SCHEDULER__ENABLE_FAIR_TASK_SELECTION"] = flag_enabled
+
+        scheduler_1_process = None
+
+        celery_worker_1_process = None
+        celery_worker_2_process = None
+        celery_worker_3_process = None
+
+        apiserver_process = None
+
+        branching_dag_id = "branching_dag"
+        branching_dag_2_id = "branching_dag_2"
+        branching_dag_3_id = "branching_dag_3"
+        branching_dag_4_id = "branching_dag_4"
+        branching_dag_5_id = "branching_dag_5"
+        linear_dag_id = "linear_dag"
+        linear_dag_2_id = "linear_dag_2"
+        linear_dag_3_id = "linear_dag_3"
+        linear_dag_4_id = "linear_dag_4"
+        linear_dag_5_id = "linear_dag_5"
+        single_root_with_parallels_id = "single_root_with_parallels"
+        single_root_with_parallels_2_id = "single_root_with_parallels_2"
+
+        branching_dag_run_id = None
+        branching_dag_2_run_id = None
+        branching_dag_3_run_id = None
+        branching_dag_4_run_id = None
+        branching_dag_5_run_id = None
+        linear_dag_run_id = None
+        linear_dag_2_run_id = None
+        linear_dag_3_run_id = None
+        linear_dag_4_run_id = None
+        linear_dag_5_run_id = None
+        single_root_with_parallels_run_id = None
+        single_root_with_parallels_2_run_id = None
+
+        stop_evt = threading.Event()
+        monitor_thread = None
+        try:
+            # Start the processes here and not as fixtures or in a common setup,
+            # so that the test can capture their output.
+            (
+                scheduler_1_process,
+                celery_worker_1_process,
+                celery_worker_2_process,
+                celery_worker_3_process,
+                apiserver_process,
+            ) = self.start_schedulers_and_workers(second_sched=False)
+
+            assert len(self.dags) > 0
+            branching_dag = self.dags[branching_dag_id]
+            branching_dag_2 = self.dags[branching_dag_2_id]
+            branching_dag_3 = self.dags[branching_dag_3_id]
+            branching_dag_4 = self.dags[branching_dag_4_id]
+            branching_dag_5 = self.dags[branching_dag_5_id]
+            linear_dag = self.dags[linear_dag_id]
+            linear_dag_2 = self.dags[linear_dag_2_id]
+            linear_dag_3 = self.dags[linear_dag_3_id]
+            linear_dag_4 = self.dags[linear_dag_4_id]
+            linear_dag_5 = self.dags[linear_dag_5_id]
+            single_root_with_parallels = self.dags[single_root_with_parallels_id]
+            single_root_with_parallels_2 = self.dags[single_root_with_parallels_2_id]
+
+            assert branching_dag is not None
+            assert branching_dag_2 is not None
+            assert branching_dag_3 is not None
+            assert branching_dag_4 is not None
+            assert branching_dag_5 is not None
+            assert linear_dag is not None
+            assert linear_dag_2 is not None
+            assert linear_dag_3 is not None
+            assert linear_dag_4 is not None
+            assert linear_dag_5 is not None
+            assert single_root_with_parallels is not None
+            assert single_root_with_parallels_2 is not None
+
+            # --- after start_scheduler_and_workers() ----------------
+            proc_map = {
+                "sched1": scheduler_1_process,
+                "worker1": celery_worker_1_process,
+                "worker2": celery_worker_2_process,
+                "worker3": celery_worker_3_process,
+            }
+            dag_ids_to_watch = [
+                "branching_dag",
+                "branching_dag_2",
+                "branching_dag_3",
+                "branching_dag_4",
+                "branching_dag_5",
+                "linear_dag",
+                "linear_dag_2",
+                "linear_dag_3",
+                "linear_dag_4",
+                "linear_dag_5",
+                "single_root_with_parallels",
+                "single_root_with_parallels_2",
+            ]
+
+            flag_label = "with_fts" if flag_enabled == "True" else "fts_disabled"
+
+            monitor_thread = threading.Thread(
+                target=monitor_system_to_stats,
+                args=(dag_ids_to_watch, proc_map, stop_evt, flag_label),
+                daemon=True,
+            )
+            monitor_thread.start()
+            # ----------------------------------------------------------
+
+            branching_dag_run_id = unpause_trigger_dag_and_get_run_id(dag_id=branching_dag_id)
+            branching_dag_2_run_id = unpause_trigger_dag_and_get_run_id(dag_id=branching_dag_2_id)
+            branching_dag_3_run_id = unpause_trigger_dag_and_get_run_id(dag_id=branching_dag_3_id)
+            branching_dag_4_run_id = unpause_trigger_dag_and_get_run_id(dag_id=branching_dag_4_id)
+            branching_dag_5_run_id = unpause_trigger_dag_and_get_run_id(dag_id=branching_dag_5_id)
+            linear_dag_run_id = unpause_trigger_dag_and_get_run_id(dag_id=linear_dag_id)
+            linear_dag_2_run_id = unpause_trigger_dag_and_get_run_id(dag_id=linear_dag_2_id)
+            linear_dag_3_run_id = unpause_trigger_dag_and_get_run_id(dag_id=linear_dag_3_id)
+            linear_dag_4_run_id = unpause_trigger_dag_and_get_run_id(dag_id=linear_dag_4_id)
+            linear_dag_5_run_id = unpause_trigger_dag_and_get_run_id(dag_id=linear_dag_5_id)
+            single_root_with_parallels_run_id = unpause_trigger_dag_and_get_run_id(
+                dag_id=single_root_with_parallels_id
+            )
+            single_root_with_parallels_2_run_id = unpause_trigger_dag_and_get_run_id(
+                dag_id=single_root_with_parallels_2_id
+            )
+
+            wait_for_dag_run(dag_id=branching_dag_id, run_id=branching_dag_run_id, max_wait_time=9000)
+            wait_for_dag_run(dag_id=branching_dag_2_id, run_id=branching_dag_2_run_id, max_wait_time=9000)
+            wait_for_dag_run(dag_id=branching_dag_3_id, run_id=branching_dag_3_run_id, max_wait_time=9000)
+            wait_for_dag_run(dag_id=branching_dag_4_id, run_id=branching_dag_4_run_id, max_wait_time=9000)
+            wait_for_dag_run(dag_id=branching_dag_5_id, run_id=branching_dag_5_run_id, max_wait_time=9000)
+
+            wait_for_dag_run(dag_id=linear_dag_id, run_id=linear_dag_run_id, max_wait_time=9000)
+            wait_for_dag_run(dag_id=linear_dag_2_id, run_id=linear_dag_2_run_id, max_wait_time=9000)
+            wait_for_dag_run(dag_id=linear_dag_3_id, run_id=linear_dag_3_run_id, max_wait_time=9000)
+            wait_for_dag_run(dag_id=linear_dag_4_id, run_id=linear_dag_4_run_id, max_wait_time=9000)
+            wait_for_dag_run(dag_id=linear_dag_5_id, run_id=linear_dag_5_run_id, max_wait_time=9000)
+
+            wait_for_dag_run(
+                dag_id=single_root_with_parallels_id,
+                run_id=single_root_with_parallels_run_id,
+                max_wait_time=9000,
+            )
+            wait_for_dag_run(
+                dag_id=single_root_with_parallels_2_id,
+                run_id=single_root_with_parallels_2_run_id,
+                max_wait_time=9000,
+            )
+
+            time.sleep(10)
+        finally:
+            stop_evt.set()
+            if monitor_thread is not None:
+                monitor_thread.join()
+
+            if branching_dag_run_id is not None:
+                print_ti_output_for_dag_run(dag_id=branching_dag_id, run_id=branching_dag_run_id)
+            if branching_dag_2_id is not None:
+                print_ti_output_for_dag_run(dag_id=branching_dag_2_id, run_id=branching_dag_2_run_id)
+            if branching_dag_3_id is not None:
+                print_ti_output_for_dag_run(dag_id=branching_dag_3_id, run_id=branching_dag_3_run_id)
+            if branching_dag_4_id is not None:
+                print_ti_output_for_dag_run(dag_id=branching_dag_4_id, run_id=branching_dag_4_run_id)
+            if branching_dag_5_id is not None:
+                print_ti_output_for_dag_run(dag_id=branching_dag_5_id, run_id=branching_dag_5_run_id)
+
+            if linear_dag_run_id is not None:
+                print_ti_output_for_dag_run(dag_id=linear_dag_id, run_id=linear_dag_run_id)
+            if linear_dag_2_run_id is not None:
+                print_ti_output_for_dag_run(dag_id=linear_dag_2_id, run_id=linear_dag_2_run_id)
+            if linear_dag_3_run_id is not None:
+                print_ti_output_for_dag_run(dag_id=linear_dag_3_id, run_id=linear_dag_3_run_id)
+            if linear_dag_4_run_id is not None:
+                print_ti_output_for_dag_run(dag_id=linear_dag_4_id, run_id=linear_dag_4_run_id)
+            if linear_dag_5_run_id is not None:
+                print_ti_output_for_dag_run(dag_id=linear_dag_5_id, run_id=linear_dag_5_run_id)
+
+            if single_root_with_parallels_run_id is not None:
+                print_ti_output_for_dag_run(
+                    dag_id=single_root_with_parallels_id,
+                    run_id=single_root_with_parallels_run_id,
+                )
+            if single_root_with_parallels_2_run_id is not None:
+                print_ti_output_for_dag_run(
+                    dag_id=single_root_with_parallels_2_id,
+                    run_id=single_root_with_parallels_2_run_id,
+                )
+
+            # Terminate the processes.
+            if celery_worker_1_process is not None:
+                celery_worker_1_process.terminate()
+                celery_worker_1_process.wait()
+
+                celery_1_status = celery_worker_1_process.poll()
+                assert celery_1_status is not None, (
+                    "The celery_worker_1 process status is None, which means that it hasn't terminated as expected."
+                )
+
+            if celery_worker_2_process is not None:
+                celery_worker_2_process.terminate()
+                celery_worker_2_process.wait()
+
+                celery_2_status = celery_worker_2_process.poll()
+                assert celery_2_status is not None, (
+                    "The celery_worker_2 process status is None, which means that it hasn't terminated as expected."
+                )
+
+            if celery_worker_3_process is not None:
+                celery_worker_3_process.terminate()
+                celery_worker_3_process.wait()
+
+                celery_3_status = celery_worker_3_process.poll()
+                assert celery_3_status is not None, (
+                    "The celery_worker_3 process status is None, which means that it hasn't terminated as expected."
+                )
+
+            if scheduler_1_process is not None:
+                scheduler_1_process.terminate()
+                scheduler_1_process.wait()
+
+                scheduler_1_status = scheduler_1_process.poll()
+                assert scheduler_1_status is not None, (
+                    "The scheduler_1 process status is None, which means that it hasn't terminated as expected."
+                )
+
+            if apiserver_process is not None:
+                apiserver_process.terminate()
+                apiserver_process.wait()
+
+                apiserver_status = apiserver_process.poll()
+                assert apiserver_status is not None, (
+                    "The apiserver process status is None, which means that it hasn't terminated as expected."
+                )
+
+        out, err = capfd.readouterr()
+        log.info("out-start --\n%s\n-- out-end", out)
+        log.info("err-start --\n%s\n-- err-end", err)
+
+    @pytest.mark.parametrize(
+        "flag_enabled", [pytest.param("True", id="with_fts"), pytest.param("False", id="fts_disabled")]
+    )
+    def test_heavy_load(self, flag_enabled: str, monkeypatch, celery_worker_env_vars, capfd, session):
         os.environ["AIRFLOW__SCHEDULER__ENABLE_FAIR_TASK_SELECTION"] = flag_enabled
 
         scheduler_1_process = None

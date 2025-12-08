@@ -983,6 +983,17 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
             try:
                 locked_query = with_row_locks(query, of=TI, session=session, skip_locked=True)
                 task_instances_to_examine: list[TI] = list(session.scalars(locked_query).all())
+                Stats.gauge("task_instances_to_examine_without_fts", len(task_instances_to_examine))
+                task_selection_dict = dict(Counter(ti.dag_id for ti in task_instances_to_examine))
+                self.log.info(
+                    "TaskInstance selection is: %s",
+                    task_selection_dict,
+                )
+                self.log.info(
+                    "TaskInstance selection size is: %s",
+                    len(task_selection_dict),
+                )
+                Stats.gauge("num_of_dags_without_fts", len(task_selection_dict))
 
                 timer.stop(send=True)
             except OperationalError as e:
@@ -1168,11 +1179,12 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                         # All executors should have a name if they are initted from the executor_loader.
                         # But we need to check for None to make mypy happy.
                         assert executor_obj.name
-
                     if executor_slots_available[executor_obj.name] <= 0:
                         self.log.debug(
                             "Not scheduling %s since its executor %s does not currently have any more "
-                            "available slots"
+                            "available slots",
+                            task_instance.task_id,
+                            executor_obj.name,
                         )
                         starved_tasks.add((task_instance.dag_id, task_instance.task_id))
                         continue

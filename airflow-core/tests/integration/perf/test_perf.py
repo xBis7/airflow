@@ -391,7 +391,7 @@ class TestPerformanceIntegration:
         "airflow.providers.celery.executors.celery_executor.app",
         "worker",
         "--concurrency",
-        "100",
+        "10",
         "--pool",
         "prefork",
         "--loglevel",

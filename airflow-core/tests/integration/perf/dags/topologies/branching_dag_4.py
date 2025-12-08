@@ -56,7 +56,7 @@ with DAG(
     # Root
     start = BashOperator(
         task_id="task__0",
-        bash_command='echo "Branching DAG -- START"',
+        bash_command='echo "Branching DAG -- START" && sleep 5',
     )
 
     # Level 1 (5 parallel tasks)
@@ -64,7 +64,7 @@ with DAG(
     for i in range(1, 6):
         t = BashOperator(
             task_id=f"task__1_{i}",
-            bash_command=f'echo "Branching DAG -- Executing level 1, task task__1_{i}, branch {i}"',
+            bash_command=f'echo "Branching DAG -- Executing level 1, task task__1_{i}, branch {i}" && sleep 3',
         )
         level1_tasks.append(t)
 
@@ -73,7 +73,7 @@ with DAG(
     for i in range(1, 16):
         t = BashOperator(
             task_id=f"task__2_{i}",
-            bash_command=f'echo "Branching DAG -- Executing level 2, task task__2_{i}, leaf task {i}"',
+            bash_command=f'echo "Branching DAG -- Executing level 2, task task__2_{i}, leaf task {i}" && sleep 3',
         )
         level2_tasks.append(t)
 

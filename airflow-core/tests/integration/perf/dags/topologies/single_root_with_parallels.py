@@ -47,7 +47,7 @@ with DAG(
     # Root
     start = BashOperator(
         task_id="task__0",
-        bash_command='echo "Single root with parallels DAG -- START (root task__0)"',
+        bash_command='echo "Single root with parallels DAG -- START (root task__0)" && sleep 7',
     )
 
     # Level 1: 100 parallel tasks
@@ -55,7 +55,7 @@ with DAG(
     for i in range(1, 101):
         t = BashOperator(
             task_id=f"task__1_{i}",
-            bash_command=f'echo "Single root with parallels DAG -- Executing level 1, task task__1_{i}, leaf {i}"',
+            bash_command=f'echo "Single root with parallels DAG -- Executing level 1, task task__1_{i}, leaf {i}" && sleep 3',
         )
         level1_tasks.append(t)
 

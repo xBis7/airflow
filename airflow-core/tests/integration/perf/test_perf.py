@@ -760,33 +760,88 @@ class TestPerformanceIntegration:
             monitor_thread.start()
             # ----------------------------------------------------------
 
+            # TODO: metrics for dag_runs.
+
+            # 4 dag_runs
             branching_dag_run_id = unpause_trigger_dag_and_get_run_id(dag_id=branching_dag_id)
+            branching_dag_run_id2 = unpause_trigger_dag_and_get_run_id(dag_id=branching_dag_id, unpause=False)
+            branching_dag_run_id3 = unpause_trigger_dag_and_get_run_id(dag_id=branching_dag_id, unpause=False)
+            branching_dag_run_id4 = unpause_trigger_dag_and_get_run_id(dag_id=branching_dag_id, unpause=False)
+
             branching_dag_2_run_id = unpause_trigger_dag_and_get_run_id(dag_id=branching_dag_2_id)
+
+            # 3 dag_runs
             branching_dag_3_run_id = unpause_trigger_dag_and_get_run_id(dag_id=branching_dag_3_id)
+            branching_dag_3_run_id2 = unpause_trigger_dag_and_get_run_id(
+                dag_id=branching_dag_3_id, unpause=False
+            )
+            branching_dag_3_run_id3 = unpause_trigger_dag_and_get_run_id(
+                dag_id=branching_dag_3_id, unpause=False
+            )
+
             branching_dag_4_run_id = unpause_trigger_dag_and_get_run_id(dag_id=branching_dag_4_id)
             branching_dag_5_run_id = unpause_trigger_dag_and_get_run_id(dag_id=branching_dag_5_id)
+
             linear_dag_run_id = unpause_trigger_dag_and_get_run_id(dag_id=linear_dag_id)
+
+            # 4 dag_runs
             linear_dag_2_run_id = unpause_trigger_dag_and_get_run_id(dag_id=linear_dag_2_id)
+            linear_dag_2_run_id2 = unpause_trigger_dag_and_get_run_id(dag_id=linear_dag_2_id, unpause=False)
+            linear_dag_2_run_id3 = unpause_trigger_dag_and_get_run_id(dag_id=linear_dag_2_id, unpause=False)
+            linear_dag_2_run_id4 = unpause_trigger_dag_and_get_run_id(dag_id=linear_dag_2_id, unpause=False)
+
             linear_dag_3_run_id = unpause_trigger_dag_and_get_run_id(dag_id=linear_dag_3_id)
+
+            # 2 dag_runs
             linear_dag_4_run_id = unpause_trigger_dag_and_get_run_id(dag_id=linear_dag_4_id)
+            linear_dag_4_run_id2 = unpause_trigger_dag_and_get_run_id(dag_id=linear_dag_4_id, unpause=False)
+
             linear_dag_5_run_id = unpause_trigger_dag_and_get_run_id(dag_id=linear_dag_5_id)
             single_root_with_parallels_run_id = unpause_trigger_dag_and_get_run_id(
                 dag_id=single_root_with_parallels_id
             )
+
+            # 3 dag_runs
             single_root_with_parallels_2_run_id = unpause_trigger_dag_and_get_run_id(
                 dag_id=single_root_with_parallels_2_id
             )
+            single_root_with_parallels_2_run_id2 = unpause_trigger_dag_and_get_run_id(
+                dag_id=single_root_with_parallels_2_id, unpause=False
+            )
+            single_root_with_parallels_2_run_id3 = unpause_trigger_dag_and_get_run_id(
+                dag_id=single_root_with_parallels_2_id, unpause=False
+            )
 
+            # 4 DRs for branching_dag_id
             wait_for_dag_run(dag_id=branching_dag_id, run_id=branching_dag_run_id, max_wait_time=9000)
+            wait_for_dag_run(dag_id=branching_dag_id, run_id=branching_dag_run_id2, max_wait_time=9000)
+            wait_for_dag_run(dag_id=branching_dag_id, run_id=branching_dag_run_id3, max_wait_time=9000)
+            wait_for_dag_run(dag_id=branching_dag_id, run_id=branching_dag_run_id4, max_wait_time=9000)
+
             wait_for_dag_run(dag_id=branching_dag_2_id, run_id=branching_dag_2_run_id, max_wait_time=9000)
+
+            # 3 DRs for branching_dag_3_id
             wait_for_dag_run(dag_id=branching_dag_3_id, run_id=branching_dag_3_run_id, max_wait_time=9000)
+            wait_for_dag_run(dag_id=branching_dag_3_id, run_id=branching_dag_3_run_id2, max_wait_time=9000)
+            wait_for_dag_run(dag_id=branching_dag_3_id, run_id=branching_dag_3_run_id3, max_wait_time=9000)
+
             wait_for_dag_run(dag_id=branching_dag_4_id, run_id=branching_dag_4_run_id, max_wait_time=9000)
             wait_for_dag_run(dag_id=branching_dag_5_id, run_id=branching_dag_5_run_id, max_wait_time=9000)
 
             wait_for_dag_run(dag_id=linear_dag_id, run_id=linear_dag_run_id, max_wait_time=9000)
+
+            # 4 DRs for linear_dag_2_id
             wait_for_dag_run(dag_id=linear_dag_2_id, run_id=linear_dag_2_run_id, max_wait_time=9000)
+            wait_for_dag_run(dag_id=linear_dag_2_id, run_id=linear_dag_2_run_id2, max_wait_time=9000)
+            wait_for_dag_run(dag_id=linear_dag_2_id, run_id=linear_dag_2_run_id3, max_wait_time=9000)
+            wait_for_dag_run(dag_id=linear_dag_2_id, run_id=linear_dag_2_run_id4, max_wait_time=9000)
+
             wait_for_dag_run(dag_id=linear_dag_3_id, run_id=linear_dag_3_run_id, max_wait_time=9000)
+
+            # 2 DRs for linear_dag_4_id
             wait_for_dag_run(dag_id=linear_dag_4_id, run_id=linear_dag_4_run_id, max_wait_time=9000)
+            wait_for_dag_run(dag_id=linear_dag_4_id, run_id=linear_dag_4_run_id2, max_wait_time=9000)
+
             wait_for_dag_run(dag_id=linear_dag_5_id, run_id=linear_dag_5_run_id, max_wait_time=9000)
 
             wait_for_dag_run(
@@ -794,9 +849,21 @@ class TestPerformanceIntegration:
                 run_id=single_root_with_parallels_run_id,
                 max_wait_time=9000,
             )
+
+            # 3 DRs for single_root_with_parallels_2_id
             wait_for_dag_run(
                 dag_id=single_root_with_parallels_2_id,
                 run_id=single_root_with_parallels_2_run_id,
+                max_wait_time=9000,
+            )
+            wait_for_dag_run(
+                dag_id=single_root_with_parallels_2_id,
+                run_id=single_root_with_parallels_2_run_id2,
+                max_wait_time=9000,
+            )
+            wait_for_dag_run(
+                dag_id=single_root_with_parallels_2_id,
+                run_id=single_root_with_parallels_2_run_id3,
                 max_wait_time=9000,
             )
 

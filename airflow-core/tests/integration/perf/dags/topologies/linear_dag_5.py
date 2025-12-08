@@ -49,7 +49,7 @@ with DAG(
     for i in range(0, 11):
         t = BashOperator(
             task_id=f"task__{i}",
-            bash_command=f'echo "Linear DAG -- Executing task__{i} (step {i})"',
+            bash_command=f'echo "Linear DAG -- Executing task__{i} (step {i})" && sleep 3',
         )
         tasks.append(t)
 

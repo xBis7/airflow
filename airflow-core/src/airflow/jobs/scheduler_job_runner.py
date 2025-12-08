@@ -895,7 +895,7 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
 
         executable_tis: list[TI] = []
 
-        if session.get_bind().dialect.name == "postgresql":
+        if get_dialect_name(session) == "postgresql":
             # Optimization: to avoid littering the DB errors of "ERROR: canceling statement due to lock
             # timeout", try to take out a transactional advisory lock (unlocks automatically on
             # COMMIT/ROLLBACK)
@@ -904,6 +904,8 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                     id=DBLocks.SCHEDULER_CRITICAL_SECTION.value
                 )
             ).scalar()
+            if lock_acquired is None:
+                lock_acquired = False
             if not lock_acquired:
                 # Throw an error like the one that would happen with NOWAIT
                 raise OperationalError(
@@ -922,7 +924,7 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
             self.log.debug("All pools are full!")
             return []
 
-        max_tis = min(max_tis, pool_slots_free)
+        max_tis = int(min(max_tis, pool_slots_free))
 
         starved_pools = {pool_name for pool_name, stats in pools.items() if stats["open"] <= 0}
 
@@ -979,19 +981,8 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
             timer.start()
 
             try:
-                query = with_row_locks(query, of=TI, session=session, skip_locked=True)
-                task_instances_to_examine: list[TI] = session.scalars(query).all()
-                Stats.gauge("task_instances_to_examine_without_fts", len(task_instances_to_examine))
-                task_selection_dict = dict(Counter(ti.dag_id for ti in task_instances_to_examine))
-                self.log.info(
-                    "TaskInstance selection is: %s",
-                    task_selection_dict,
-                )
-                self.log.info(
-                    "TaskInstance selection size is: %s",
-                    len(task_selection_dict),
-                )
-                Stats.gauge("num_of_dags_without_fts", len(task_selection_dict))
+                locked_query = with_row_locks(query, of=TI, session=session, skip_locked=True)
+                task_instances_to_examine: list[TI] = list(session.scalars(locked_query).all())
 
                 timer.stop(send=True)
             except OperationalError as e:
@@ -1008,6 +999,18 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
             # Put one task instance on each line
             task_instance_str = "\n".join(f"\t{x!r}" for x in task_instances_to_examine)
             self.log.info("%s tasks up for execution:\n%s", len(task_instances_to_examine), task_instance_str)
+
+            dag_id_to_team_name: dict[str, str | None] = {}
+            if conf.getboolean("core", "multi_team"):
+                # Batch query to resolve team names for all DAG IDs to optimize performance
+                # Instead of individual queries in _try_to_load_executor(), resolve all team names upfront
+                unique_dag_ids = {ti.dag_id for ti in task_instances_to_examine}
+                dag_id_to_team_name = self._get_team_names_for_dag_ids(unique_dag_ids, session)
+                self.log.debug(
+                    "Batch resolved team names for %d unique DAG IDs in scheduling loop: %s",
+                    len(unique_dag_ids),
+                    list(unique_dag_ids),
+                )
 
             executor_slots_available: dict[ExecutorName, int] = {}
             # First get a mapping of executor names to slots they have available
@@ -1158,17 +1161,18 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                             )
                             continue
 
-                if executor_obj := self._try_to_load_executor(task_instance.executor):
+                if executor_obj := self._try_to_load_executor(
+                    task_instance, session, team_name=dag_id_to_team_name.get(task_instance.dag_id, NOTSET)
+                ):
                     if TYPE_CHECKING:
                         # All executors should have a name if they are initted from the executor_loader.
                         # But we need to check for None to make mypy happy.
                         assert executor_obj.name
+
                     if executor_slots_available[executor_obj.name] <= 0:
                         self.log.debug(
                             "Not scheduling %s since its executor %s does not currently have any more "
-                            "available slots",
-                            task_instance.task_id,
-                            executor_obj.name,
+                            "available slots"
                         )
                         starved_tasks.add((task_instance.dag_id, task_instance.task_id))
                         continue

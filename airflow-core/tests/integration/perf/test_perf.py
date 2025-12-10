@@ -586,8 +586,10 @@ class TestPerformanceIntegration:
             # ----------------------------------------------------------
 
             dag_10_run_id = unpause_trigger_dag_and_get_run_id(dag_id=dag_10_id)
+            dag_10_run_id2 = unpause_trigger_dag_and_get_run_id(dag_id=dag_10_id, unpause=False)
 
             wait_for_dag_run(dag_id=dag_10_id, run_id=dag_10_run_id, max_wait_time=900)
+            wait_for_dag_run(dag_id=dag_10_id, run_id=dag_10_run_id2, max_wait_time=900)
 
             time.sleep(10)
         finally:
@@ -597,6 +599,8 @@ class TestPerformanceIntegration:
 
             if dag_10_run_id is not None:
                 print_ti_output_for_dag_run(dag_id=dag_10_id, run_id=dag_10_run_id)
+            if dag_10_run_id2 is not None:
+                print_ti_output_for_dag_run(dag_id=dag_10_id, run_id=dag_10_run_id2)
 
             # Terminate the processes.
             if celery_worker_1_process is not None:

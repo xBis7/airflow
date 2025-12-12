@@ -983,17 +983,6 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
             try:
                 locked_query = with_row_locks(query, of=TI, session=session, skip_locked=True)
                 task_instances_to_examine: list[TI] = list(session.scalars(locked_query).all())
-                Stats.gauge("task_instances_to_examine_without_fts", len(task_instances_to_examine))
-                task_selection_dict = dict(Counter(ti.dag_id for ti in task_instances_to_examine))
-                self.log.info(
-                    "TaskInstance selection is: %s",
-                    task_selection_dict,
-                )
-                self.log.info(
-                    "TaskInstance selection size is: %s",
-                    len(task_selection_dict),
-                )
-                Stats.gauge("num_of_dags_without_fts", len(task_selection_dict))
 
                 timer.stop(send=True)
             except OperationalError as e:
@@ -1179,12 +1168,11 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                         # All executors should have a name if they are initted from the executor_loader.
                         # But we need to check for None to make mypy happy.
                         assert executor_obj.name
+
                     if executor_slots_available[executor_obj.name] <= 0:
                         self.log.debug(
                             "Not scheduling %s since its executor %s does not currently have any more "
-                            "available slots",
-                            task_instance.task_id,
-                            executor_obj.name,
+                            "available slots"
                         )
                         starved_tasks.add((task_instance.dag_id, task_instance.task_id))
                         continue
@@ -2172,6 +2160,8 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
             select(AssetPartitionDagRun).where(AssetPartitionDagRun.created_dag_run_id.is_(None))
         )
         for apdr in apdrs:
+            if TYPE_CHECKING:
+                assert apdr.target_dag_id
             partition_dag_ids.add(apdr.target_dag_id)
             dag = _get_current_dag(dag_id=apdr.target_dag_id, session=session)
             if not dag:
@@ -3428,6 +3418,10 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                     # First executor that resolves should be the default for that team
                     if _executor.team_name == team_name:
                         executor = _executor
+                        break
+                else:
+                    # No executor found for that team, fall back to global default
+                    executor = self.job.executor
         else:
             # An executor is specified on the TaskInstance (as a str), so we need to find it in the list of executors
             for _executor in self.job.executors:

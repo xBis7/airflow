@@ -39,6 +39,18 @@ class _Stats(type):
         factory = type.__getattribute__(cls, "factory")
         instance = type.__getattribute__(cls, "instance")
 
+        # The instance gets initialized only once. New subprocesses, inherit the already
+        # initialized instance of the parent process.
+        #
+        # When using OpenTelemetry, most subprocesses are short-lived and
+        # often exit before flushing any metrics.
+        #
+        # The solution is to register a signal that performs a force flush at exit.
+        # Although the subprocess inherits the instance, it doesn't inherit the signal
+        # which is registered when initializing the instance.
+        #
+        # Store the instance pid so that it can be compared with the current pid
+        # to decide whether to initialize the instance again or not.
         current_pid = os.getpid()
         if cls.instance and cls._instance_pid != current_pid:
             log.info(
@@ -46,6 +58,7 @@ class _Stats(type):
                 cls._instance_pid,
                 current_pid,
             )
+            # Setting the instance to None, will force re-initialization.
             cls.instance = None
             cls._instance_pid = None
 

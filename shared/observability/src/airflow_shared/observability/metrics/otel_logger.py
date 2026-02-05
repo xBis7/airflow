@@ -381,6 +381,7 @@ def atexit_register_metrics_flush():
 
     atexit.register(flush_otel_metrics)
 
+
 def get_otel_logger(
     *,
     host: str | None = None,

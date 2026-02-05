@@ -904,7 +904,9 @@ class TestOtelIntegration:
             assert isinstance(legacy_names_exported, bool)
             check_legacy_metrics(output=out, dag=dag, legacy_metrics_on=legacy_names_exported)
 
-    def test_export_metrics_during_process_shutdown(self, monkeypatch, celery_worker_env_vars, capfd, session):
+    def test_export_metrics_during_process_shutdown(
+        self, monkeypatch, celery_worker_env_vars, capfd, session
+    ):
         # Metrics.
         if self.use_otel != "true":
             os.environ["AIRFLOW__METRICS__STATSD_ON"] = "True"

@@ -32,6 +32,7 @@ from jwt.exceptions import (
     InvalidIssuedAtError,
     InvalidSignatureError,
 )
+from starlette.datastructures import MutableHeaders
 
 from airflow._shared.module_loading import import_string
 from airflow.api_fastapi.auth.tokens import JWTValidator, get_signing_key
@@ -52,7 +53,14 @@ class JWTAuthStaticFiles(StaticFiles):
     async def __call__(self, scope, receive, send) -> None:
         request = Request(scope, receive)
         await self.validate_jwt_token(request)
-        await super().__call__(scope, receive, send)
+
+        async def send_without_content_length(message):
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                del headers["content-length"]
+            await send(message)
+
+        await super().__call__(scope, receive, send_without_content_length)
 
     async def validate_jwt_token(self, request: Request):
         # we get the signer from the app state instead of creating a new instance for each request

@@ -17,18 +17,14 @@
  * under the License.
  */
 import { chakra, Box } from "@chakra-ui/react";
-import type { UseQueryOptions } from "@tanstack/react-query";
-import dayjs from "dayjs";
 import type { TFunction } from "i18next";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import innerText from "react-innertext";
 
-import { useTaskInstanceServiceGetLog } from "openapi/queries";
 import type { TaskInstanceResponse, TaskInstancesLogResponse } from "openapi/requests/types.gen";
 import { renderStructuredLog } from "src/components/renderStructuredLog";
-import { isStatePending, useAutoRefresh } from "src/utils";
 import { getTaskInstanceLink } from "src/utils/links";
-import { parseStreamingLogContent } from "src/utils/logs";
 
 type Props = {
   accept?: "*/*" | "application/json" | "application/x-ndjson";
@@ -181,26 +177,8 @@ const parseLogs = ({
   };
 };
 
-// Log truncation is performed in the frontend because the backend
-// does not support yet pagination / limits on logs reading endpoint
-const truncateData = (data: TaskInstancesLogResponse | undefined, limit?: number) => {
-  if (!data?.content || limit === undefined || limit <= 0) {
-    return data;
-  }
-
-  const streamingContent = parseStreamingLogContent(data);
-  const truncatedContent =
-    streamingContent.length > limit ? streamingContent.slice(-limit) : streamingContent;
-
-  return {
-    ...data,
-    content: truncatedContent,
-  };
-};
-
 export const useLogs = (
   {
-    accept = "application/x-ndjson",
     dagId,
     expanded,
     limit,
@@ -211,34 +189,109 @@ export const useLogs = (
     taskInstance,
     tryNumber = 1,
   }: Props,
-  options?: Omit<UseQueryOptions<TaskInstancesLogResponse>, "queryFn" | "queryKey">,
+  options?: { enabled?: boolean },
 ) => {
   const { t: translate } = useTranslation("common");
-  const refetchInterval = useAutoRefresh({ dagId });
+  const [rawLines, setRawLines] = useState<Array<string>>([]);
+  const [parsedContent, setParsedContent] = useState<TaskInstancesLogResponse["content"]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
 
-  const { data, ...rest } = useTaskInstanceServiceGetLog(
-    {
-      accept,
-      dagId,
-      dagRunId: taskInstance?.dag_run_id ?? "",
-      mapIndex: taskInstance?.map_index ?? -1,
-      taskId: taskInstance?.task_id ?? "",
-      tryNumber,
-    },
-    undefined,
-    {
-      enabled: Boolean(taskInstance),
-      refetchInterval: (query) =>
-        isStatePending(taskInstance?.state) ||
-        dayjs(query.state.dataUpdatedAt).isBefore(taskInstance?.end_date)
-          ? refetchInterval
-          : false,
-      ...options,
-    },
-  );
+  const enabled = options?.enabled !== false && Boolean(taskInstance);
+
+  useEffect(() => {
+    if (!enabled || !taskInstance) {return;}
+
+    const url = new URL(
+      `/api/v2/dags/${taskInstance.dag_id}/dagRuns/${taskInstance.dag_run_id}/taskInstances/${taskInstance.task_id}/logs/${tryNumber}`,
+      window.location.origin,
+    );
+
+    url.searchParams.set("map_index", String(taskInstance.map_index ?? -1));
+
+    const controller = new AbortController();
+
+    setRawLines([]);
+    setParsedContent([]);
+    setIsLoading(true);
+    setError(null);
+
+    const stream = async () => {
+      try {
+        const response = await fetch(url.toString(), {
+          credentials: "include",
+          headers: { accept: "application/x-ndjson" },
+          signal: controller.signal,
+        });
+
+        const reader = response.body!.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let pending: Array<string> = [];
+
+        // Flush accumulated lines to state at most every 200ms
+        const flushInterval = setInterval(() => {
+          if (pending.length > 0) {
+            const toFlush = pending;
+
+            pending = [];
+            const parsed = toFlush.map((line) => {
+              try { return JSON.parse(line); } catch { return line; }
+            });
+
+            setParsedContent((prev) => [...prev, ...parsed]);
+          }
+        }, 1000);
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+
+            if (done) {break;}
+
+            buffer += decoder.decode(value, { stream: true });
+            const parts = buffer.split("\n");
+
+            buffer = parts.pop()!;
+
+            const newLines = parts.filter((l) => l.trim());
+
+            if (newLines.length > 0) {
+              pending.push(...newLines);
+            }
+          }
+        } finally {
+          clearInterval(flushInterval);
+          // Flush any remaining lines after stream ends
+          if (pending.length > 0) {
+            setRawLines((prev) => [...prev, ...pending]);
+          }
+        }
+      } catch (error_) {
+        if ((error_ as Error).name !== "AbortError") {
+          setError(error_ as Error);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    stream();
+
+    return () => controller.abort();
+  }, [
+    enabled,
+    taskInstance?.dag_id,
+    taskInstance?.dag_run_id,
+    taskInstance?.task_id,
+    taskInstance?.map_index,
+    tryNumber,
+  ]);
+
+  const limitedContent = limit && limit > 0 ? parsedContent.slice(-limit) : parsedContent;
 
   const parsedData = parseLogs({
-    data: parseStreamingLogContent(truncateData(data, limit)),
+    data: limitedContent,
     expanded,
     logLevelFilters,
     showSource,
@@ -249,5 +302,7 @@ export const useLogs = (
     tryNumber,
   });
 
-  return { parsedData, ...rest, fetchedData: data };
+  const fetchedData = { content: parsedContent } as TaskInstancesLogResponse;
+
+  return { error, fetchedData, isLoading, parsedData };
 };

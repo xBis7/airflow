@@ -50,6 +50,9 @@ class TaskLogReader:
     STREAM_LOOP_STOP_AFTER_EMPTY_ITERATIONS = 10
     """Number of empty loop iterations before stopping the stream"""
 
+    # STREAM_BUFFER_SIZE = int(os.getenv("AIRFLOW_LOG_STREAM_BUFFER_SIZE", "100"))
+    # """Number of log lines to buffer before yielding to reduce HTTP chunking overhead"""
+
     @staticmethod
     def get_no_log_state_message(ti: TaskInstance | TaskInstanceHistory) -> Iterator[StructuredLogMessage]:
         """Yield standardized no-log messages for a given TI state."""
@@ -131,6 +134,18 @@ class TaskLogReader:
         while True:
             log_stream, out_metadata = self.read_log_chunks(ti, try_number, metadata)
             yield from (f"{log.model_dump_json()}\n" for log in log_stream)
+
+            # Buffer log lines before yielding to reduce HTTP chunking overhead
+            # buffer = []
+            # for log in log_stream:
+            #     buffer.append(log.model_dump_json())
+            #
+            #     if len(buffer) >= self.STREAM_BUFFER_SIZE:
+            #         yield ''.join(f"{line}\n" for line in buffer)
+            #         buffer.clear()
+            # # Yield remaining buffered lines
+            # if buffer:
+            #     yield ''.join(f"{line}\n" for line in buffer)
 
             if not out_metadata.get("end_of_log", False) and ti.state not in (
                 TaskInstanceState.RUNNING,

@@ -80,6 +80,7 @@ const ScrollToButton = ({
 };
 
 export const TaskLogContent = ({ error, isLoading, logError, parsedLogs, wrap }: TaskLogContentProps) => {
+  console.log("TaskLogContent received parsedLogs length:", parsedLogs.length);
   const hash = location.hash.replace("#", "");
   const parentRef = useRef<HTMLDivElement | null>(null);
 
@@ -93,6 +94,15 @@ export const TaskLogContent = ({ error, isLoading, logError, parsedLogs, wrap }:
   const contentHeight = rowVirtualizer.getTotalSize();
   const containerHeight = rowVirtualizer.scrollElement?.clientHeight ?? 0;
   const showScrollButtons = parsedLogs.length > 1 && contentHeight > containerHeight;
+
+  useLayoutEffect(() => {
+    if (!isLoading) {return;}
+    const el = parentRef.current;
+
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [parsedLogs.length, isLoading]);
 
   useLayoutEffect(() => {
     if (location.hash && !isLoading) {

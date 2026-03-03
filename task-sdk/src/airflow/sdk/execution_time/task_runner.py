@@ -753,7 +753,7 @@ def _verify_bundle_access(bundle_instance: BaseDagBundle, log: Logger) -> None:
         )
 
 
-def startup() -> tuple[RuntimeTaskInstance, Context, Logger]:
+def get_startup_details() -> StartupDetails:
     # The parent sends us a StartupDetails message un-prompted. After this, every single message is only sent
     # in response to us sending a request.
     log = structlog.get_logger(logger_name="task")
@@ -777,7 +777,11 @@ def startup() -> tuple[RuntimeTaskInstance, Context, Logger]:
 
         if not isinstance(msg, StartupDetails):
             raise RuntimeError(f"Unhandled startup message {type(msg)} {msg}")
+    return msg
 
+
+def startup(msg: StartupDetails) -> tuple[RuntimeTaskInstance, Context, Logger]:
+    log = structlog.get_logger("task")
     # setproctitle causes issue on Mac OS: https://github.com/benoitc/gunicorn/issues/3021
     os_type = sys.platform
     if os_type == "darwin":
@@ -1680,7 +1684,8 @@ def main():
 
     try:
         try:
-            ti, context, log = startup()
+            startup_details = get_startup_details()
+            ti, context, log = startup(msg=startup_details)
         except AirflowRescheduleException as reschedule:
             log.warning("Rescheduling task during startup, marking task as UP_FOR_RESCHEDULE")
             SUPERVISOR_COMMS.send(

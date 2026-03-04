@@ -25,6 +25,9 @@ services:
       - "9125:9125"
       - "9125:9125/udp"
       - "29102:9102"
+    command:
+      - "--statsd.event-flush-interval=10ms"
+      - "--statsd.event-flush-threshold=1"
 
   prometheus:
     image: prom/prometheus

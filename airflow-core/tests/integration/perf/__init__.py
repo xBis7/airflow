@@ -1,3 +1,4 @@
+#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,25 +15,3 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
----
-# Configuration for the Prometheus targets.
-# Used by integration-statsd.yml and integration-otel.yml
-global:
-    scrape_interval: 1s
-    evaluation_interval: 1s
-    scrape_timeout: 1s
-
-scrape_configs:
-    - job_name: 'prometheus'
-      static_configs:
-          - targets: ['localhost:9090']
-
-    - job_name: 'statsd-exporter'
-      static_configs:
-          - targets: ['breeze-statsd-exporter:9102']
-      tls_config:
-          insecure_skip_verify: true
-
-    - job_name: 'otel-collector'
-      static_configs:
-          - targets: ['breeze-otel-collector:8889']

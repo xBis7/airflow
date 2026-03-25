@@ -71,6 +71,10 @@ class UnmappableXComTypePushed(TypeError):
         return f"unmappable return type {typename!r}"
 
 
+class TaskAlreadyRunningError(AirflowException):
+    """Raised when a task is already running on another worker."""
+
+
 class FailFastDagInvalidTriggerRule(AirflowException):
     """Raise when a dag has 'fail_fast' enabled yet has a non-default trigger rule."""
 

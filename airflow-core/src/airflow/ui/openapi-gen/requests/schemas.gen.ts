@@ -1336,6 +1336,18 @@ export const $ClearTaskInstancesBody = {
             type: 'boolean',
             title: 'Prevent Running Task',
             default: false
+        },
+        note: {
+            anyOf: [
+                {
+                    type: 'string',
+                    maxLength: 1000
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Note'
         }
     },
     additionalProperties: false,

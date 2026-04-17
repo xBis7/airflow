@@ -36,6 +36,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.pool import NullPool
 
 from airflow import __version__ as airflow_version, policies
+from airflow._shared.observability.traces import configure_otel
 from airflow._shared.timezones.timezone import local_timezone, parse_timezone, utc
 from airflow.configuration import AIRFLOW_HOME, conf
 from airflow.exceptions import AirflowInternalRuntimeError
@@ -696,6 +697,7 @@ def initialize():
     import_local_settings()
     global LOGGING_CLASS_PATH
     LOGGING_CLASS_PATH = configure_logging()
+    configure_otel(conf)
 
     configure_adapters()
     # The webservers import this file from models.py with the default settings.

@@ -33,10 +33,8 @@ from airflow.executors import workloads
 from airflow.executors.executor_loader import ExecutorLoader
 from airflow.models import Log
 from airflow.stats import Stats
-from airflow.traces.tracer import Trace
 from airflow.utils.log.logging_mixin import LoggingMixin
 from airflow.utils.state import TaskInstanceState
-from airflow.utils.thread_safe_dict import ThreadSafeDict
 
 PARALLELISM: int = conf.getint("core", "PARALLELISM")
 
@@ -124,8 +122,6 @@ class BaseExecutor(LoggingMixin):
     :param parallelism: how many jobs should run at one time.
     """
 
-    active_spans = ThreadSafeDict()
-
     supports_ad_hoc_ti_run: bool = False
     supports_sentry: bool = False
 
@@ -188,10 +184,6 @@ class BaseExecutor(LoggingMixin):
 
     def __repr__(self):
         return f"{self.__class__.__name__}(parallelism={self.parallelism})"
-
-    @classmethod
-    def set_active_spans(cls, active_spans: ThreadSafeDict):
-        cls.active_spans = active_spans
 
     def start(self):  # pragma: no cover
         """Executors may need to get things started."""
@@ -281,17 +273,6 @@ class BaseExecutor(LoggingMixin):
             else "executor.running_tasks"
         )
 
-        span = Trace.get_current_span()
-        if span.is_recording():
-            span.add_event(
-                name="executor",
-                attributes={
-                    open_slots_metric_name: open_slots,
-                    queued_tasks_metric_name: num_queued_tasks,
-                    running_tasks_metric_name: num_running_tasks,
-                },
-            )
-
         self.log.debug("%s running task instances for executor %s", num_running_tasks, name)
         self.log.debug("%s in queue for executor %s", num_queued_tasks, name)
         if open_slots == 0:
@@ -356,31 +337,7 @@ class BaseExecutor(LoggingMixin):
             if key in self.attempts:
                 del self.attempts[key]
 
-            if isinstance(item, workloads.ExecuteTask) and hasattr(item, "ti"):
-                ti = item.ti
-
-                # If it's None, then the span for the current id hasn't been started.
-                if self.active_spans is not None and self.active_spans.get("ti:" + str(ti.id)) is None:
-                    if isinstance(ti, workloads.TaskInstance):
-                        parent_context = Trace.extract(ti.parent_context_carrier)
-                    else:
-                        parent_context = Trace.extract(ti.dag_run.context_carrier)
-                    # Start a new span using the context from the parent.
-                    # Attributes will be set once the task has finished so that all
-                    # values will be available (end_time, duration, etc.).
-
-                    span = Trace.start_child_span(
-                        span_name=f"{ti.task_id}",
-                        parent_context=parent_context,
-                        component="task",
-                        start_as_current=False,
-                    )
-                    self.active_spans.set("ti:" + str(ti.id), span)
-                    # Inject the current context into the carrier.
-                    carrier = Trace.inject()
-                    ti.context_carrier = carrier
-
-                workload_list.append(item)
+            workload_list.append(item)
         if workload_list:
             self._process_workloads(workload_list)
 

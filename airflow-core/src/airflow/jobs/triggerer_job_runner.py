@@ -75,7 +75,6 @@ from airflow.sdk.execution_time.comms import (
 )
 from airflow.sdk.execution_time.supervisor import WatchedSubprocess, make_buffered_socket_reader
 from airflow.stats import Stats
-from airflow.traces.tracer import Trace
 from airflow.triggers.base import BaseEventTrigger, BaseTrigger, DiscrimatedTriggerEvent, TriggerEvent
 from airflow.utils.helpers import log_filename_template_renderer
 from airflow.utils.log.logging_mixin import LoggingMixin
@@ -583,15 +582,6 @@ class TriggerRunnerSupervisor(WatchedSubprocess):
         capacity_left = self.capacity - len(self.running_triggers)
         Stats.gauge(f"triggerer.capacity_left.{self.job.hostname}", capacity_left)
         Stats.gauge("triggerer.capacity_left", capacity_left, tags={"hostname": self.job.hostname})
-
-        span = Trace.get_current_span()
-        span.set_attributes(
-            {
-                "trigger host": self.job.hostname,
-                "triggers running": len(self.running_triggers),
-                "capacity left": capacity_left,
-            }
-        )
 
     def update_triggers(self, requested_trigger_ids: set[int]):
         """

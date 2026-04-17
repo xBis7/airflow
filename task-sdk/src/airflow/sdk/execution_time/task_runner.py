@@ -19,14 +19,13 @@
 
 from __future__ import annotations
 
-import contextlib
 import contextvars
 import functools
 import os
 import sys
 import time
 from collections.abc import Callable, Iterable, Iterator, Mapping
-from contextlib import suppress
+from contextlib import ExitStack, contextmanager, suppress
 from datetime import datetime, timedelta, timezone
 from itertools import product
 from pathlib import Path
@@ -36,6 +35,8 @@ from urllib.parse import quote
 import attrs
 import lazy_object_proxy
 import structlog
+from opentelemetry import trace
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from pydantic import AwareDatetime, ConfigDict, Field, JsonValue, TypeAdapter
 
 from airflow.configuration import conf
@@ -121,6 +122,32 @@ if TYPE_CHECKING:
     from airflow.sdk.definitions._internal.abstractoperator import AbstractOperator
     from airflow.sdk.definitions.context import Context
     from airflow.sdk.types import OutletEventAccessorsProtocol
+
+log = structlog.get_logger("task")
+
+tracer = trace.get_tracer(__name__)
+
+
+@contextmanager
+def _make_task_span(msg: StartupDetails):
+    parent_context = (
+        TraceContextTextMapPropagator().extract(msg.ti.context_carrier) if msg.ti.context_carrier else None
+    )
+    ti = msg.ti
+    span_name = f"task_run.{ti.task_id}"
+    if ti.map_index is not None and ti.map_index >= 0:
+        span_name += f"_{ti.map_index}"
+    with tracer.start_as_current_span(span_name, context=parent_context) as span:
+        span.set_attributes(
+            {
+                "airflow.dag_id": ti.dag_id,
+                "airflow.task_id": ti.task_id,
+                "airflow.dag_run.run_id": ti.run_id,
+                "airflow.task_instance.try_number": ti.try_number,
+                "airflow.task_instance.map_index": ti.map_index if ti.map_index is not None else -1,
+            }
+        )
+        yield span
 
 
 class TaskRunnerMarker:
@@ -436,8 +463,6 @@ class RuntimeTaskInstance(TaskInstance):
         retries: int = self.task.retries or 0
         first_try_number = max_tries - retries + 1
 
-        log = structlog.get_logger(logger_name="task")
-
         log.debug("Requesting first reschedule date from supervisor")
 
         response = SUPERVISOR_COMMS.send(
@@ -453,8 +478,6 @@ class RuntimeTaskInstance(TaskInstance):
         """Return the previous Dag run before the given logical date, optionally filtered by state."""
         context = self.get_template_context()
         dag_run = context.get("dag_run")
-
-        log = structlog.get_logger(logger_name="task")
 
         log.debug("Getting previous Dag run", dag_run=dag_run)
 
@@ -756,8 +779,6 @@ def _verify_bundle_access(bundle_instance: BaseDagBundle, log: Logger) -> None:
 def get_startup_details() -> StartupDetails:
     # The parent sends us a StartupDetails message un-prompted. After this, every single message is only sent
     # in response to us sending a request.
-    log = structlog.get_logger(logger_name="task")
-
     if os.environ.get("_AIRFLOW__REEXECUTED_PROCESS") == "1" and (
         msgjson := os.environ.get("_AIRFLOW__STARTUP_MSG")
     ):
@@ -781,7 +802,6 @@ def get_startup_details() -> StartupDetails:
 
 
 def startup(msg: StartupDetails) -> tuple[RuntimeTaskInstance, Context, Logger]:
-    log = structlog.get_logger("task")
     # setproctitle causes issue on Mac OS: https://github.com/benoitc/gunicorn/issues/3021
     os_type = sys.platform
     if os_type == "darwin":
@@ -1118,7 +1138,7 @@ def run(
                 import jinja2
 
                 # If the task failed, swallow rendering error so it doesn't mask the main error.
-                with contextlib.suppress(jinja2.TemplateSyntaxError, jinja2.UndefinedError):
+                with suppress(jinja2.TemplateSyntaxError, jinja2.UndefinedError):
                     ti.rendered_map_index = _render_map_index(context, ti=ti, log=log)
                 raise
             else:  # If the task succeeded, render normally to let rendering error bubble up.
@@ -1676,44 +1696,60 @@ def finalize(
         log.exception("error calling listener")
 
 
+@contextmanager
+def flush_spans():
+    try:
+        yield
+    finally:
+        provider = trace.get_tracer_provider()
+        if hasattr(provider, "force_flush"):
+            from airflow.configuration import conf
+
+            timeout_millis = conf.getint("traces", "task_runner_flush_timeout_milliseconds", fallback=30000)
+            provider.force_flush(timeout_millis=timeout_millis)
+
+
+@flush_spans()
 def main():
     log = structlog.get_logger(logger_name="task")
 
     global SUPERVISOR_COMMS
     SUPERVISOR_COMMS = CommsDecoder[ToTask, ToSupervisor](log=log)
 
-    try:
+    stack = ExitStack()
+    with stack:
         try:
-            startup_details = get_startup_details()
-            ti, context, log = startup(msg=startup_details)
-        except AirflowRescheduleException as reschedule:
-            log.warning("Rescheduling task during startup, marking task as UP_FOR_RESCHEDULE")
-            SUPERVISOR_COMMS.send(
-                msg=RescheduleTask(
-                    reschedule_date=reschedule.reschedule_date,
-                    end_date=datetime.now(tz=timezone.utc),
+            try:
+                startup_details = get_startup_details()
+                ti, context, log = startup(msg=startup_details)
+            except AirflowRescheduleException as reschedule:
+                log.warning("Rescheduling task during startup, marking task as UP_FOR_RESCHEDULE")
+                SUPERVISOR_COMMS.send(
+                    msg=RescheduleTask(
+                        reschedule_date=reschedule.reschedule_date,
+                        end_date=datetime.now(tz=timezone.utc),
+                    )
                 )
-            )
-            sys.exit(0)
-        with BundleVersionLock(
-            bundle_name=ti.bundle_instance.name,
-            bundle_version=ti.bundle_instance.version,
-        ):
-            state, _, error = run(ti, context, log)
-            context["exception"] = error
-            finalize(ti, state, context, log, error)
-    except KeyboardInterrupt:
-        log.exception("Ctrl-c hit")
-        sys.exit(2)
-    except Exception:
-        log.exception("Top level error")
-        sys.exit(1)
-    finally:
-        # Ensure the request socket is closed on the child side in all circumstances
-        # before the process fully terminates.
-        if SUPERVISOR_COMMS and SUPERVISOR_COMMS.socket:
-            with suppress(Exception):
-                SUPERVISOR_COMMS.socket.close()
+                sys.exit(0)
+            with BundleVersionLock(
+                bundle_name=ti.bundle_instance.name,
+                bundle_version=ti.bundle_instance.version,
+            ):
+                state, _, error = run(ti, context, log)
+                context["exception"] = error
+                finalize(ti, state, context, log, error)
+        except KeyboardInterrupt:
+            log.exception("Ctrl-c hit")
+            sys.exit(2)
+        except Exception:
+            log.exception("Top level error")
+            sys.exit(1)
+        finally:
+            # Ensure the request socket is closed on the child side in all circumstances
+            # before the process fully terminates.
+            if SUPERVISOR_COMMS and SUPERVISOR_COMMS.socket:
+                with suppress(Exception):
+                    SUPERVISOR_COMMS.socket.close()
 
 
 def reinit_supervisor_comms() -> None:
@@ -1728,7 +1764,6 @@ def reinit_supervisor_comms() -> None:
 
     if "SUPERVISOR_COMMS" not in globals():
         global SUPERVISOR_COMMS
-        log = structlog.get_logger(logger_name="task")
 
         fd = int(os.environ.get("__AIRFLOW_SUPERVISOR_FD", "0"))
 

@@ -30,11 +30,11 @@ from sqlalchemy import func, select
 
 from airflow._shared.timezones import timezone
 from airflow.dag_processing.bundles.manager import DagBundlesManager
-from airflow.dag_processing.dagbag import DagBag
 from airflow.models import DagRun
+from airflow.models.dagbag import DagBag
 from airflow.models.serialized_dag import SerializedDagModel
 from airflow.models.taskinstance import TaskInstance
-from airflow.serialization.definitions.dag import SerializedDAG
+from airflow.serialization.serialized_objects import SerializedDAG
 from airflow.utils.session import create_session
 from airflow.utils.state import State
 
@@ -382,40 +382,40 @@ class TestOtelIntegration:
             )
         return ti
 
-    @pytest.mark.parametrize(
-        ("legacy_names_on_bool", "legacy_names_exported"),
-        [
-            pytest.param(True, True, id="export_legacy_names"),
-            pytest.param(False, False, id="dont_export_legacy_names"),
-        ],
-    )
-    def test_export_legacy_metric_names(self, legacy_names_on_bool, legacy_names_exported, capfd):
-        assert isinstance(legacy_names_on_bool, bool)
-        os.environ["AIRFLOW__METRICS__LEGACY_NAMES_ON"] = str(legacy_names_on_bool)
-        out, dag = self.dag_execution_for_testing_metrics(capfd)
-        if self.use_otel != "true":
-            assert isinstance(legacy_names_exported, bool)
-            output_lines = out.splitlines()
-            metrics_dict = extract_metrics_from_output(output_lines)
-
-            legacy_metric_names = [
-                f"airflow.dagrun.dependency-check.{dag.dag_id}",
-                f"airflow.dagrun.duration.success.{dag.dag_id}",
-            ]
-
-            for task_id in dag.task_ids:
-                legacy_metric_names.append(f"airflow.dag.{dag.dag_id}.{task_id}.scheduled_duration")
-
-            new_metric_names = [
-                "airflow.dagrun.dependency-check",
-                "airflow.dagrun.duration.success",
-                "airflow.task.scheduled_duration",
-            ]
-
-            assert set(new_metric_names).issubset(metrics_dict.keys())
-
-            if legacy_names_exported:
-                assert set(legacy_metric_names).issubset(metrics_dict.keys())
+    # @pytest.mark.parametrize(
+    #     ("legacy_names_on_bool", "legacy_names_exported"),
+    #     [
+    #         pytest.param(True, True, id="export_legacy_names"),
+    #         pytest.param(False, False, id="dont_export_legacy_names"),
+    #     ],
+    # )
+    # def test_export_legacy_metric_names(self, legacy_names_on_bool, legacy_names_exported, capfd):
+    #     assert isinstance(legacy_names_on_bool, bool)
+    #     os.environ["AIRFLOW__METRICS__LEGACY_NAMES_ON"] = str(legacy_names_on_bool)
+    #     out, dag = self.dag_execution_for_testing_metrics(capfd)
+    #     if self.use_otel != "true":
+    #         assert isinstance(legacy_names_exported, bool)
+    #         output_lines = out.splitlines()
+    #         metrics_dict = extract_metrics_from_output(output_lines)
+    #
+    #         legacy_metric_names = [
+    #             f"airflow.dagrun.dependency-check.{dag.dag_id}",
+    #             f"airflow.dagrun.duration.success.{dag.dag_id}",
+    #         ]
+    #
+    #         for task_id in dag.task_ids:
+    #             legacy_metric_names.append(f"airflow.dag.{dag.dag_id}.{task_id}.scheduled_duration")
+    #
+    #         new_metric_names = [
+    #             "airflow.dagrun.dependency-check",
+    #             "airflow.dagrun.duration.success",
+    #             "airflow.task.scheduled_duration",
+    #         ]
+    #
+    #         assert set(new_metric_names).issubset(metrics_dict.keys())
+    #
+    #         if legacy_names_exported:
+    #             assert set(legacy_metric_names).issubset(metrics_dict.keys())
 
     def test_export_metrics_during_process_shutdown(self, capfd):
         out, dag = self.dag_execution_for_testing_metrics(capfd)

@@ -64,7 +64,6 @@ from airflow.models.errors import ParseImportError
 from airflow.sdk import SecretCache
 from airflow.sdk.log import init_log_file, logging_processors
 from airflow.stats import Stats
-from airflow.traces.tracer import DebugTrace
 from airflow.typing_compat import assert_never
 from airflow.utils.file import list_py_file_paths, might_contain_dag
 from airflow.utils.log.logging_mixin import LoggingMixin
@@ -1207,17 +1206,9 @@ def emit_metrics(*, parse_time: float, stats: Sequence[DagFileStat]):
     This is called once every time around the parsing "loop" - i.e. after
     all files have been parsed.
     """
-    with DebugTrace.start_span(span_name="emit_metrics", component="DagFileProcessorManager") as span:
-        Stats.gauge("dag_processing.total_parse_time", parse_time)
-        Stats.gauge("dagbag_size", sum(stat.num_dags for stat in stats))
-        Stats.gauge("dag_processing.import_errors", sum(stat.import_errors for stat in stats))
-        span.set_attributes(
-            {
-                "total_parse_time": parse_time,
-                "dag_bag_size": sum(stat.num_dags for stat in stats),
-                "import_errors": sum(stat.import_errors for stat in stats),
-            }
-        )
+    Stats.gauge("dag_processing.total_parse_time", parse_time)
+    Stats.gauge("dagbag_size", sum(stat.num_dags for stat in stats))
+    Stats.gauge("dag_processing.import_errors", sum(stat.import_errors for stat in stats))
 
 
 def process_parse_results(

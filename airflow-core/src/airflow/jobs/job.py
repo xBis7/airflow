@@ -35,7 +35,6 @@ from airflow.executors.executor_loader import ExecutorLoader
 from airflow.listeners.listener import get_listener_manager
 from airflow.models.base import ID_LEN, Base
 from airflow.stats import Stats
-from airflow.traces.tracer import DebugTrace, add_debug_span
 from airflow.utils.helpers import convert_camel_to_snake
 from airflow.utils.log.logging_mixin import LoggingMixin
 from airflow.utils.net import get_hostname
@@ -221,64 +220,56 @@ class Job(Base, LoggingMixin):
         :param session to use for saving the job
         """
         previous_heartbeat = self.latest_heartbeat
-        with DebugTrace.start_span(span_name="heartbeat", component="Job") as span:
-            try:
-                span.set_attribute("heartbeat", str(self.latest_heartbeat))
-                # This will cause it to load from the db
+        try:
+            # This will cause it to load from the db
+            session.merge(self)
+            previous_heartbeat = self.latest_heartbeat
+
+            if self.state == JobState.RESTARTING:
+                self.kill()
+
+            # Figure out how long to sleep for
+            sleep_for = 0
+            if self.latest_heartbeat:
+                seconds_remaining = (
+                    self.heartrate - (timezone.utcnow() - self.latest_heartbeat).total_seconds()
+                )
+                sleep_for = max(0, seconds_remaining)
+            sleep(sleep_for)
+            # Update last heartbeat time
+            with create_session() as session:
+                # Make the session aware of this object
                 session.merge(self)
+                self.latest_heartbeat = timezone.utcnow()
+                session.commit()
+                time_since_last_heartbeat = (timezone.utcnow() - previous_heartbeat).total_seconds()
+                health_check_threshold_value = health_check_threshold(self.job_type, self.heartrate)
+                if time_since_last_heartbeat > health_check_threshold_value:
+                    self.log.info("Heartbeat recovered after %.2f seconds", time_since_last_heartbeat)
+                # At this point, the DB has updated.
                 previous_heartbeat = self.latest_heartbeat
-
-                if self.state == JobState.RESTARTING:
-                    self.kill()
-
-                # Figure out how long to sleep for
-                sleep_for = 0
-                if self.latest_heartbeat:
-                    seconds_remaining = (
-                        self.heartrate - (timezone.utcnow() - self.latest_heartbeat).total_seconds()
-                    )
-                    sleep_for = max(0, seconds_remaining)
-                if span.is_recording():
-                    span.add_event(name="sleep", attributes={"sleep_for": sleep_for})
-                sleep(sleep_for)
-                # Update last heartbeat time
-                with create_session() as session:
-                    # Make the session aware of this object
-                    session.merge(self)
-                    self.latest_heartbeat = timezone.utcnow()
-                    session.commit()
-                    time_since_last_heartbeat = (timezone.utcnow() - previous_heartbeat).total_seconds()
-                    health_check_threshold_value = health_check_threshold(self.job_type, self.heartrate)
-                    if time_since_last_heartbeat > health_check_threshold_value:
-                        self.log.info("Heartbeat recovered after %.2f seconds", time_since_last_heartbeat)
-                    # At this point, the DB has updated.
-                    previous_heartbeat = self.latest_heartbeat
-                    heartbeat_callback(session)
-                self.log.debug("[heartbeat]")
-                self.heartbeat_failed = False
-            except OperationalError:
-                Stats.incr(convert_camel_to_snake(self.__class__.__name__) + "_heartbeat_failure", 1, 1)
-                if not self.heartbeat_failed:
-                    self.log.exception("%s heartbeat failed with error", self.__class__.__name__)
-                    self.heartbeat_failed = True
-                    msg = f"{self.__class__.__name__} heartbeat got an exception"
-                    if span.is_recording():
-                        span.add_event(name="error", attributes={"message": msg})
-                if self.is_alive():
-                    self.log.error(
-                        "%s heartbeat failed with error. Scheduler may go into unhealthy state",
-                        self.__class__.__name__,
-                    )
-                    msg = f"{self.__class__.__name__} heartbeat failed with error. Scheduler may go into unhealthy state"
-                    if span.is_recording():
-                        span.add_event(name="error", attributes={"message": msg})
-                else:
-                    msg = f"{self.__class__.__name__} heartbeat failed with error. Scheduler is in unhealthy state"
-                    self.log.error(msg)
-                    if span.is_recording():
-                        span.add_event(name="error", attributes={"message": msg})
-                # We didn't manage to heartbeat, so make sure that the timestamp isn't updated
-                self.latest_heartbeat = previous_heartbeat
+                heartbeat_callback(session)
+            self.log.debug("[heartbeat]")
+            self.heartbeat_failed = False
+        except OperationalError:
+            Stats.incr(convert_camel_to_snake(self.__class__.__name__) + "_heartbeat_failure", 1, 1)
+            if not self.heartbeat_failed:
+                self.log.exception("%s heartbeat failed with error", self.__class__.__name__)
+                self.heartbeat_failed = True
+                msg = f"{self.__class__.__name__} heartbeat got an exception"
+            if self.is_alive():
+                self.log.error(
+                    "%s heartbeat failed with error. Scheduler may go into unhealthy state",
+                    self.__class__.__name__,
+                )
+                msg = f"{self.__class__.__name__} heartbeat failed with error. Scheduler may go into unhealthy state"
+            else:
+                msg = (
+                    f"{self.__class__.__name__} heartbeat failed with error. Scheduler is in unhealthy state"
+                )
+                self.log.error(msg)
+            # We didn't manage to heartbeat, so make sure that the timestamp isn't updated
+            self.latest_heartbeat = previous_heartbeat
 
     @provide_session
     def prepare_for_execution(self, session: Session = NEW_SESSION):
@@ -406,7 +397,6 @@ def execute_job(job: Job, execute_callable: Callable[[], int | None]) -> int | N
     return ret
 
 
-@add_debug_span
 def perform_heartbeat(
     job: Job, heartbeat_callback: Callable[[Session], None], only_if_necessary: bool
 ) -> None:

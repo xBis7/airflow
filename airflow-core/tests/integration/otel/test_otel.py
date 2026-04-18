@@ -311,11 +311,17 @@ class TestOtelIntegration:
     def dag_execution_for_testing_metrics(self, capfd):
         # Metrics.
         os.environ["AIRFLOW__METRICS__OTEL_ON"] = "True"
-        os.environ["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"] = "http://breeze-otel-collector:4318/v1/metrics"
-        os.environ["OTEL_METRIC_EXPORT_INTERVAL"] = "5000"
+        # TODO: change when support for metrics environment variables is added.
+        # os.environ["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"] = "http://breeze-otel-collector:4318/v1/metrics"
+        # os.environ["OTEL_METRIC_EXPORT_INTERVAL"] = "5000"
+        os.environ["AIRFLOW__METRICS__OTEL_HOST"] = "breeze-otel-collector"
+        os.environ["AIRFLOW__METRICS__OTEL_PORT"] = "4318"
+        os.environ["AIRFLOW__METRICS__OTEL_INTERVAL_MILLISECONDS"] = "5000"
 
         if self.use_otel != "true":
-            os.environ["OTEL_METRICS_EXPORTER"] = "console"
+            # TODO: change when support for metrics environment variables is added.
+            # os.environ["OTEL_METRICS_EXPORTER"] = "console"
+            os.environ["AIRFLOW__METRICS__OTEL_DEBUGGING_ON"] = "True"
 
         scheduler_process = None
         apiserver_process = None
@@ -382,6 +388,7 @@ class TestOtelIntegration:
             )
         return ti
 
+    # TODO: enabling/disabling legacy metrics isn't supported at this point.
     # @pytest.mark.parametrize(
     #     ("legacy_names_on_bool", "legacy_names_exported"),
     #     [

@@ -22,14 +22,14 @@ import pprint
 from collections import defaultdict
 from typing import Literal
 
-from sqlalchemy import inspect
-
-from airflow.models import Base
-
 log = logging.getLogger("integration.otel.otel_utils")
 
 
 def dump_airflow_metadata_db(session):
+    from sqlalchemy import inspect
+
+    from airflow.models import Base
+
     inspector = inspect(session.bind)
     all_tables = inspector.get_table_names()
 

@@ -50,6 +50,9 @@ dev = [
     "apache-airflow-shared-observability[all]",
 ]
 
+[tool.uv.sources]
+apache-airflow-devel-common = { path = "../../devel-common" }
+
 [build-system]
 requires = [
     "hatchling==1.29.0",

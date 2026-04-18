@@ -340,7 +340,7 @@ class DagRun(Base, LoggingMixin):
         self.triggered_by = triggered_by
         self.triggering_user_name = triggering_user_name
         self.scheduled_by_job_id = None
-        self.context_carrier: dict[str, str] = new_dagrun_trace_carrier()
+        self.context_carrier = new_dagrun_trace_carrier()
         super().__init__()
 
     def __repr__(self):

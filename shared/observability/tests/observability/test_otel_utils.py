@@ -16,14 +16,132 @@
 # under the License.
 from __future__ import annotations
 
-from tests_common.test_utils.otel_utils import (
-    clean_task_lines,
-    extract_metrics_from_output,
-    extract_spans_from_output,
-    get_child_list_for_non_root,
-    get_id_for_a_given_name,
-    get_parent_child_dict,
-)
+import json
+import logging
+from collections import defaultdict
+from typing import Literal
+
+log = logging.getLogger("test_otel_utils")
+
+
+def extract_task_event_value(line: str) -> str:
+    data = json.loads(line)
+    raw_event = data.get("event", "")
+    event_decoded = raw_event.encode("utf-8").decode("unicode_escape")
+    return event_decoded
+
+
+def clean_task_lines(lines: list) -> list:
+    r"""Clean up task lines by extracting 'event' fragments from structured log JSON."""
+    cleaned_lines = []
+    for line in lines:
+        if line.startswith('{"timestamp":'):
+            event_frag = extract_task_event_value(line)
+            cleaned_lines.append(event_frag)
+        else:
+            cleaned_lines.append(line)
+    return cleaned_lines
+
+
+def _extract_obj_from_output(output_lines: list[str], kind: Literal["spans"] | Literal["metrics"]):
+    assert kind in ("spans", "metrics")
+    span_dict = {}
+    root_span_dict = {}
+    metric_dict: dict[str, list[dict]] = defaultdict(list)
+    total_lines = len(output_lines)
+    index = 0
+    output_lines = clean_task_lines(output_lines)
+    while index < total_lines:
+        line = output_lines[index].strip()
+        if line.startswith("{") and line == "{":
+            json_lines = [line]
+            index += 1
+            while index < total_lines:
+                line = output_lines[index]
+                orig_line = str(line)
+                striped_line = line.lstrip()
+                if '"command":' not in line:
+                    if orig_line == "{" or orig_line == "}":
+                        json_lines.append(line)
+                    if striped_line != orig_line:
+                        json_lines.append(line)
+                if line.strip().startswith("}") and line == "}":
+                    break
+                index += 1
+            json_str = "\n".join(json_lines)
+            try:
+                obj = json.loads(json_str)
+            except json.JSONDecodeError:
+                log.error("Failed to parse JSON: %s", json_str)
+                index += 1
+                continue
+            if kind == "spans":
+                if "context" not in obj or "resource_metrics" in obj:
+                    index += 1
+                    continue
+                span_id = obj["context"]["span_id"]
+                span_dict[span_id] = obj
+                if obj["parent_id"] is None:
+                    root_span_dict[span_id] = obj
+            else:
+                if "resource_metrics" not in obj:
+                    index += 1
+                    continue
+                for res in obj["resource_metrics"]:
+                    for scope in res.get("scope_metrics", []):
+                        for metric in scope.get("metrics", []):
+                            metric_dict[metric["name"]].append(metric)
+        else:
+            index += 1
+    return (root_span_dict, span_dict) if kind == "spans" else metric_dict
+
+
+def extract_spans_from_output(output_lines: list):
+    return _extract_obj_from_output(output_lines, "spans")
+
+
+def extract_metrics_from_output(output_lines: list):
+    return _extract_obj_from_output(output_lines, "metrics")
+
+
+def get_id_for_a_given_name(span_dict: dict, span_name: str):
+    for span_id, span in span_dict.items():
+        if span["name"] == span_name:
+            return span_id
+    return None
+
+
+def get_parent_child_dict(root_span_dict, span_dict):
+    parent_child_dict = {}
+    for root_span_id, root_span in root_span_dict.items():
+        child_span_list = []
+        for span_id, span in span_dict.items():
+            if root_span_id == span_id:
+                continue
+            if (
+                span["parent_id"] == root_span_id
+                and root_span["context"]["trace_id"] == span["context"]["trace_id"]
+            ):
+                child_span_list.append(span)
+        parent_child_dict[root_span_id] = child_span_list
+    return parent_child_dict
+
+
+def get_child_list_for_non_root(span_dict: dict, span_name: str):
+    parent_span_id = get_id_for_a_given_name(span_dict=span_dict, span_name=span_name)
+    parent_span = span_dict.get(parent_span_id)
+    if parent_span is None:
+        return []
+    child_span_list = []
+    for span_id, span in span_dict.items():
+        if span_id == parent_span_id:
+            continue
+        if (
+            span["parent_id"] == parent_span_id
+            and span["context"]["trace_id"] == parent_span["context"]["trace_id"]
+        ):
+            child_span_list.append(span)
+    return child_span_list
 
 
 class TestUtilsUnit:

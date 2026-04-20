@@ -23,6 +23,7 @@ import os
 import re
 import textwrap
 import warnings
+from configparser import ConfigParser
 from io import StringIO
 from unittest import mock
 from unittest.mock import patch
@@ -33,6 +34,7 @@ from airflow.configuration import (
     AirflowConfigException,
     AirflowConfigParser,
     conf,
+    configure_parser_from_configuration_description,
     ensure_secrets_loaded,
     expand_env_var,
     get_airflow_config,
@@ -1074,6 +1076,102 @@ key7 =
 
         assert expected_raw_output in content
 
+    def test_configure_parser_from_configuration_description_with_deprecated_options(self):
+        """
+        Test that configure_parser_from_configuration_description respects deprecated options.
+        """
+        configuration_description = {
+            "test_section": {
+                "options": {
+                    "non_deprecated_key": {"default": "non_deprecated_value"},
+                    "deprecated_key_version": {
+                        "default": "deprecated_value_version",
+                        "version_deprecated": "3.0.0",
+                    },
+                    "deprecated_key_reason": {
+                        "default": "deprecated_value_reason",
+                        "deprecation_reason": "Some reason",
+                    },
+                    "none_default_deprecated": {"default": None, "deprecation_reason": "No default"},
+                }
+            }
+        }
+        parser = AirflowConfigParser()
+        all_vars = {}
+
+        configure_parser_from_configuration_description(parser, configuration_description, all_vars)
+
+        # Assert that the non-deprecated key is present
+        assert parser.has_option("test_section", "non_deprecated_key")
+        assert parser.get("test_section", "non_deprecated_key") == "non_deprecated_value"
+
+        # Assert that the deprecated keys are NOT present
+        assert not parser.has_option("test_section", "deprecated_key_version")
+        assert not parser.has_option("test_section", "deprecated_key_reason")
+
+        # Assert that options with default None are still not set
+        assert not parser.has_option("test_section", "none_default_deprecated")
+
+    def test_get_default_value_deprecated(self):
+        """Test 'conf.get' for deprecated options and should not return default value."""
+
+        class TestConfigParser(AirflowConfigParser):
+            def __init__(self):
+                super().__init__()
+                configuration_description = {
+                    "test_section": {
+                        "options": {
+                            "deprecated_key": {
+                                "default": "some_value",
+                                "deprecation_reason": "deprecated",
+                            },
+                            "deprecated_key2": {
+                                "default": "some_value",
+                                "version_deprecated": "2.0.0",
+                            },
+                            "deprecated_key3": {
+                                "default": None,
+                                "version_deprecated": "2.0.0",
+                            },
+                            "active_key": {
+                                "default": "active_value",
+                            },
+                        }
+                    }
+                }
+                self.configuration_description = configuration_description
+                _default_values = ConfigParser()
+                configure_parser_from_configuration_description(
+                    _default_values, configuration_description, {}
+                )
+                self._default_values = _default_values
+
+        test_conf = TestConfigParser()
+        deprecated_conf_list = [
+            ("test_section", "deprecated_key"),
+            ("test_section", "deprecated_key2"),
+            ("test_section", "deprecated_key3"),
+        ]
+
+        # case 1: using `get` with fallback
+        # should return fallback if not found
+        expected_sentinel = object()
+        for section, key in deprecated_conf_list:
+            assert test_conf.get(section, key, fallback=expected_sentinel) is expected_sentinel
+
+        # case 2: using `get` without fallback
+        # should raise AirflowConfigException
+        for section, key in deprecated_conf_list:
+            with pytest.raises(
+                AirflowConfigException,
+                match=re.escape(f"section/key [{section}/{key}] not found in config"),
+            ):
+                test_conf.get(section, key)
+
+        # case 3: active (non-deprecated) key
+        # Active key should be present
+        assert test_conf.get("test_section", "active_key") == "active_value"
+
 
 @mock.patch.dict(
     "os.environ",
@@ -1762,6 +1860,59 @@ sql_alchemy_conn=sqlite://test
         assert airflow_cfg.get("core", "new-test-key") == "test-value"
         assert airflow_cfg.get("core", "hostname_callable") == "test-fn"
         assert sum(1 for option in all_core_options_including_defaults if option == "hostname_callable") == 1
+
+    def test_get_options_including_deprecated_defaults_should_skip(self, tmp_path):
+        # 1. Import the real function before patching
+        from airflow.configuration import _default_config_file_path as real_default_config_file_path
+
+        config_yaml_with_deprecated = textwrap.dedent(
+            """
+        test_deprecated_section:
+          description: Test section with deprecated options
+          options:
+            key_without_deprecation:
+              type: string
+              default: value1
+            key_with_version_deprecated:
+              type: string
+              default: value2
+              version_deprecated: 3.0.0
+            key_with_deprecation_reason:
+              type: string
+              default: value3
+              deprecation_reason: This key is deprecated.
+            key_with_both_deprecation:
+              type: string
+              default: value4
+              version_deprecated: 3.0.0
+              deprecation_reason: This key is deprecated.
+        """
+        )
+
+        # mock _default_config_file_path with tmp file containing above yaml
+        config_file = tmp_path / "config.yml"
+        config_file.write_text(config_yaml_with_deprecated)
+
+        # 2. Define the side effect using the captured 'real' function
+        def custom_default_config_file_path(file_name):
+            if file_name == "config.yml":
+                return os.fspath(config_file)
+            return real_default_config_file_path(file_name)
+
+        # 3. Apply the patch via context manager using the side_effect
+        with mock.patch(
+            "airflow.configuration._default_config_file_path", side_effect=custom_default_config_file_path
+        ):
+            # act
+            airflow_cfg = AirflowConfigParser()
+
+            assert airflow_cfg.has_option("test_deprecated_section", "key_without_deprecation")
+            for deprecated_key in [
+                "key_with_version_deprecated",
+                "key_with_deprecation_reason",
+                "key_with_both_deprecation",
+            ]:
+                assert not airflow_cfg.has_option("test_deprecated_section", deprecated_key)
 
 
 @skip_if_force_lowest_dependencies_marker

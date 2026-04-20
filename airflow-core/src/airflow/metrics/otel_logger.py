@@ -25,11 +25,12 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from opentelemetry import metrics
-from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics._internal.export import ConsoleMetricExporter, PeriodicExportingMetricReader
-from opentelemetry.sdk.resources import HOST_NAME, SERVICE_NAME, Resource
+from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 
+from airflow._shared.observability.common import get_otel_data_exporter
+from airflow._shared.observability.otel_env_config import load_metrics_env_config
 from airflow.configuration import conf
 from airflow.metrics.protocols import Timer
 from airflow.metrics.validators import (
@@ -39,7 +40,6 @@ from airflow.metrics.validators import (
     get_validator,
     stat_name_otel_handler,
 )
-from airflow.utils.net import get_hostname
 
 if TYPE_CHECKING:
     from opentelemetry.metrics import Instrument
@@ -381,30 +381,49 @@ def atexit_register_metrics_flush():
 
 
 def get_otel_logger(cls) -> SafeOtelLogger:
-    host = conf.get("metrics", "otel_host")  # ex: "breeze-otel-collector"
-    port = conf.getint("metrics", "otel_port")  # ex: 4318
-    prefix = conf.get("metrics", "otel_prefix")  # ex: "airflow"
-    ssl_active = conf.getboolean("metrics", "otel_ssl_active")
+    host = conf.get("metrics", "otel_host", fallback=None)
+    port = None
+    if conf.has_option("metrics", "otel_port"):
+        port = conf.getint("metrics", "otel_port")
+    prefix = conf.get("metrics", "otel_prefix", fallback=None)
+    ssl_active = conf.getboolean("metrics", "otel_ssl_active", fallback=False)
     # PeriodicExportingMetricReader will default to an interval of 60000 millis.
-    interval = conf.getint("metrics", "otel_interval_milliseconds", fallback=None)  # ex: 30000
-    debug = conf.getboolean("metrics", "otel_debugging_on")
-    service_name = conf.get("metrics", "otel_service")
+    conf_interval = None
+    if conf.has_option("metrics", "otel_interval_milliseconds"):
+        conf_interval = conf.getfloat("metrics", "otel_interval_milliseconds")
+    debug = conf.getboolean("metrics", "otel_debugging_on", fallback=False)
+    service_name = conf.get("metrics", "otel_service", fallback=None)
 
-    resource = Resource.create(attributes={HOST_NAME: get_hostname(), SERVICE_NAME: service_name})
+    otel_env_config = load_metrics_env_config()
 
-    protocol = "https" if ssl_active else "http"
-    endpoint = f"{protocol}://{host}:{port}/v1/metrics"
+    effective_service_name = otel_env_config.service_name or service_name or "airflow"
+    effective_prefix = prefix or DEFAULT_METRIC_NAME_PREFIX
+    resource = Resource.create(attributes={SERVICE_NAME: effective_service_name})
 
-    log.info("[Metric Exporter] Connecting to OpenTelemetry Collector at %s", endpoint)
+    interval = otel_env_config.interval_ms or conf_interval
+
+    metric_exporter = get_otel_data_exporter(
+        otel_env_config=otel_env_config,
+        host=host,
+        port=port,
+        ssl_active=ssl_active,
+    )
+
     readers = [
         PeriodicExportingMetricReader(
-            OTLPMetricExporter(endpoint=endpoint),
+            exporter=metric_exporter,
             export_interval_millis=interval,
         )
     ]
 
+    if otel_env_config.exporter:
+        debug = otel_env_config.exporter == "console"
+
     if debug:
-        export_to_console = PeriodicExportingMetricReader(ConsoleMetricExporter())
+        export_to_console = PeriodicExportingMetricReader(
+            ConsoleMetricExporter(),
+            export_interval_millis=interval,
+        )
         readers.append(export_to_console)
 
     metrics.set_meter_provider(
@@ -418,4 +437,4 @@ def get_otel_logger(cls) -> SafeOtelLogger:
     # Register a hook that flushes any in-memory metrics at shutdown.
     atexit_register_metrics_flush()
 
-    return SafeOtelLogger(metrics.get_meter_provider(), prefix, get_validator())
+    return SafeOtelLogger(metrics.get_meter_provider(), effective_prefix, get_validator())

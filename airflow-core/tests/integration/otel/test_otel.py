@@ -311,17 +311,11 @@ class TestOtelIntegration:
     def dag_execution_for_testing_metrics(self, capfd):
         # Metrics.
         os.environ["AIRFLOW__METRICS__OTEL_ON"] = "True"
-        # TODO: change when support for metrics environment variables is added.
-        # os.environ["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"] = "http://breeze-otel-collector:4318/v1/metrics"
-        # os.environ["OTEL_METRIC_EXPORT_INTERVAL"] = "5000"
-        os.environ["AIRFLOW__METRICS__OTEL_HOST"] = "breeze-otel-collector"
-        os.environ["AIRFLOW__METRICS__OTEL_PORT"] = "4318"
-        os.environ["AIRFLOW__METRICS__OTEL_INTERVAL_MILLISECONDS"] = "5000"
+        os.environ["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"] = "http://breeze-otel-collector:4318/v1/metrics"
+        os.environ["OTEL_METRIC_EXPORT_INTERVAL"] = "5000"
 
         if self.use_otel != "true":
-            # TODO: change when support for metrics environment variables is added.
-            # os.environ["OTEL_METRICS_EXPORTER"] = "console"
-            os.environ["AIRFLOW__METRICS__OTEL_DEBUGGING_ON"] = "True"
+            os.environ["OTEL_METRICS_EXPORTER"] = "console"
 
         scheduler_process = None
         apiserver_process = None

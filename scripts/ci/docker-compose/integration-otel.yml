@@ -76,11 +76,6 @@ services:
       - OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=http://breeze-otel-collector:4318/v1/metrics
       - OTEL_METRIC_EXPORT_INTERVAL=30000
       - AIRFLOW__METRICS__OTEL_ON=True
-      # OTel environment variables aren't supported for metrics at the moment.
-      # TODO: remove the next 3, once support is added.
-      - AIRFLOW__METRICS__OTEL_HOST=breeze-otel-collector
-      - AIRFLOW__METRICS__OTEL_PORT=4318
-      - AIRFLOW__METRICS__OTEL_INTERVAL_MILLISECONDS=30000
       - AIRFLOW__TRACES__OTEL_ON=True
       - AIRFLOW__TRACES__OTEL_TASK_LOG_EVENT=True
 

@@ -26,7 +26,11 @@ from typing import TYPE_CHECKING
 
 from opentelemetry import metrics
 from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics._internal.export import ConsoleMetricExporter, PeriodicExportingMetricReader
+from opentelemetry.sdk.metrics._internal.export import (
+    ConsoleMetricExporter,
+    MetricExporter,
+    PeriodicExportingMetricReader,
+)
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 
 from airflow._shared.observability.common import get_otel_data_exporter
@@ -408,6 +412,9 @@ def get_otel_logger(cls) -> SafeOtelLogger:
         port=port,
         ssl_active=ssl_active,
     )
+
+    if not isinstance(metric_exporter, MetricExporter):
+        raise TypeError(f"Expected MetricExporter, got {type(metric_exporter)}")
 
     readers = [
         PeriodicExportingMetricReader(

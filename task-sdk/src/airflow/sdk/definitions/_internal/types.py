@@ -40,6 +40,12 @@ class ArgNotSet:
     def serialize():
         return "NOTSET"
 
+    def __repr__(self) -> str:
+        return self.serialize()
+
+    def __str__(self) -> str:
+        return self.serialize()
+
     @classmethod
     def deserialize(cls):
         return cls

@@ -24,6 +24,7 @@ import json
 import logging
 import math
 import uuid
+import warnings
 from collections import defaultdict
 from collections.abc import Collection, Iterable
 from datetime import timedelta
@@ -74,6 +75,7 @@ from airflow._shared.observability.traces import new_dagrun_trace_carrier, new_t
 from airflow._shared.timezones import timezone
 from airflow.assets.manager import asset_manager
 from airflow.configuration import conf
+from airflow.exceptions import RemovedInAirflow4Warning
 from airflow.listeners.listener import get_listener_manager
 from airflow.models.asset import AssetEvent, AssetModel
 from airflow.models.base import Base, StringID, TaskInstanceDependencies
@@ -1931,22 +1933,52 @@ class TaskInstance(Base, LoggingMixin):
 
     @provide_session
     def get_num_running_task_instances(self, session: Session, same_dagrun: bool = False) -> int:
-        """Return Number of running TIs from the DB."""
-        # .count() is inefficient
-        num_running_task_instances_query = (
+        """Count running TIs from the DB."""
+        warnings.warn(
+            "This function is deprecated and will be removed in Airflow.",
+            RemovedInAirflow4Warning,
+            stacklevel=2,
+        )
+        return self._get_num_task_instances_of_state(
+            [TaskInstanceState.RUNNING],
+            same_dagrun=same_dagrun,
+            session=session,
+        )
+
+    def get_num_active_task_instances(self, *, same_dagrun: bool = False, session: Session) -> int:
+        """
+        Count active (running or deferred) TIs for this task from the DB.
+
+        Deferred TIs are included because they are still logically in-flight
+        and must count against max_active_tis_per_dag / max_active_tis_per_dagrun.
+
+        :meta private:
+        """
+        return self._get_num_task_instances_of_state(
+            [TaskInstanceState.RUNNING, TaskInstanceState.DEFERRED],
+            same_dagrun=same_dagrun,
+            session=session,
+        )
+
+    def _get_num_task_instances_of_state(
+        self,
+        states: Collection[TaskInstanceState],
+        *,
+        same_dagrun: bool = False,
+        session: Session,
+    ) -> int:
+        stmt = (
             select(func.count())
             .select_from(TaskInstance)
-            .where(
-                TaskInstance.dag_id == self.dag_id,
-                TaskInstance.task_id == self.task_id,
-                TaskInstance.state == TaskInstanceState.RUNNING,
-            )
+            .where(TaskInstance.dag_id == self.dag_id, TaskInstance.task_id == self.task_id)
         )
+        if states:
+            stmt = stmt.where(or_(*(TaskInstance.state == s for s in states)))
+        else:
+            return 0
         if same_dagrun:
-            num_running_task_instances_query = num_running_task_instances_query.where(
-                TaskInstance.run_id == self.run_id
-            )
-        return session.scalar(num_running_task_instances_query)
+            stmt = stmt.where(TaskInstance.run_id == self.run_id)
+        return session.scalar(stmt) or 0
 
     @staticmethod
     def filter_for_tis(tis: Iterable[TaskInstance | TaskInstanceKey]) -> BooleanClauseList | None:

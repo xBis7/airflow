@@ -16,34 +16,35 @@
 # under the License.
 from __future__ import annotations
 
-import json
 import logging
 import os
 import socket
 import subprocess
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 import requests
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from airflow._shared.timezones import timezone
-from airflow.dag_processing.bundles.manager import DagBundlesManager
-from airflow.dag_processing.dagbag import DagBag
 from airflow.models import DagRun
-from airflow.models.serialized_dag import SerializedDagModel
 from airflow.models.taskinstance import TaskInstance
-from airflow.serialization.definitions.dag import SerializedDAG
 from airflow.utils.session import create_session
 from airflow.utils.state import State
 
-from tests_common.test_utils.dag import create_scheduler_dag
+from tests_common.test_utils.integration_setup import (
+    serialize_and_get_dags,
+    start_scheduler,
+    unpause_trigger_dag_and_get_run_id,
+)
 from tests_common.test_utils.otel_utils import (
     dump_airflow_metadata_db,
     extract_metrics_from_output,
 )
-from tests_common.test_utils.version_compat import AIRFLOW_V_3_0_PLUS, AIRFLOW_V_3_1_PLUS
+
+if TYPE_CHECKING:
+    from airflow.serialization.definitions.dag import SerializedDAG
 
 log = logging.getLogger("integration.otel.test_otel")
 
@@ -84,32 +85,6 @@ def wait_for_otel_collector(host: str, port: int, timeout: int = 120) -> None:
         timeout,
         last_error,
     )
-
-
-def unpause_trigger_dag_and_get_run_id(dag_id: str) -> str:
-    unpause_command = ["airflow", "dags", "unpause", dag_id]
-
-    # Unpause the dag using the cli.
-    subprocess.run(unpause_command, check=True, env=os.environ.copy())
-
-    execution_date = timezone.utcnow()
-    run_id = f"manual__{execution_date.isoformat()}"
-
-    trigger_command = [
-        "airflow",
-        "dags",
-        "trigger",
-        dag_id,
-        "--run-id",
-        run_id,
-        "--logical-date",
-        execution_date.isoformat(),
-    ]
-
-    # Trigger the dag using the cli.
-    subprocess.run(trigger_command, check=True, env=os.environ.copy())
-
-    return run_id
 
 
 def wait_for_dag_run(dag_id: str, run_id: str, max_wait_time: int):
@@ -184,19 +159,6 @@ class TestOtelIntegration:
     use_otel = os.getenv("use_otel", default="false")
     log_level = os.getenv("log_level", default="none")
 
-    scheduler_command_args = [
-        "airflow",
-        "scheduler",
-    ]
-
-    apiserver_command_args = [
-        "airflow",
-        "api-server",
-        "--port",
-        "8080",
-        "--daemon",
-    ]
-
     dags: dict[str, SerializedDAG] = {}
 
     @classmethod
@@ -246,67 +208,7 @@ class TestOtelIntegration:
         migrate_command = ["airflow", "db", "migrate"]
         subprocess.run(migrate_command, check=True, env=os.environ.copy())
 
-        cls.dags = cls.serialize_and_get_dags()
-
-    @classmethod
-    def serialize_and_get_dags(cls) -> dict[str, SerializedDAG]:
-        log.info("Serializing Dags from directory %s", cls.dag_folder)
-        # Load DAGs from the dag directory.
-        dag_bag = DagBag(dag_folder=cls.dag_folder, include_examples=False)
-
-        dag_ids = dag_bag.dag_ids
-        assert len(dag_ids) == 1
-
-        dag_dict: dict[str, SerializedDAG] = {}
-        with create_session() as session:
-            for dag_id in dag_ids:
-                dag = dag_bag.get_dag(dag_id)
-                assert dag is not None, f"DAG with ID {dag_id} not found."
-                # Sync the DAG to the database.
-                if AIRFLOW_V_3_0_PLUS:
-                    from airflow.models.dagbundle import DagBundleModel
-
-                    count = session.scalar(
-                        select(func.count())
-                        .select_from(DagBundleModel)
-                        .where(DagBundleModel.name == "testing")
-                    )
-                    if count == 0:
-                        session.add(DagBundleModel(name="testing"))
-                        session.commit()
-                    SerializedDAG.bulk_write_to_db(
-                        bundle_name="testing", bundle_version=None, dags=[dag], session=session
-                    )
-                    dag_dict[dag_id] = create_scheduler_dag(dag)
-                else:
-                    dag.sync_to_db(session=session)
-                    dag_dict[dag_id] = dag
-                # Manually serialize the dag and write it to the db to avoid a db error.
-                if AIRFLOW_V_3_1_PLUS:
-                    from airflow.serialization.serialized_objects import LazyDeserializedDAG
-
-                    SerializedDagModel.write_dag(
-                        LazyDeserializedDAG.from_dag(dag), bundle_name="testing", session=session
-                    )
-                else:
-                    SerializedDagModel.write_dag(dag, bundle_name="testing", session=session)
-
-            session.commit()
-
-        TESTING_BUNDLE_CONFIG = [
-            {
-                "name": "testing",
-                "classpath": "airflow.dag_processing.bundles.local.LocalDagBundle",
-                "kwargs": {"path": f"{cls.dag_folder}", "refresh_interval": 1},
-            }
-        ]
-
-        os.environ["AIRFLOW__DAG_PROCESSOR__DAG_BUNDLE_CONFIG_LIST"] = json.dumps(TESTING_BUNDLE_CONFIG)
-        # Initial add
-        manager = DagBundlesManager()
-        manager.sync_bundles_to_db()
-
-        return dag_dict
+        cls.dags = serialize_and_get_dags(dag_folder=cls.dag_folder)
 
     def dag_execution_for_testing_metrics(self, capfd):
         # Metrics.
@@ -322,7 +224,7 @@ class TestOtelIntegration:
         try:
             # Start the processes here and not as fixtures or in a common setup,
             # so that the test can capture their output.
-            scheduler_process, apiserver_process = self.start_scheduler(capture_output=True)
+            scheduler_process, apiserver_process = start_scheduler(capture_output=True)
 
             dag_id = "otel_test_dag"
 
@@ -443,7 +345,7 @@ class TestOtelIntegration:
         try:
             # Start the processes here and not as fixtures or in a common setup,
             # so that the test can capture their output.
-            scheduler_process, apiserver_process = self.start_scheduler()
+            scheduler_process, apiserver_process = start_scheduler()
 
             dag_id = "otel_test_dag"
 
@@ -513,26 +415,3 @@ class TestOtelIntegration:
             "task_run.task1": "dag_run.otel_test_dag",
             "worker.task1": "task_run.task1",
         }
-
-    def start_scheduler(self, capture_output: bool = False):
-        stdout = None if capture_output else subprocess.DEVNULL
-        stderr = None if capture_output else subprocess.DEVNULL
-
-        scheduler_process = subprocess.Popen(
-            self.scheduler_command_args,
-            env=os.environ.copy(),
-            stdout=stdout,
-            stderr=stderr,
-        )
-
-        apiserver_process = subprocess.Popen(
-            self.apiserver_command_args,
-            env=os.environ.copy(),
-            stdout=stdout,
-            stderr=stderr,
-        )
-
-        # Wait to ensure both processes have started.
-        time.sleep(10)
-
-        return scheduler_process, apiserver_process

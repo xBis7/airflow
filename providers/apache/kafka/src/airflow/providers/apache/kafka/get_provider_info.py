@@ -85,4 +85,73 @@ def get_provider_info():
             }
         ],
         "queues": ["airflow.providers.apache.kafka.queues.kafka.KafkaMessageQueueProvider"],
+        "plugins": [
+            {
+                "name": "kafka_listener",
+                "plugin-class": "airflow.providers.apache.kafka.plugins.listener.KafkaListenerPlugin",
+            }
+        ],
+        "config": {
+            "kafka_listener": {
+                "description": "Settings for the Kafka listener that publishes Airflow DagRun and\nTaskInstance state-change events to a Kafka topic.\n",
+                "options": {
+                    "enabled": {
+                        "description": "Enable the Kafka listener. When False the plugin\nregisters no listeners and does no broker work.\n",
+                        "version_added": None,
+                        "type": "boolean",
+                        "example": None,
+                        "default": "False",
+                    },
+                    "bootstrap_servers": {
+                        "description": "Comma-separated list of ``host:port`` Kafka bootstrap servers\n(e.g. ``broker1:9092,broker2:9092``). Required to activate\nthe listener — when unset, the plugin registers no hooks\nregardless of ``enabled``. The value is passed straight to\nlibrdkafka as ``bootstrap.servers``.\n",
+                        "version_added": None,
+                        "type": "string",
+                        "example": "broker:29092",
+                        "default": "",
+                    },
+                    "topic": {
+                        "description": "Topic the listener publishes events to. The topic must already\nexist on the broker; the listener will not auto-create it.\n",
+                        "version_added": None,
+                        "type": "string",
+                        "example": None,
+                        "default": "airflow.events",
+                    },
+                    "source": {
+                        "description": "Identifier added to every emitted message under the ``source``\nfield so consumers can distinguish Airflow installations that\nshare the same topic. When unset, falls back to the hostname\nof the Airflow component that emits the event (scheduler,\nworker, etc.).\n",
+                        "version_added": None,
+                        "type": "string",
+                        "example": "af-prod-eu",
+                        "default": "",
+                    },
+                    "dag_id_allowlist": {
+                        "description": "Comma-separated glob patterns. When set, events are only emitted\nfor dag_ids matching at least one pattern. Empty = all dags.\n",
+                        "version_added": None,
+                        "type": "string",
+                        "example": "etl_*,sales_pipeline",
+                        "default": "",
+                    },
+                    "dag_id_denylist": {
+                        "description": "Comma-separated glob patterns. dag_ids matching any pattern are\nskipped. Both allowlist and denylist are checked but if a dag_id\nis in both, deny takes precedence.\n",
+                        "version_added": None,
+                        "type": "string",
+                        "example": "tmp_*",
+                        "default": "",
+                    },
+                    "topic_check_timeout": {
+                        "description": "How long (in seconds) each topic existence check is allowed\nto block waiting for a response from the broker.\n",
+                        "version_added": None,
+                        "type": "integer",
+                        "example": None,
+                        "default": "10",
+                    },
+                    "topic_check_retry_interval": {
+                        "description": "How long (in seconds) to wait before retrying a topic check,\nin case it failed.\n",
+                        "version_added": None,
+                        "type": "integer",
+                        "example": None,
+                        "default": "60",
+                    },
+                },
+            }
+        },
     }

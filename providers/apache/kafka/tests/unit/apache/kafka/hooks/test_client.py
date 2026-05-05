@@ -89,7 +89,7 @@ class TestKafkaAdminClientHook:
         mock_f = MagicMock()
         kafka_exception = KafkaException()
         mock_arg = MagicMock()
-        mock_arg.name = "TOPIC_ALREADY_EXISTS"
+        mock_arg.name.return_value = "TOPIC_ALREADY_EXISTS"
         kafka_exception.args = [mock_arg]
         mock_f.result.side_effect = [kafka_exception]
         admin_client.return_value.create_topics.return_value = {"topic_name": mock_f}

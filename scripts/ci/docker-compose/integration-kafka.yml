@@ -60,5 +60,9 @@ services:
   airflow:
     environment:
       - INTEGRATION_KAFKA=true
+      - AIRFLOW__KAFKA_LISTENER__ENABLED=True
+      - AIRFLOW__KAFKA_LISTENER__BOOTSTRAP_SERVERS=broker:29092
+      - AIRFLOW__KAFKA_LISTENER__TOPIC=airflow.events
+      - AIRFLOW__KAFKA_LISTENER__SOURCE=dev-breeze
     depends_on:
       - broker

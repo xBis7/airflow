@@ -27,6 +27,7 @@ export const LOG_WRAP_KEY = "log_wrap";
 export const LOG_SHOW_TIMESTAMP_KEY = "log_show_timestamp";
 export const LOG_SHOW_SOURCE_KEY = "log_show_source";
 export const VERSION_INDICATOR_DISPLAY_MODE_KEY = "version_indicator_display_mode";
+export const DASHBOARD_ALERTS_OPEN_KEY = "dashboard_alerts_open";
 
 // Dag-scoped keys
 export const dagRunsLimitKey = (dagId: string) => `dag_runs_limit-${dagId}`;

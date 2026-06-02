@@ -18,11 +18,13 @@
  */
 import { Box, Heading, VStack } from "@chakra-ui/react";
 import { useTranslation } from "react-i18next";
+import { useLocalStorage } from "usehooks-ts";
 
 import { usePluginServiceGetPlugins } from "openapi/queries";
 import type { ReactAppResponse, UIAlert } from "openapi/requests/types.gen";
 import ReactMarkdown from "src/components/ReactMarkdown";
 import { Accordion, Alert } from "src/components/ui";
+import { DASHBOARD_ALERTS_OPEN_KEY } from "src/constants/localStorage";
 import { useConfig } from "src/queries/useConfig";
 
 import { ReactPlugin } from "../ReactPlugin";
@@ -32,10 +34,15 @@ import { HistoricalMetrics } from "./HistoricalMetrics";
 import { PoolSummary } from "./PoolSummary";
 import { Stats } from "./Stats";
 
+const UI_ALERTS_ITEM = "ui_alerts";
+
 export const Dashboard = () => {
   const alerts = useConfig("dashboard_alert") as Array<UIAlert>;
   const { t: translate } = useTranslation("dashboard");
   const instanceName = useConfig("instance_name");
+  const [openAlerts, setOpenAlerts] = useLocalStorage<Array<string>>(DASHBOARD_ALERTS_OPEN_KEY, [
+    UI_ALERTS_ITEM,
+  ]);
 
   const { data: pluginData } = usePluginServiceGetPlugins();
 
@@ -50,8 +57,13 @@ export const Dashboard = () => {
         {/* All flex items within this VStack should specify an increasing order. This
         will be used by third parties plugins to position themselves within the page via CSS */}
         {alerts.length > 0 ? (
-          <Accordion.Root collapsible defaultValue={["ui_alerts"]} order={1}>
-            <Accordion.Item key="ui_alerts" value="ui_alerts">
+          <Accordion.Root
+            collapsible
+            onValueChange={(details) => setOpenAlerts(details.value)}
+            order={1}
+            value={openAlerts}
+          >
+            <Accordion.Item key={UI_ALERTS_ITEM} value={UI_ALERTS_ITEM}>
               {alerts.map((alert: UIAlert, index) =>
                 index === 0 ? (
                   <Accordion.ItemTrigger key={alert.text} mb={2}>

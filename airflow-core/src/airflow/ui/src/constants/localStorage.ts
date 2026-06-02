@@ -41,3 +41,7 @@ export const tableSortKey = (pageName: string) => `${pageName.replaceAll("/", "-
 
 // SearchBar advanced (substring) toggle, scoped per searchbar via a caller-provided id.
 export const advancedSearchKey = (id: string) => `advanced_search-${id}`;
+
+// Per-alert expanded state on the dashboard, keyed by a hash of the alert text so the
+// preference resets when an admin updates the alert content.
+export const alertExpandedKey = (id: string) => `dashboard_alert_expanded-${id}`;

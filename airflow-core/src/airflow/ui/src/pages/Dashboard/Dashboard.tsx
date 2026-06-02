@@ -22,12 +22,12 @@ import { useLocalStorage } from "usehooks-ts";
 
 import { usePluginServiceGetPlugins } from "openapi/queries";
 import type { ReactAppResponse, UIAlert } from "openapi/requests/types.gen";
-import ReactMarkdown from "src/components/ReactMarkdown";
-import { Accordion, Alert } from "src/components/ui";
+import { Accordion } from "src/components/ui";
 import { DASHBOARD_ALERTS_OPEN_KEY } from "src/constants/localStorage";
 import { useConfig } from "src/queries/useConfig";
 
 import { ReactPlugin } from "../ReactPlugin";
+import { CollapsibleAlert } from "./CollapsibleAlert";
 import { FavoriteDags } from "./FavoriteDags";
 import { Health } from "./Health";
 import { HistoricalMetrics } from "./HistoricalMetrics";
@@ -67,15 +67,11 @@ export const Dashboard = () => {
               {alerts.map((alert: UIAlert, index) =>
                 index === 0 ? (
                   <Accordion.ItemTrigger key={alert.text} mb={2}>
-                    <Alert status={alert.category}>
-                      <ReactMarkdown>{alert.text}</ReactMarkdown>
-                    </Alert>
+                    <CollapsibleAlert alert={alert} />
                   </Accordion.ItemTrigger>
                 ) : (
                   <Accordion.ItemContent key={alert.text} pr={8}>
-                    <Alert status={alert.category}>
-                      <ReactMarkdown>{alert.text}</ReactMarkdown>
-                    </Alert>
+                    <CollapsibleAlert alert={alert} />
                   </Accordion.ItemContent>
                 ),
               )}

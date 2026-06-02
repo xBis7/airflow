@@ -9952,6 +9952,23 @@ export const $UIAlert = {
             type: 'string',
             enum: ['info', 'warning', 'error'],
             title: 'Category'
+        },
+        collapse_threshold: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Collapse Threshold',
+            default: 500
+        },
+        collapsed_lines: {
+            type: 'integer',
+            title: 'Collapsed Lines',
+            default: 3
         }
     },
     type: 'object',

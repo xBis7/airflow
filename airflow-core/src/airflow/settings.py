@@ -146,12 +146,16 @@ json = json_lib
 # Display alerts on the dashboard
 # Useful for warning about setup issues or announcing changes to end users
 # List of UIAlerts, which allows for specifying the content and category
-# message to be shown. For example:
+# message to be shown. Alerts longer than ``collapse_threshold`` characters are
+# clamped to ``collapsed_lines`` lines with a "Show more" toggle whose state is
+# persisted in the browser. Set ``collapse_threshold=None`` to disable
+# auto-collapse for a given alert. For example:
 #   from airflow.api_fastapi.common.types import UIAlert
 #
 #   DASHBOARD_UIALERTS = [
 #       UIAlert(text="Welcome to Airflow", category="info"),
 #       UIAlert(text="Upgrade tomorrow [help](https://www.example.com)", category="warning"), #With markdown support
+#       UIAlert(text=very_long_release_notes, category="info", collapse_threshold=500, collapsed_lines=3),
 #   ]
 #
 DASHBOARD_UIALERTS: list[UIAlert] = []

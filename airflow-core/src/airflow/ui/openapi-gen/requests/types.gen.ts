@@ -2522,6 +2522,8 @@ export type TokenType = 'api' | 'cli';
 export type UIAlert = {
     text: string;
     category: 'info' | 'warning' | 'error';
+    collapse_threshold?: number | null;
+    collapsed_lines?: number;
 };
 
 export type category = 'info' | 'warning' | 'error';

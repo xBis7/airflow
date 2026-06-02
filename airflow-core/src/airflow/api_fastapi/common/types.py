@@ -134,6 +134,15 @@ class UIAlert(BaseModel):
 
     text: str
     category: Literal["info", "warning", "error"]
+    collapse_threshold: int | None = 500
+    """
+    Auto-collapse the alert when ``len(text)`` exceeds this many characters.
+
+    Users can toggle individual alerts via "Show more"; the choice is persisted in
+    the browser. Set to ``None`` to never auto-collapse.
+    """
+    collapsed_lines: int = 3
+    """Number of lines of rendered content shown before the "Show more" toggle."""
 
 
 class OklchColor(BaseModel):

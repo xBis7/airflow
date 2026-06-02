@@ -323,6 +323,31 @@ message of heading 2 with a link included:
 
 .. image:: ../img/ui-alert-message-markdown.png
 
+Collapsible Long Alerts
+-----------------------
+
+Alerts whose ``text`` is longer than ``collapse_threshold`` characters (default ``500``) are
+automatically clamped to ``collapsed_lines`` lines (default ``3``) with a "Show more" toggle.
+Each user's expanded/collapsed choice is persisted per-alert in ``localStorage`` and keyed by
+a hash of the alert text, so updating the alert content resets the state for everyone.
+
+Set ``collapse_threshold=None`` to disable auto-collapse for an alert:
+
+.. code-block:: python
+
+    from airflow.api_fastapi.common.types import UIAlert
+
+    DASHBOARD_UIALERTS = [
+        # Long release notes — auto-collapsed; users can expand individually.
+        UIAlert(text=very_long_release_notes, category="info"),
+        # Short banners are unaffected by the threshold.
+        UIAlert(text="Welcome to Airflow", category="info"),
+        # Force the full text to render regardless of length.
+        UIAlert(text=critical_message, category="error", collapse_threshold=None),
+        # Tighter clamp: collapse anything above 200 chars to a single line.
+        UIAlert(text=dynamic_status, category="warning", collapse_threshold=200, collapsed_lines=1),
+    ]
+
 Dynamic Dashboard Alerts
 ------------------------
 

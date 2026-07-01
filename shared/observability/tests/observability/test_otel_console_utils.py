@@ -16,8 +16,9 @@
 # under the License.
 from __future__ import annotations
 
-from tests_common.test_utils.otel_utils import (
+from tests_common.test_utils.otel_console_utils import (
     clean_task_lines,
+    extract_metrics_from_output,
     extract_spans_from_output,
     get_child_list_for_non_root,
     get_id_for_a_given_name,
@@ -25,7 +26,7 @@ from tests_common.test_utils.otel_utils import (
 )
 
 
-class TestUtilsUnit:
+class TestConsoleUtilsUnit:
     # The method that extracts the spans from the output,
     # counts that there is no indentation on the cli, when a span starts and finishes.
     example_output = """
@@ -420,14 +421,241 @@ class TestUtilsUnit:
         "schema_url": ""
     }
 }
+{
+    "resource_metrics": [
+        {
+            "resource": {
+                "attributes": {
+                    "telemetry.sdk.language": "python",
+                    "telemetry.sdk.name": "opentelemetry",
+                    "telemetry.sdk.version": "1.27.0",
+                    "host.name": "c102ea50e33c",
+                    "service.name": "Airflow"
+                },
+                "schema_url": ""
+            },
+            "scope_metrics": [
+                {
+                    "scope": {
+                        "name": "airflow._shared.observability.metrics.otel_logger",
+                        "version": null,
+                        "schema_url": "",
+                        "attributes": null
+                    },
+                    "metrics": [
+                        {
+                            "name": "airflow.job_start",
+                            "description": "",
+                            "unit": "",
+                            "data": {
+                                "data_points": [
+                                    {
+                                        "attributes": {},
+                                        "start_time_unix_nano": 1745414131861931919,
+                                        "time_unix_nano": 1745414155165679764,
+                                        "value": 1
+                                    }
+                                ],
+                                "aggregation_temporality": 2,
+                                "is_monotonic": true
+                            }
+                        },
+                        {
+                            "name": "airflow.scheduler.orphaned_tasks.cleared",
+                            "description": "",
+                            "unit": "",
+                            "data": {
+                                "data_points": [
+                                    {
+                                        "attributes": {},
+                                        "start_time_unix_nano": 1745414132062475878,
+                                        "time_unix_nano": 1745414155165679764,
+                                        "value": 0
+                                    }
+                                ],
+                                "aggregation_temporality": 2,
+                                "is_monotonic": true
+                            }
+                        },
+                        {
+                            "name": "airflow.scheduler.orphaned_tasks.adopted",
+                            "description": "",
+                            "unit": "",
+                            "data": {
+                                "data_points": [
+                                    {
+                                        "attributes": {},
+                                        "start_time_unix_nano": 1745414132062496169,
+                                        "time_unix_nano": 1745414155165679764,
+                                        "value": 0
+                                    }
+                                ],
+                                "aggregation_temporality": 2,
+                                "is_monotonic": true
+                            }
+                        },
+                        {
+                            "name": "airflow.scheduler.critical_section_query_duration",
+                            "description": "",
+                            "unit": "",
+                            "data": {
+                                "data_points": [
+                                    {
+                                        "attributes": {},
+                                        "start_time_unix_nano": null,
+                                        "time_unix_nano": 1745414155165679764,
+                                        "value": 1.6570829902775586
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "name": "airflow.scheduler.tasks.starving",
+                            "description": "",
+                            "unit": "",
+                            "data": {
+                                "data_points": [
+                                    {
+                                        "attributes": {},
+                                        "start_time_unix_nano": null,
+                                        "time_unix_nano": 1745414155165679764,
+                                        "value": 0
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "name": "airflow.scheduler.tasks.executable",
+                            "description": "",
+                            "unit": "",
+                            "data": {
+                                "data_points": [
+                                    {
+                                        "attributes": {},
+                                        "start_time_unix_nano": null,
+                                        "time_unix_nano": 1745414155165679764,
+                                        "value": 0
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "name": "airflow.scheduler.critical_section_duration",
+                            "description": "",
+                            "unit": "",
+                            "data": {
+                                "data_points": [
+                                    {
+                                        "attributes": {},
+                                        "start_time_unix_nano": null,
+                                        "time_unix_nano": 1745414155165679764,
+                                        "value": 4.942458996083587
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "name": "airflow.executor.open_slots",
+                            "description": "",
+                            "unit": "",
+                            "data": {
+                                "data_points": [
+                                    {
+                                        "attributes": {
+                                            "status": "open",
+                                            "name": "CeleryExecutor"
+                                        },
+                                        "start_time_unix_nano": null,
+                                        "time_unix_nano": 1745414155165679764,
+                                        "value": 32
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "name": "airflow.executor.queued_tasks",
+                            "description": "",
+                            "unit": "",
+                            "data": {
+                                "data_points": [
+                                    {
+                                        "attributes": {
+                                            "status": "queued",
+                                            "name": "CeleryExecutor"
+                                        },
+                                        "start_time_unix_nano": null,
+                                        "time_unix_nano": 1745414155165679764,
+                                        "value": 0
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "name": "airflow.executor.running_tasks",
+                            "description": "",
+                            "unit": "",
+                            "data": {
+                                "data_points": [
+                                    {
+                                        "attributes": {
+                                            "status": "running",
+                                            "name": "CeleryExecutor"
+                                        },
+                                        "start_time_unix_nano": null,
+                                        "time_unix_nano": 1745414155165679764,
+                                        "value": 0
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "name": "airflow.scheduler.scheduler_loop_duration",
+                            "description": "",
+                            "unit": "",
+                            "data": {
+                                "data_points": [
+                                    {
+                                        "attributes": {},
+                                        "start_time_unix_nano": null,
+                                        "time_unix_nano": 1745414155165679764,
+                                        "value": 29.379333995166235
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "name": "airflow.pool.scheduled_slots",
+                            "description": "",
+                            "unit": "",
+                            "data": {
+                                "data_points": [
+                                    {
+                                        "attributes": {
+                                            "pool_name": "default_pool"
+                                        },
+                                        "start_time_unix_nano": null,
+                                        "time_unix_nano": 1745414155165679764,
+                                        "value": 0
+                                    }
+                                ]
+                            }
+                        }
+                    ],
+                    "schema_url": ""
+                }
+            ],
+            "schema_url": ""
+        }
+    ]
+}
     """
 
     example_task_output = r"""
-{"timestamp":"2025-03-31T18:03:17.087597","level":"info","event":"[SimpleSpanProcessor] is being used","logger":"airflow.traces.otel_tracer"}
+{"timestamp":"2025-03-31T18:03:17.087597","level":"info","event":"[SimpleSpanProcessor] is being used","logger":"airflow_shared.observability.traces.otel_tracer"}
 {"timestamp":"2025-03-31T18:03:17.087693","level":"info","event":"From task sub_span2.","logger":"airflow.otel_test_dag"}
 {"timestamp":"2025-03-31T18:03:17.087763","level":"info","event":"From task sub_span3.","logger":"airflow.otel_test_dag"}
-{"timestamp":"2025-03-31T18:03:17.088075","level":"info","event":"[ConsoleSpanExporter] is being used","logger":"airflow.traces.otel_tracer"}
-{"timestamp":"2025-03-31T18:03:17.088105","level":"info","event":"[SimpleSpanProcessor] is being used","logger":"airflow.traces.otel_tracer"}
+{"timestamp":"2025-03-31T18:03:17.088075","level":"info","event":"[ConsoleSpanExporter] is being used","logger":"airflow_shared.observability.traces.otel_tracer"}
+{"timestamp":"2025-03-31T18:03:17.088105","level":"info","event":"[SimpleSpanProcessor] is being used","logger":"airflow_shared.observability.traces.otel_tracer"}
 {"timestamp":"2025-04-01T17:20:08.687523Z","level":"info","event":"{","chan":"stdout","logger":"task"}
 {"timestamp":"2025-04-01T17:20:08.687579Z","level":"info","event":"    \"name\": \"task1_sub_span1\",","chan":"stdout","logger":"task"}
 {"timestamp":"2025-04-01T17:20:08.687629Z","level":"info","event":"    \"context\": {","chan":"stdout","logger":"task"}
@@ -505,7 +733,7 @@ class TestUtilsUnit:
 {"timestamp":"2025-04-01T17:20:08.691483Z","level":"info","event":"        \"attributes\": {","chan":"stdout","logger":"task"}
 {"timestamp":"2025-04-01T17:20:08.691538Z","level":"info","event":"            \"telemetry.sdk.language\": \"python\",","chan":"stdout","logger":"task"}
 {"timestamp":"2025-04-01T17:20:08.691591Z","level":"info","event":"            \"telemetry.sdk.name\": \"opentelemetry\",","chan":"stdout","logger":"task"}
-{"timestamp":"2025-04-01T17:20:08.678865","level":"info","event":"[ConsoleSpanExporter] is being used","logger":"airflow.traces.otel_tracer"}"""
+{"timestamp":"2025-04-01T17:20:08.678865","level":"info","event":"[ConsoleSpanExporter] is being used","logger":"airflow_shared.observability.traces.otel_tracer"}"""
 
     example_task_output_after_processing = r"""
 [SimpleSpanProcessor] is being used
@@ -635,6 +863,27 @@ From task sub_span3.
             actual_span_names.append(value["name"])
 
         assert sorted(actual_span_names) == sorted(expected_span_names)
+
+    def test_extract_metrics_from_output(self):
+        output_lines = self.example_output.splitlines()
+        metric_dict = extract_metrics_from_output(output_lines)
+
+        expected_metric_names = {
+            "airflow.job_start",
+            "airflow.scheduler.orphaned_tasks.cleared",
+            "airflow.scheduler.orphaned_tasks.adopted",
+            "airflow.scheduler.critical_section_query_duration",
+            "airflow.scheduler.tasks.starving",
+            "airflow.scheduler.tasks.executable",
+            "airflow.scheduler.critical_section_duration",
+            "airflow.executor.open_slots",
+            "airflow.executor.queued_tasks",
+            "airflow.executor.running_tasks",
+            "airflow.scheduler.scheduler_loop_duration",
+            "airflow.pool.scheduled_slots",
+        }
+
+        assert sorted(metric_dict.keys()) == sorted(expected_metric_names)
 
     def test_get_id_for_a_given_name(self):
         output_lines = self.example_output.splitlines()

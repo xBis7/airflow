@@ -73,6 +73,9 @@ dependencies = [
     # Start of shared logging dependencies
     "pygtrie>=2.5.0",
     # End of shared logging dependencies
+    # Start of shared observability dependencies
+    "opentelemetry-api>=1.27.0",
+    # End of shared observability dependencies
 ]
 
 [project.urls]

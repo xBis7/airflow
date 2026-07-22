@@ -1450,7 +1450,20 @@ class DagRun(Base, LoggingMixin):
     @start_debug_span("dagrun.task_instance_scheduling_decisions")
     @provide_session
     def task_instance_scheduling_decisions(self, *, session: Session = NEW_SESSION) -> TISchedulingDecision:
-        tis = self.get_task_instances(session=session, state=State.task_states)
+        # Sub-spans isolate the "black box" self-time between the initial TI SELECT and
+        # `_get_ready_tis` (a 16 s Python outlier observed in test_topologies traces).
+        # Suspected culprits: DAG deserialization cache miss in `get_dag()`, SQLAlchemy
+        # autoflush triggered by the fetch, or per-TI dag.get_task() cost in the filter.
+        with start_debug_span("dagrun.tisd.fetch_tis") as fetch_span:
+            # Force connection acquisition first so pool_wait captures blocking on
+            # SQLAlchemy pool checkout separately from the SELECT and row hydration.
+            # Airflow's sessions run with autoflush=False (settings.py), so
+            # session.connection() has no flush side-effect — it only returns the
+            # currently held connection or acquires one from the pool.
+            with start_debug_span("dagrun.tisd.fetch_tis.pool_wait"):
+                session.connection()
+            tis = self.get_task_instances(session=session, state=State.task_states)
+            fetch_span.set_attribute("num_tis_fetched", len(tis))
         self.log.debug("number of tis tasks for %s: %s task(s)", self, len(tis))
 
         def _filter_tis_and_exclude_removed(dag: SerializedDAG, tis: list[TI]) -> Iterable[TI]:
@@ -1466,10 +1479,15 @@ class DagRun(Base, LoggingMixin):
                 else:
                     yield ti
 
-        tis = list(_filter_tis_and_exclude_removed(self.get_dag(), tis))
+        with start_debug_span("dagrun.tisd.get_dag"):
+            dag = self.get_dag()
+        with start_debug_span("dagrun.tisd.filter_removed") as filter_span:
+            tis = list(_filter_tis_and_exclude_removed(dag, tis))
+            filter_span.set_attribute("num_tis_after_filter", len(tis))
 
-        unfinished_tis = [t for t in tis if t.state in State.unfinished]
-        finished_tis = [t for t in tis if t.state in State.finished]
+        with start_debug_span("dagrun.tisd.partition"):
+            unfinished_tis = [t for t in tis if t.state in State.unfinished]
+            finished_tis = [t for t in tis if t.state in State.finished]
         if unfinished_tis:
             schedulable_tis = [ut for ut in unfinished_tis if ut.state in SCHEDULEABLE_STATES]
             self.log.debug("number of scheduleable tasks for %s: %s task(s)", self, len(schedulable_tis))

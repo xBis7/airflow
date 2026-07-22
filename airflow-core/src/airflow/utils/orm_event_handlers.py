@@ -94,3 +94,26 @@ def setup_event_handlers(engine):
                 stack_info,
                 statement.replace("\n", " "),
             )
+
+    # Attach DB query count + total duration as attributes on the currently-active
+    # OTel debug span, if any. No-op when the flag is off: start_debug_span yields a
+    # NonRecordingSpan whose is_recording() returns False, so we exit before writing
+    # attributes and the overhead is a perf_counter call plus a dict pop.
+    from opentelemetry import trace as _otel_trace
+
+    @event.listens_for(engine, "before_cursor_execute")
+    def _otel_query_start(conn, cursor, statement, parameters, context, executemany):
+        conn.info.setdefault("_otel_query_start", []).append(time.perf_counter())
+
+    @event.listens_for(engine, "after_cursor_execute")
+    def _otel_query_end(conn, cursor, statement, parameters, context, executemany):
+        stack = conn.info.get("_otel_query_start")
+        if not stack:
+            return
+        elapsed_ms = (time.perf_counter() - stack.pop()) * 1000
+        span = _otel_trace.get_current_span()
+        if not span.is_recording():
+            return
+        attrs = getattr(span, "attributes", None) or {}
+        span.set_attribute("db.query_count", attrs.get("db.query_count", 0) + 1)
+        span.set_attribute("db.query_ms", attrs.get("db.query_ms", 0.0) + elapsed_ms)

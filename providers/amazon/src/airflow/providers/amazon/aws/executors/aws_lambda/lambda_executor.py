@@ -44,6 +44,7 @@ from airflow.providers.amazon.aws.hooks.lambda_function import LambdaHook
 from airflow.providers.amazon.aws.hooks.sqs import SqsHook
 from airflow.providers.amazon.version_compat import AIRFLOW_V_3_0_PLUS, AIRFLOW_V_3_3_PLUS
 from airflow.providers.common.compat.sdk import AirflowException, Stats, timezone
+from airflow.sdk._shared.observability.traces import start_debug_span
 from airflow.utils.helpers import prune_dict
 
 if TYPE_CHECKING:
@@ -242,6 +243,7 @@ class AwsLambdaExecutor(BaseExecutor):
             return
         raise RuntimeError(f"{type(self)} cannot handle workloads of type {type(workload)}")
 
+    @start_debug_span("lambda_executor._process_workloads")
     def _process_workloads(self, workload_items: Sequence[workloads.All]) -> None:
         from airflow.executors import workloads
 

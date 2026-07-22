@@ -267,12 +267,26 @@ def _load_exporter_from_env() -> SpanExporter:
     return ep.load()()
 
 
-def configure_otel(conf: ConfigParser):
+def set_debug_traces_enabled(enabled: bool) -> None:
+    """
+    Set the debug-traces flag on this module instance.
+
+    This module is symlinked into two distributions (``airflow._shared`` and
+    ``airflow.sdk._shared``) as two independent module objects, each with its own
+    ``_otel_debug_traces_on``. ``settings`` uses this to mirror the flag that
+    ``configure_otel`` resolves for the core copy onto the task-sdk copy that
+    providers and executors import.
+    """
+    global _otel_debug_traces_on
+    _otel_debug_traces_on = enabled
+
+
+def configure_otel(conf: ConfigParser) -> bool:
     global _otel_debug_traces_on
 
     otel_on = conf.getboolean("traces", "otel_on", fallback=False)
     if not otel_on:
-        return
+        return False
 
     _otel_debug_traces_on = conf.getboolean("traces", "otel_debug_traces_on", fallback=False)
 
@@ -292,3 +306,5 @@ def configure_otel(conf: ConfigParser):
     provider = TracerProvider(id_generator=OverrideableRandomIdGenerator(), resource=resource)
     provider.add_span_processor(BatchSpanProcessor(_load_exporter_from_env()))
     trace.set_tracer_provider(provider)
+
+    return _otel_debug_traces_on

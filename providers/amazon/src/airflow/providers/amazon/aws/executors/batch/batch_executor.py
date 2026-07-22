@@ -35,6 +35,7 @@ from airflow.providers.amazon.aws.executors.utils.exponential_backoff_retry impo
 from airflow.providers.amazon.aws.hooks.batch_client import BatchClientHook
 from airflow.providers.amazon.version_compat import AIRFLOW_V_3_0_PLUS, AIRFLOW_V_3_3_PLUS
 from airflow.providers.common.compat.sdk import AirflowException, Stats, timezone
+from airflow.sdk._shared.observability.traces import start_debug_span
 from airflow.utils.helpers import merge_dicts, prune_dict
 
 if TYPE_CHECKING:
@@ -143,6 +144,7 @@ class AwsBatchExecutor(BaseExecutor):
             return
         raise RuntimeError(f"{type(self)} cannot handle workloads of type {type(workload)}")
 
+    @start_debug_span("batch_executor._process_workloads")
     def _process_workloads(self, workload_items: Sequence[workloads.All]) -> None:
         from airflow.executors import workloads
 

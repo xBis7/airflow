@@ -44,6 +44,7 @@ from airflow.providers.celery.executors import (
 )
 from airflow.providers.celery.version_compat import AIRFLOW_V_3_0_PLUS, AIRFLOW_V_3_2_PLUS
 from airflow.providers.common.compat.sdk import AirflowTaskTimeout, Stats
+from airflow.sdk._shared.observability.traces import start_debug_span
 from airflow.utils.helpers import prune_dict
 from airflow.utils.state import TaskInstanceState
 
@@ -174,6 +175,7 @@ class CeleryExecutor(BaseExecutor):
 
         self._send_workloads(task_tuples_to_send)
 
+    @start_debug_span("celery_executor._process_workloads")
     def _process_workloads(self, workload_items: Sequence[workloads.All]) -> None:
         # Airflow V3 version -- have to delay imports until we know we are on v3.
         from airflow.executors.workloads import ExecuteTask
@@ -243,7 +245,14 @@ class CeleryExecutor(BaseExecutor):
 
         if len(workload_tuples_to_send) == 1 or self._sync_parallelism == 1:
             # One tuple, or max one process -> send it in the main thread.
-            return list(map(send_workload_to_executor, workload_tuples_to_send))
+            with start_debug_span(
+                "celery_executor._send_workloads_to_celery",
+                attributes={
+                    "pool": "sequential",
+                    "num_workloads": len(workload_tuples_to_send),
+                },
+            ):
+                return list(map(send_workload_to_executor, workload_tuples_to_send))
 
         # Use chunks instead of a work queue to reduce context switching
         # since workloads are roughly uniform in size.
@@ -252,11 +261,20 @@ class CeleryExecutor(BaseExecutor):
 
         # Use ProcessPoolExecutor with team_name instead of workload objects to avoid pickling issues.
         # Subprocesses reconstruct the team-specific Celery app from the team name and existing config.
-        with ProcessPoolExecutor(max_workers=num_processes) as send_pool:
-            key_and_async_results = list(
-                send_pool.map(send_workload_to_executor, workload_tuples_to_send, chunksize=chunksize)
-            )
-        return key_and_async_results
+        with start_debug_span(
+            "celery_executor._send_workloads_to_celery",
+            attributes={
+                "pool": "process_pool",
+                "num_workloads": len(workload_tuples_to_send),
+                "num_processes": num_processes,
+                "chunksize": chunksize,
+            },
+        ):
+            with ProcessPoolExecutor(max_workers=num_processes) as send_pool:
+                key_and_async_results = list(
+                    send_pool.map(send_workload_to_executor, workload_tuples_to_send, chunksize=chunksize)
+                )
+            return key_and_async_results
 
     def sync(self) -> None:
         if not self.workloads:

@@ -306,6 +306,7 @@ repos:
           ^tests/integration/otel/dags/otel_test_dag_with_pause_between_tasks\.py$|
           ^tests/integration/otel/dags/otel_test_dag_with_pause_in_task\.py$|
           ^tests/integration/otel/test_otel\.py$|
+          ^tests/integration/perf/test_perf\.py$|
           ^tests/unit/core/test_configuration\.py$|
           ^tests/unit/models/test_renderedtifields\.py$|
           ^tests/unit/models/test_variable\.py$

@@ -65,6 +65,7 @@ POSSIBLE_TEST_FOLDERS = [
     "observability",
     "operators",
     "otel",
+    "perf",
     "plugins",
     "providers",
     "partition_mappers",

@@ -174,6 +174,66 @@ class TestTIRunState:
         clear_db_dags()
         clear_db_assets()
 
+    @mock.patch("airflow.api_fastapi.execution_api.routes.task_instances.stats.timing", autospec=True)
+    def test_ti_run_emits_queued_duration(self, mock_timing, client, session, create_task_instance):
+        ti = create_task_instance(
+            task_id="test_emits_queued_duration",
+            state=State.QUEUED,
+            session=session,
+        )
+        ti.queued_dttm = timezone.utcnow()
+        session.commit()
+
+        response = client.patch(
+            f"/execution/task-instances/{ti.id}/run",
+            json={
+                "state": "running",
+                "hostname": "h",
+                "unixname": "u",
+                "pid": 1,
+                "start_date": "2024-09-30T12:00:00Z",
+            },
+        )
+
+        assert response.status_code == 200
+        mock_timing.assert_called_once()
+        name, duration = mock_timing.call_args.args
+        assert name == "task.queued_duration"
+        assert duration.total_seconds() >= 0
+        tags = mock_timing.call_args.kwargs["tags"]
+        assert tags["dag_id"] == ti.dag_id
+        assert tags["task_id"] == ti.task_id
+
+    @pytest.mark.parametrize("reason", ["not_first_try", "queued_dttm_missing"])
+    @mock.patch("airflow.api_fastapi.execution_api.routes.task_instances.stats.timing", autospec=True)
+    def test_ti_run_skips_queued_duration(self, mock_timing, reason, client, session, create_task_instance):
+        """Mirrors TaskInstance.emit_state_change_metric: first try with a queued time only."""
+        ti = create_task_instance(
+            task_id=f"test_skips_queued_duration_{reason}",
+            state=State.QUEUED,
+            session=session,
+        )
+        if reason == "not_first_try":
+            ti.queued_dttm = timezone.utcnow()
+            ti.end_date = timezone.utcnow()
+        else:
+            ti.queued_dttm = None
+        session.commit()
+
+        response = client.patch(
+            f"/execution/task-instances/{ti.id}/run",
+            json={
+                "state": "running",
+                "hostname": "h",
+                "unixname": "u",
+                "pid": 1,
+                "start_date": "2024-09-30T12:00:00Z",
+            },
+        )
+
+        assert response.status_code == 200
+        mock_timing.assert_not_called()
+
     def test_ti_run_context_exposes_consumed_event_partition_key(self, client, session, create_task_instance):
         """The partition key of each consumed asset event is returned in the run context."""
         ti = create_task_instance(

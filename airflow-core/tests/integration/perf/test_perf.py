@@ -1208,8 +1208,8 @@ class TestPerformanceIntegration:
         log.info("out-start --\n%s\n-- out-end", out)
         log.info("err-start --\n%s\n-- err-end", err)
 
-    @pytest.mark.parametrize("new_ti_rescan_feature", [False, True], ids=["original_code", "new_code"])
-    def test_gross(self, monkeypatch, celery_worker_env_vars, capfd, session, new_ti_rescan_feature):
+    @pytest.mark.parametrize("use_light_finished_ti_view", [False, True], ids=["original_code", "new_code"])
+    def test_gross(self, monkeypatch, celery_worker_env_vars, capfd, session, use_light_finished_ti_view):
         """
         Reproduce a production workload of wide mapped fan-outs behind sequential barriers.
 
@@ -1229,8 +1229,10 @@ class TestPerformanceIntegration:
         # The A/B switch for the arm: the scheduler subprocess inherits this. True runs the
         # split finished-TI fetch, False the original single-fetch code. Parametrization
         # runs the baseline arm first, then the fix, in one pytest invocation.
-        os.environ["AIRFLOW__SCHEDULER__NEW_TI_RESCAN_FEATURE"] = str(new_ti_rescan_feature)
-        log.info("ARM START new_ti_rescan_feature=%s at %s", new_ti_rescan_feature, timezone.utcnow())
+        os.environ["AIRFLOW__SCHEDULER__USE_LIGHT_FINISHED_TI_VIEW"] = str(use_light_finished_ti_view)
+        log.info(
+            "ARM START use_light_finished_ti_view=%s at %s", use_light_finished_ti_view, timezone.utcnow()
+        )
 
         processes: dict[str, subprocess.Popen] = {}
         dag_ids = [f"process_region{i}" for i in range(1, 36)]

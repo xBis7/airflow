@@ -40,6 +40,7 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy.sql import select
 from structlog.contextvars import bind_contextvars
 
+from airflow._shared.observability.metrics import stats
 from airflow._shared.observability.traces import override_ids
 from airflow._shared.state import TaskScope
 from airflow._shared.timezones import timezone
@@ -163,6 +164,9 @@ def ti_run(
             TI.hostname,
             TI.unixname,
             TI.pid,
+            TI.queued_dttm,
+            TI.end_date,
+            TI.queue,
             # This selects the raw JSON value, bypassing the deserialization -- we want that to happen on the
             # client
             column("next_kwargs", JSON),
@@ -229,6 +233,16 @@ def ti_run(
         )
     else:
         log.info("Task started", previous_state=previous_state, hostname=ti_run_payload.hostname)
+        # The queued->running transition moved here in Airflow 3, but the task.queued_duration
+        # metric was only emitted from the legacy worker path (TaskInstance.check_and_change
+        # _state_before_execution), so it silently stopped being reported. ``ti`` is a plain
+        # Row, so mirror TaskInstance.emit_state_change_metric inline: first try only.
+        if previous_state == TaskInstanceState.QUEUED and ti.queued_dttm and not ti.end_date:
+            stats.timing(
+                "task.queued_duration",
+                timezone.utcnow() - ti.queued_dttm,
+                tags={"dag_id": ti.dag_id, "task_id": ti.task_id, "queue": ti.queue},
+            )
         session.add(
             Log(
                 event=TaskInstanceState.RUNNING.value,

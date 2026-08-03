@@ -666,6 +666,10 @@ metrics:
     legacy_name: "dag_processing.last_duration.{bundle_name}.{file_name}"
     name_variables: ["bundle_name", "file_name"]
 
+  - name: "dagrun.fetch_tis_duration"
+    description: "Milliseconds taken to fetch a DagRun's task instances during scheduling"
+    type: "timer"
+
   - name: "dagrun.duration.success"
     description: "Milliseconds taken for a DagRun to reach success state"
     type: "timer"

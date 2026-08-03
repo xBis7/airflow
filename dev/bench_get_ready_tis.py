@@ -36,7 +36,7 @@ from airflow.models.serialized_dag import SerializedDagModel
 from airflow.utils.session import create_session
 
 DAG_ID = "process_region1"
-FLAG = "AIRFLOW__SCHEDULER__NEW_TI_RESCAN_FEATURE"
+FLAG = "AIRFLOW__SCHEDULER__USE_LIGHT_FINISHED_TI_VIEW"
 WARMUP, ITERS = 20, 150
 
 grt_times: list[float] = []

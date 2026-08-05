@@ -2557,6 +2557,17 @@ scheduler:
       version_added: 2.0.0
       type: integer
       default: "20"
+    use_light_finished_ti_view:
+      description: |
+        When scheduling a DagRun, fetch its finished task instances as lightweight
+        read-only rows instead of full ORM objects. Finished task instances are only
+        consulted for dependency checking and never mutated, so skipping ORM hydration
+        removes most of the per-loop fetch cost on large DagRuns. Set to ``False`` to
+        restore the previous behaviour of hydrating every task instance.
+      example: ~
+      version_added: 3.2.2
+      type: boolean
+      default: "True"
       see_also: ":ref:`scheduler:ha:tunables`"
     use_job_schedule:
       description: |

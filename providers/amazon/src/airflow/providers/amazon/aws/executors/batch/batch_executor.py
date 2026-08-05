@@ -56,6 +56,19 @@ from airflow.providers.amazon.aws.executors.batch.utils import (
 )
 from airflow.utils.state import State
 
+try:
+    from airflow.sdk._shared.observability.traces import start_debug_span
+except ImportError:
+
+    def start_debug_span(name, **_kwargs):
+        """No-op fallback so executor code can decorate methods unconditionally."""
+
+        def _decorator(func):
+            return func
+
+        return _decorator
+
+
 CommandType = Sequence[str]
 ExecutorConfigType = dict[str, Any]
 
@@ -132,6 +145,7 @@ class AwsBatchExecutor(BaseExecutor):
         ti = workload.ti
         self.queued_tasks[ti.key] = workload
 
+    @start_debug_span("batch_executor._process_workloads")
     def _process_workloads(self, workloads: Sequence[workloads.All]) -> None:
         from airflow.executors.workloads import ExecuteTask
 

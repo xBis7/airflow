@@ -35,6 +35,7 @@ from typing import TYPE_CHECKING
 
 import structlog
 
+from airflow._shared.observability.traces import start_debug_span
 from airflow.executors import workloads
 from airflow.executors.base_executor import BaseExecutor
 from airflow.executors.workloads.callback import execute_callback_workload
@@ -329,6 +330,7 @@ class LocalExecutor(BaseExecutor):
     def terminate(self):
         """Terminate the executor is not doing anything."""
 
+    @start_debug_span("local_executor._process_workloads")
     def _process_workloads(self, workload_list):
         for workload in workload_list:
             self.activity_queue.put(workload)

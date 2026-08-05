@@ -1312,25 +1312,28 @@ class DagRun(Base, LoggingMixin):
             "scheduler", "use_light_finished_ti_view", fallback=True
         )
         legacy_tis: list[TI] = []
-        if use_light_finished_ti_view:
-            # Flush here to avoid task instances ending up in the wrong list or in both,
-            # in case of a pending in-session state change.
-            # The airflow session maker sets autoflush=False (ref settings.configure_orm).
-            session.flush()
-            unfinished_tis = self.get_task_instances(session=session, state=State.unfinished)
-            finished_rows = session.execute(
-                select(*FINISHED_TI_COLUMNS)
-                .where(
-                    TI.dag_id == self.dag_id,
-                    TI.run_id == self.run_id,
-                    TI.state.in_(State.finished),
-                )
-                .order_by(TI.task_id, TI.map_index)
-            ).all()
-        else:
-            legacy_tis = self.get_task_instances(session=session, state=State.task_states)
-            unfinished_tis = []
-            finished_rows = []
+        # Untagged on purpose: per-dag tags would shard the histogram into one series per
+        # dag_id, and native histograms cannot be aggregated back across series in PromQL.
+        with Stats.timer("dagrun.fetch_tis_duration"):
+            if use_light_finished_ti_view:
+                # Flush here to avoid task instances ending up in the wrong list or in both,
+                # in case of a pending in-session state change.
+                # The airflow session maker sets autoflush=False (ref settings.configure_orm).
+                session.flush()
+                unfinished_tis = self.get_task_instances(session=session, state=State.unfinished)
+                finished_rows = session.execute(
+                    select(*FINISHED_TI_COLUMNS)
+                    .where(
+                        TI.dag_id == self.dag_id,
+                        TI.run_id == self.run_id,
+                        TI.state.in_(State.finished),
+                    )
+                    .order_by(TI.task_id, TI.map_index)
+                ).all()
+            else:
+                legacy_tis = self.get_task_instances(session=session, state=State.task_states)
+                unfinished_tis = []
+                finished_rows = []
         num_fetched = (len(legacy_tis) or len(unfinished_tis)) + len(finished_rows)
         self.log.debug("number of tis tasks for %s: %s task(s)", self, num_fetched)
 

@@ -1581,7 +1581,21 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                 )
             )
 
-            if ti_queued and not ti_requeued:
+            # PR #69336 change, gated by an env var so the duplicate-dispatch integration
+            # test can compare behaviour with and without the fix. A running task that is
+            # still heartbeating is alive -- a worker is running it right now, so a terminal
+            # event is probably from a duplicate that already lost and died. Don't fail the
+            # live run; heartbeat-timeout detection will catch it if it really died.
+            ti_alive = False
+            if os.environ.get("DUPLICATE_DISPATCH_SCHEDULER_FIX") == "true":
+                heartbeat_timeout = conf.getint("scheduler", "task_instance_heartbeat_timeout")
+                ti_alive = (
+                    ti.state == TaskInstanceState.RUNNING
+                    and ti.last_heartbeat_at is not None
+                    and ti.last_heartbeat_at >= timezone.utcnow() - timedelta(seconds=heartbeat_timeout)
+                )
+
+            if ti_queued and not ti_requeued and not ti_alive:
                 team_name = (
                     DagModel.get_team_name(ti.dag_id, session=session)
                     if conf.getboolean("core", "multi_team")

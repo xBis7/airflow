@@ -58,7 +58,7 @@ from airflow.sdk.api.datamodels._generated import (
     TaskInstanceState,
 )
 from airflow.sdk.configuration import conf
-from airflow.sdk.exceptions import ErrorType
+from airflow.sdk.exceptions import ErrorType, TaskAlreadyRunningError
 from airflow.sdk.execution_time import comms
 from airflow.sdk.execution_time.comms import (
     AssetEventsResult,
@@ -2631,6 +2631,19 @@ def supervise_task(
                 final_state=result.final_state,
             )
             return result.exit_code
+        except TaskAlreadyRunningError:
+            # PR #69336 change, gated by an env var so the duplicate-dispatch integration
+            # test can compare behaviour with and without the fix. Another worker already
+            # owns this task instance (the server returned 409), so we are a duplicate that
+            # lost the race. We never started real work -- exit quietly with success instead
+            # of reporting a failure that would look like a crash.
+            if os.environ.get("DUPLICATE_DISPATCH_SUPERVISOR_FIX") != "true":
+                raise
+            log.info(
+                "Task instance already running on another worker; standing down without failing it",
+                workload_id=str(ti.id),
+            )
+            return 0
         finally:
             if log_path and log_file_descriptor:
                 log_file_descriptor.close()

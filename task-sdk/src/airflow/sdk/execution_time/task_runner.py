@@ -149,7 +149,7 @@ from airflow.sdk.execution_time.email_backend import (
 from airflow.sdk.execution_time.sentry import Sentry
 from airflow.sdk.execution_time.xcom import XCom
 from airflow.sdk.listener import get_listener_manager
-from airflow.sdk.observability.metrics import stats_utils
+from airflow.sdk.observability.metrics.forwarding_logger import ForwardingStatsLogger
 from airflow.sdk.serde import allow_class, iter_pydantic_models
 from airflow.sdk.state import TaskScope
 from airflow.sdk.timezone import coerce_datetime
@@ -2441,8 +2441,9 @@ def main():
     global SUPERVISOR_COMMS
     SUPERVISOR_COMMS = CommsDecoder[ToTask, ToSupervisor](log=log)
 
+    metrics_forwarder = ForwardingStatsLogger(comms=SUPERVISOR_COMMS)
     stats.initialize(
-        factory=stats_utils.get_stats_factory(),
+        factory=lambda: metrics_forwarder,
         export_legacy_names=conf.getboolean("metrics", "legacy_names_on"),
     )
 
@@ -2502,6 +2503,8 @@ def main():
             span.set_status(Status(StatusCode.ERROR, description=f"Exception: {type(e).__name__}"))
             sys.exit(1)
         finally:
+            # Metrics from finalize() are still buffered; send them before the socket goes away.
+            metrics_forwarder.close()
             # Ensure the request socket is closed on the child side in all circumstances
             # before the process fully terminates.
             if SUPERVISOR_COMMS and SUPERVISOR_COMMS.socket:

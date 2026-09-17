@@ -218,6 +218,16 @@ class IntermediateTIState(str, Enum):
     AWAITING_INPUT = "awaiting_input"
 
 
+class MetricKind(str, Enum):
+    """
+    Which stats operation a forwarded metric is replayed as.
+    """
+
+    COUNTER = "counter"
+    GAUGE = "gauge"
+    TIMING = "timing"
+
+
 class PrevSuccessfulDagRunResponse(BaseModel):
     """
     Schema for response with previous successful DagRun information for Task Template Context.
@@ -670,6 +680,22 @@ class ConnectionTestResultBody(BaseModel):
     result_message: Annotated[ResultMessage | None, Field(title="Result Message")] = None
 
 
+class ForwardedMetric(BaseModel):
+    """
+    One metric aggregated in a task subprocess, to be replayed into the API server's stats backend.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    kind: MetricKind
+    name: Annotated[str, Field(title="Name")]
+    tags: Annotated[dict[str, str] | None, Field(title="Tags")] = None
+    value: Annotated[int | float | None, Field(title="Value")] = None
+    delta: Annotated[bool | None, Field(title="Delta")] = False
+    values: Annotated[list[float] | None, Field(title="Values")] = None
+
+
 class HITLDetailRequest(BaseModel):
     """
     Schema for the request part of a Human-in-the-loop detail for a specific task instance.
@@ -808,6 +834,17 @@ class DagRun(BaseModel):
     partition_date: Annotated[AwareDatetime | None, Field(title="Partition Date")] = None
     note: Annotated[str | None, Field(title="Note")] = None
     team_name: Annotated[str | None, Field(title="Team Name")] = None
+
+
+class ForwardMetricsBody(BaseModel):
+    """
+    Metrics a task subprocess accumulated since its previous batch.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    metrics: Annotated[list[ForwardedMetric], Field(title="Metrics")]
 
 
 class TaskArgBinding(RootModel[XComArgBinding | LiteralArgBinding]):

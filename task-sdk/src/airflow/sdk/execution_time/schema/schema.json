@@ -1872,6 +1872,105 @@
       "title": "ErrorType",
       "type": "string"
     },
+    "ForwardMetrics": {
+      "description": "Metrics accumulated in a subprocess since its previous batch.",
+      "properties": {
+        "metrics": {
+          "items": {
+            "$ref": "#/$defs/ForwardedMetric"
+          },
+          "title": "Metrics",
+          "type": "array"
+        },
+        "type": {
+          "const": "ForwardMetrics",
+          "default": "ForwardMetrics",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "metrics"
+      ],
+      "title": "ForwardMetrics",
+      "type": "object"
+    },
+    "ForwardedMetric": {
+      "additionalProperties": false,
+      "description": "One metric aggregated in a task subprocess, to be replayed into the API server's stats backend.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/MetricKind"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "tags": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tags"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "delta": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": false,
+          "title": "Delta"
+        },
+        "values": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Values"
+        }
+      },
+      "required": [
+        "kind",
+        "name"
+      ],
+      "title": "ForwardedMetric",
+      "type": "object"
+    },
     "GetAssetByName": {
       "properties": {
         "name": {
@@ -3219,6 +3318,16 @@
       ],
       "title": "MaskSecret",
       "type": "object"
+    },
+    "MetricKind": {
+      "description": "Which stats operation a forwarded metric is replayed as.",
+      "enum": [
+        "counter",
+        "gauge",
+        "timing"
+      ],
+      "title": "MetricKind",
+      "type": "string"
     },
     "OKResponse": {
       "properties": {

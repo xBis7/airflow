@@ -77,6 +77,7 @@ from airflow.sdk.api.datamodels._generated import (
     DagResponse,
     DagRun,
     DagRunStateResponse,
+    ForwardedMetric,
     HITLDetailRequest,
     InactiveAssetsResponse,
     PreviousTIResponse,
@@ -1060,6 +1061,13 @@ class GetVariableKeys(BaseModel):
     type: Literal["GetVariableKeys"] = "GetVariableKeys"
 
 
+class ForwardMetrics(BaseModel):
+    """Metrics accumulated in a subprocess since its previous batch."""
+
+    metrics: list[ForwardedMetric]
+    type: Literal["ForwardMetrics"] = "ForwardMetrics"
+
+
 class PutVariable(BaseModel):
     key: str
     value: str | None
@@ -1305,6 +1313,7 @@ ToSupervisor = Annotated[
     | CreateHITLDetailPayload
     | UpdateHITLDetail
     | GetHITLDetailResponse
-    | MaskSecret,
+    | MaskSecret
+    | ForwardMetrics,
     Field(discriminator="type"),
 ]

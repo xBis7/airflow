@@ -43,3 +43,12 @@ class AddRetryReasonToTaskState(VersionChange):
     description = __doc__
 
     instructions_to_migrate_to_previous_version = (schema(TaskState).field("retry_reason").didnt_exist,)
+
+
+class AddForwardMetricsMessage(VersionChange):
+    """Add the ``ForwardMetrics`` message a task subprocess sends its batched metrics in."""
+
+    description = __doc__
+
+    # A message that did not exist in the previous version has no earlier shape to migrate to.
+    instructions_to_migrate_to_previous_version = ()

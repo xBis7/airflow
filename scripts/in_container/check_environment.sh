@@ -142,6 +142,27 @@ function startairflow_if_requested() {
     return $?
 }
 
+# UX demo branch only: seeds demo Dags and run history once the DB is migrated and before
+# any Airflow component starts. See dev/ux_demo/README.md.
+function seed_ux_demo_if_present() {
+    local seed_script="${AIRFLOW_SOURCES:-/opt/airflow}/dev/ux_demo/seed.sh"
+    if [[ ${START_AIRFLOW:="false"} != "true" && ${START_AIRFLOW} != "True" ]]; then
+        return 0
+    fi
+    if [[ ! -f "${seed_script}" ]]; then
+        return 0
+    fi
+    echo
+    echo "${COLOR_BLUE}Seeding UX demo data${COLOR_RESET}"
+    echo
+    if ! bash "${seed_script}"; then
+        echo
+        echo "${COLOR_YELLOW}UX demo seeding failed (see /files/ux_demo_seed.log). Starting Airflow anyway.${COLOR_RESET}"
+        echo
+    fi
+    return 0
+}
+
 echo
 echo "${COLOR_BLUE}Checking backend and integrations.${COLOR_RESET}"
 echo
@@ -222,3 +243,6 @@ fi
 
 resetdb_if_requested
 startairflow_if_requested
+START_AIRFLOW_EXIT_CODE=$?
+seed_ux_demo_if_present
+exit "${START_AIRFLOW_EXIT_CODE}"

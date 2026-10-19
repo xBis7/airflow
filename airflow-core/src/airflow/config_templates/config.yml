@@ -2939,6 +2939,16 @@ scheduler:
       type: integer
       example: ~
       default: "16"
+    cache_finished_tis_by_task_id:
+      description: |
+        When checking the dependencies of a DagRun's task instances, group the finished
+        task instances by task id once per scheduling pass and look upstreams up in that
+        mapping, instead of scanning every finished task instance for each task instance
+        checked. Set to ``False`` to restore the per-task-instance scans.
+      example: ~
+      version_added: 3.4.0
+      type: boolean
+      default: "True"
     use_row_level_locking:
       description: |
         Should the scheduler issue ``SELECT ... FOR UPDATE`` in relevant queries.

@@ -1636,11 +1636,14 @@ class DagRun(Base, LoggingMixin):
         if unfinished_tis:
             schedulable_tis = [ut for ut in unfinished_tis if ut.state in SCHEDULEABLE_STATES]
             self.log.debug("number of scheduleable tasks for %s: %s task(s)", self, len(schedulable_tis))
-            schedulable_tis, changed_tis, expansion_happened = self._get_ready_tis(
-                schedulable_tis,
-                finished_tis,
-                session=session,
-            )
+            # Untagged on purpose: per-dag tags would shard the histogram into one series per
+            # dag_id, and native histograms cannot be aggregated back across series in PromQL.
+            with stats.timer("dagrun.get_ready_tis_duration"):
+                schedulable_tis, changed_tis, expansion_happened = self._get_ready_tis(
+                    schedulable_tis,
+                    finished_tis,
+                    session=session,
+                )
 
             # During expansion, we may change some tis into non-schedulable
             # states, so we need to re-compute.
@@ -1952,7 +1955,7 @@ class DagRun(Base, LoggingMixin):
                                 finished_tis[i] = replace(fti, state=TaskInstanceState.REMOVED)
                     ready_tis.extend(revised_tis)
                     revised_expansion_keys.add(expansion_key)
-                    if revised_tis or removed_indexes:
+                    if revised_tis or (removed_indexes and dep_context.cache_finished_tis_by_task_id):
                         # Revising a mapped task can add new instances, growing its instance count
                         # the same way expansion does, or swap finished views for REMOVED copies above.
                         # Drop the per-pass memos so a downstream evaluated later in this pass

@@ -269,9 +269,13 @@ class TriggerRuleDep(BaseTIDep):
             return False
 
         def _iter_finished_upstream_tis(relevant_ids: set[str] | KeysView[str]) -> Iterator[SchedulingTI]:
-            finished_tis_by_task_id = dep_context.get_finished_tis_by_task_id(
-                ti.get_dagrun(session=session), session=session
-            )
+            dag_run = ti.get_dagrun(session=session)
+            if not dep_context.cache_finished_tis_by_task_id:
+                for upstream in dep_context.ensure_finished_tis(dag_run, session=session):
+                    if _is_relevant_upstream(upstream=upstream, relevant_ids=relevant_ids):
+                        yield upstream
+                return
+            finished_tis_by_task_id = dep_context.get_finished_tis_by_task_id(dag_run, session=session)
             for upstream_id in relevant_ids:
                 for upstream in finished_tis_by_task_id.get(upstream_id, ()):
                     if _is_relevant_upstream(upstream=upstream, relevant_ids=relevant_ids):

@@ -819,6 +819,10 @@ metrics:
     legacy_name: "dagrun.dependency-check.{dag_id}"
     name_variables: ["dag_id"]
 
+  - name: "dagrun.get_ready_tis_duration"
+    description: "Milliseconds taken to evaluate the dependencies of a DagRun's schedulable task instances"
+    type: "timer"
+
   - name: "task.duration"
     description: "Milliseconds taken to run a task"
     type: "timer"

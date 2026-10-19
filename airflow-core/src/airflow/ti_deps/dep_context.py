@@ -25,6 +25,7 @@ from uuid import UUID
 import attr
 from sqlalchemy import select
 
+from airflow.configuration import conf
 from airflow.exceptions import TaskNotFound
 from airflow.utils.state import State
 
@@ -203,6 +204,12 @@ class DepContext:
         else:
             finished_tis = self.finished_tis
         return finished_tis
+
+    cache_finished_tis_by_task_id: bool = attr.ib(
+        factory=lambda: conf.getboolean("scheduler", "cache_finished_tis_by_task_id", fallback=True),
+        repr=False,
+    )
+    """Benchmark switch: ``False`` restores the per-task-instance scans of ``finished_tis``."""
 
     finished_tis_by_task_id: dict[str, list[SchedulingTI]] | None = attr.ib(default=None, repr=False)
     """

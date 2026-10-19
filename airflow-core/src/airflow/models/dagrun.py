@@ -1555,39 +1555,50 @@ class DagRun(Base, LoggingMixin):
     def task_instance_scheduling_decisions(self, *, session: Session = NEW_SESSION) -> TISchedulingDecision:
         # Fetch finished task instances as lightweight read-only rows and only the
         # unfinished ones as full ORM objects. Scheduling only reads finished ones, so
-        # hydrating them is pure overhead.
-        #
-        # Check if there are any pending TI changes.
-        has_pending_ti_changes = any(
-            isinstance(obj, TI) and obj.dag_id == self.dag_id and obj.run_id == self.run_id
-            for obj in itertools.chain(session.new, session.dirty, session.deleted)
+        # hydrating them is pure overhead. The config switch keeps the previous
+        # single-fetch behaviour selectable.
+        use_light_finished_ti_view = airflow_conf.getboolean(
+            "scheduler", "use_light_finished_ti_view", fallback=True
         )
-        if has_pending_ti_changes:
-            # Flush here to avoid task instances ending up in the wrong list or in both,
-            # in case of a pending in-session state change.
-            # The airflow session maker sets autoflush=False (ref settings.configure_orm).
-            session.flush()
-        # Both queries restrict a partial Dag to the same subset, so no row outside it is
-        # mistaken for an orphan and marked REMOVED.
-        task_ids = DagRun._get_partial_task_ids(self.dag)
-        unfinished_tis = DagRun.fetch_task_instances(
-            dag_id=self.dag_id,
-            run_id=self.run_id,
-            task_ids=task_ids,
-            state=State.unfinished,
-            session=session,
-        )
-        finished_rows = DagRun.fetch_task_instances(
-            dag_id=self.dag_id,
-            run_id=self.run_id,
-            task_ids=task_ids,
-            state=State.finished,
-            columns=FINISHED_TI_COLUMNS,
-            session=session,
-        )
-        self.log.debug(
-            "number of tis tasks for %s: %s task(s)", self, len(unfinished_tis) + len(finished_rows)
-        )
+        legacy_tis: list[TI] = []
+        unfinished_tis: list[TI] = []
+        finished_rows: Sequence[Any] = []
+        # Untagged on purpose: per-dag tags would shard the histogram into one series per
+        # dag_id, and native histograms cannot be aggregated back across series in PromQL.
+        with stats.timer("dagrun.fetch_tis_duration"):
+            if use_light_finished_ti_view:
+                # Check if there are any pending TI changes.
+                has_pending_ti_changes = any(
+                    isinstance(obj, TI) and obj.dag_id == self.dag_id and obj.run_id == self.run_id
+                    for obj in itertools.chain(session.new, session.dirty, session.deleted)
+                )
+                if has_pending_ti_changes:
+                    # Flush here to avoid task instances ending up in the wrong list or in both,
+                    # in case of a pending in-session state change.
+                    # The airflow session maker sets autoflush=False (ref settings.configure_orm).
+                    session.flush()
+                # Both queries restrict a partial Dag to the same subset, so no row outside it is
+                # mistaken for an orphan and marked REMOVED.
+                task_ids = DagRun._get_partial_task_ids(self.dag)
+                unfinished_tis = DagRun.fetch_task_instances(
+                    dag_id=self.dag_id,
+                    run_id=self.run_id,
+                    task_ids=task_ids,
+                    state=State.unfinished,
+                    session=session,
+                )
+                finished_rows = DagRun.fetch_task_instances(
+                    dag_id=self.dag_id,
+                    run_id=self.run_id,
+                    task_ids=task_ids,
+                    state=State.finished,
+                    columns=FINISHED_TI_COLUMNS,
+                    session=session,
+                )
+            else:
+                legacy_tis = self.get_task_instances(session=session, state=State.task_states)
+        num_fetched = (len(legacy_tis) or len(unfinished_tis)) + len(finished_rows)
+        self.log.debug("number of tis tasks for %s: %s task(s)", self, num_fetched)
 
         def _filter_tis_and_exclude_removed(dag: SerializedDAG, tis: list[TI]) -> Iterable[TI]:
             """Populate ``ti.task`` while excluding those missing one, marking them as REMOVED."""
@@ -1630,8 +1641,14 @@ class DagRun(Base, LoggingMixin):
             return finished
 
         dag = self.get_dag()
-        unfinished_tis = list(_filter_tis_and_exclude_removed(dag, unfinished_tis))
-        finished_tis: list[SchedulingTI] = list(_build_finished_tis(dag, finished_rows))
+        finished_tis: list[SchedulingTI]
+        if use_light_finished_ti_view:
+            unfinished_tis = list(_filter_tis_and_exclude_removed(dag, unfinished_tis))
+            finished_tis = list(_build_finished_tis(dag, finished_rows))
+        else:
+            legacy_tis = list(_filter_tis_and_exclude_removed(dag, legacy_tis))
+            unfinished_tis = [t for t in legacy_tis if t.state in State.unfinished]
+            finished_tis = [t for t in legacy_tis if t.state in State.finished]
 
         if unfinished_tis:
             schedulable_tis = [ut for ut in unfinished_tis if ut.state in SCHEDULEABLE_STATES]
@@ -1653,7 +1670,9 @@ class DagRun(Base, LoggingMixin):
             schedulable_tis = []
             changed_tis = False
 
-        tis: list[SchedulingTI] = [*unfinished_tis, *finished_tis]
+        tis: list[SchedulingTI] = (
+            [*unfinished_tis, *finished_tis] if use_light_finished_ti_view else [*legacy_tis]
+        )
         return TISchedulingDecision(
             tis=tis,
             schedulable_tis=schedulable_tis,

@@ -26,7 +26,7 @@ from airflow.ti_deps.deps.prev_dagrun_dep import is_past_depends_met
 from airflow.utils.state import TaskInstanceState
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Container, Iterator
 
     from sqlalchemy.orm import Session
 
@@ -69,9 +69,13 @@ class NotPreviouslySkippedDep(BaseTIDep):
         # An unexpanded placeholder (map index -1) keeps the direct-upstream lookup below.
         mapped_group = ti.task.get_closest_mapped_task_group() if ti.map_index >= 0 else None
 
-        finished_tis_by_task_id = dep_context.get_finished_tis_by_task_id(
-            ti.get_dagrun(session=session), session=session
-        )
+        finished_task_ids: Container[str]
+        if dep_context.cache_finished_tis_by_task_id:
+            finished_task_ids = dep_context.get_finished_tis_by_task_id(
+                ti.get_dagrun(session=session), session=session
+            )
+        else:
+            finished_task_ids = {t.task_id for t in finished_tis}
 
         for parent in ti.task.get_direct_relatives(upstream=True):
             if parent.inherits_from_skipmixin:
@@ -79,7 +83,7 @@ class NotPreviouslySkippedDep(BaseTIDep):
                     # Read below from the per-pass memo, together with the rest of the group.
                     continue
 
-                if parent.task_id not in finished_tis_by_task_id:
+                if parent.task_id not in finished_task_ids:
                     # This can happen if the parent task has not yet run.
                     continue
 

@@ -1,0 +1,646 @@
+{
+  "uid": "gross-ab",
+  "title": "Gross A/B \u2014 scheduler ti rescan",
+  "id": null,
+  "tags": [
+    "perf",
+    "gross"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "refresh": "10s",
+  "time": {
+    "from": "now-45m",
+    "to": "now"
+  },
+  "schemaVersion": 30,
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Hand-off rate \u2014 how fast the scheduler gives work to the workers (tasks/second)",
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(histogram_count(rate(label_replace({__name__=~\"airflow_dag_process_region.+_scheduled_duration_milliseconds\"}, \"m\", \"$1\", \"__name__\", \"(.+)\")[2m:30s])))",
+          "legendFormat": "scheduler releases work"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(histogram_count(rate(label_replace({__name__=~\"airflow_dag_process_region.+_queued_duration_milliseconds\"}, \"m\", \"$1\", \"__name__\", \"(.+)\")[2m:30s])))",
+          "legendFormat": "workers pick work up"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "Two lines that should ideally overlap: how many tasks per second the scheduler releases, and how many per second the workers actually pick up. When the blue line is the ceiling, the scheduler is the bottleneck."
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Utilization % \u2014 scheduler vs workers (exec-phase \u224846% max; true occupancy from celery can reach 100)",
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "clamp_max(100 * histogram_sum(rate(airflow_scheduler_scheduler_loop_duration_milliseconds[2m])) / 1000, 100)",
+          "legendFormat": "scheduler %"
+        },
+        {
+          "refId": "B",
+          "expr": "clamp_max(100 * airflow_pool_running_slots{pool_name=\"default_pool\"} / 54, 100)",
+          "legendFormat": "workers %"
+        },
+        {
+          "refId": "C",
+          "expr": "clamp_max(100 * gross_worker_slots_occupied / 54, 100)",
+          "legendFormat": "workers % (true slot occupancy)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "spanNulls": true,
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "min": 0,
+          "max": 100,
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 46
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Tasks in execution phase (DB running state; excludes fork/supervisor overhead)",
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "airflow_pool_running_slots{pool_name=\"default_pool\"}",
+          "legendFormat": "running"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true,
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 54
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "SCHEDULED backlog \u2014 decided by scheduler, waiting to be shipped",
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 32
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "airflow_pool_scheduled_slots{pool_name=\"default_pool\"}",
+          "legendFormat": "scheduled"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "scheduled\u2192queued wait \u2014 time a task waits on the scheduler",
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 40
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum(histogram_sum(rate(label_replace({__name__=~\"airflow_dag_process_region.+_scheduled_duration_milliseconds\"}, \"m\", \"$1\", \"__name__\", \"(.+)\")[5m:30s]))) / sum(histogram_count(rate(label_replace({__name__=~\"airflow_dag_process_region.+_scheduled_duration_milliseconds\"}, \"m\", \"$1\", \"__name__\", \"(.+)\")[5m:30s])))) / 1000",
+          "legendFormat": "mean wait"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          },
+          "min": 0,
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "queued\u2192start wait \u2014 time a task waits for a worker slot",
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 40
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum(histogram_sum(rate(label_replace({__name__=~\"airflow_dag_process_region.+_queued_duration_milliseconds\"}, \"m\", \"$1\", \"__name__\", \"(.+)\")[5m:30s]))) / sum(histogram_count(rate(label_replace({__name__=~\"airflow_dag_process_region.+_queued_duration_milliseconds\"}, \"m\", \"$1\", \"__name__\", \"(.+)\")[5m:30s])))) / 1000",
+          "legendFormat": "mean wait"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          },
+          "min": 0,
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Scheduler loop duration (mean)",
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_sum(rate(airflow_scheduler_scheduler_loop_duration_milliseconds[2m])) / histogram_count(rate(airflow_scheduler_scheduler_loop_duration_milliseconds[2m]))",
+          "legendFormat": "loop ms"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          },
+          "min": 0,
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Waiting in QUEUED state (worker-side queue depth)",
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 48
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "airflow_pool_queued_slots{pool_name=\"default_pool\"}",
+          "legendFormat": "pool queued"
+        },
+        {
+          "refId": "B",
+          "expr": "airflow_executor_queued_tasks",
+          "legendFormat": "executor queued"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Work piled up at the workers (handed over, not yet finished)",
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 64
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(airflow_executor_running_tasks)",
+          "legendFormat": "tasks handed over, not yet done"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "How many tasks the scheduler has already handed over that are not confirmed done yet. Near zero = workers keep up effortlessly (they are being starved). A large pile = the scheduler is producing work faster than workers can finish it. Technical note: includes completion events not yet processed, so it can exceed the number of worker slots."
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Tasks completed over time \u2014 one curve per test run",
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 56
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (exported_instance) (histogram_count(label_replace({__name__=~\"airflow_dag_process_region.+_scheduled_duration_milliseconds\"}, \"m\", \"$1\", \"__name__\", \"(.+)\")))",
+          "legendFormat": "one test run"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "hidden",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "Each curve is one full test run, counting up as tasks finish. Read it with the shaded band underneath: the band's width is how long the run took, and its label carries the totals. Same amount of work, so the curve that climbs faster and ends sooner wins."
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Worker slots occupied \u2014 celery inspect active (red line = 54 slots)",
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 72
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "gross_worker_slots_occupied",
+          "legendFormat": "occupied slots"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "spanNulls": true,
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 54
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "A task's timeline \u2014 average seconds spent in each phase",
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum(histogram_sum(rate(label_replace({__name__=~\"airflow_dag_process_region.+_scheduled_duration_milliseconds\"}, \"m\", \"$1\", \"__name__\", \"(.+)\")[5m:30s]))) / sum(histogram_count(rate(label_replace({__name__=~\"airflow_dag_process_region.+_scheduled_duration_milliseconds\"}, \"m\", \"$1\", \"__name__\", \"(.+)\")[5m:30s])))) / 1000",
+          "legendFormat": "1) waiting for the scheduler"
+        },
+        {
+          "refId": "B",
+          "expr": "(sum(histogram_sum(rate(label_replace({__name__=~\"airflow_dag_process_region.+_queued_duration_milliseconds\"}, \"m\", \"$1\", \"__name__\", \"(.+)\")[5m:30s]))) / sum(histogram_count(rate(label_replace({__name__=~\"airflow_dag_process_region.+_queued_duration_milliseconds\"}, \"m\", \"$1\", \"__name__\", \"(.+)\")[5m:30s])))) / 1000",
+          "legendFormat": "2) waiting for a free worker"
+        },
+        {
+          "refId": "C",
+          "expr": "(sum(histogram_sum(rate(label_replace({__name__=~\"airflow_dag_process_region.+_duration_milliseconds\", __name__!~\".+(scheduled|queued)_duration_milliseconds\"}, \"m\", \"$1\", \"__name__\", \"(.+)\")[5m:30s]))) / sum(histogram_count(rate(label_replace({__name__=~\"airflow_dag_process_region.+_duration_milliseconds\", __name__!~\".+(scheduled|queued)_duration_milliseconds\"}, \"m\", \"$1\", \"__name__\", \"(.+)\")[5m:30s])))) / 1000",
+          "legendFormat": "3) actually running"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 55,
+            "spanNulls": true,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "min": 0,
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "For an average task: how long it sits waiting for the scheduler to release it, then waiting for a free worker, then actually running. The total bar height is the task's whole life. Almost all of it is waiting, not running."
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "ms to re-scan one dag_run's task instances (the actual fix removes)",
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_sum(rate(airflow_dagrun_fetch_tis_duration_milliseconds[2m])) / histogram_count(rate(airflow_dagrun_fetch_tis_duration_milliseconds[2m]))",
+          "legendFormat": "fetch per dag_run (ms)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "spanNulls": true
+          },
+          "min": 0,
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    }
+  ]
+}

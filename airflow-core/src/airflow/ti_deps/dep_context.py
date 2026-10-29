@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import contextlib
+from collections import defaultdict
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -203,13 +204,39 @@ class DepContext:
             finished_tis = self.finished_tis
         return finished_tis
 
+    finished_tis_by_task_id: dict[str, list[SchedulingTI]] | None = attr.ib(default=None, repr=False)
+    """
+    Per-pass memo of :attr:`finished_tis` grouped by task id, built lazily by
+    :meth:`get_finished_tis_by_task_id`. ``init=True`` for the same reasons as
+    :attr:`upstream_task_id_counts`. It holds the same view objects as ``finished_tis``, so whoever
+    replaces a view in that list mid-pass must call :meth:`invalidate_upstream_task_id_counts`.
+    """
+
+    def get_finished_tis_by_task_id(
+        self, dag_run: DagRun, *, session: Session
+    ) -> dict[str, list[SchedulingTI]]:
+        """
+        Group the finished task instances of this run by task_id.
+
+        Built once per context, so checking many task instances of one run looks up
+        their upstream task instances instead of scanning every finished one each time.
+        """
+        if self.finished_tis_by_task_id is None:
+            by_task_id: defaultdict[str, list[SchedulingTI]] = defaultdict(list)
+            for finished_ti in self.ensure_finished_tis(dag_run, session=session):
+                by_task_id[finished_ti.task_id].append(finished_ti)
+            self.finished_tis_by_task_id = dict(by_task_id)
+        return self.finished_tis_by_task_id
+
     def invalidate_upstream_task_id_counts(self) -> None:
         """
-        Drop the memoized trigger-rule upstream counts.
+        Drop the memoized trigger-rule upstream counts and the finished task instances grouped by task id.
 
-        Call this whenever a mapped task's instance count changes mid-pass, so a downstream evaluated
-        later in the same pass recomputes the count instead of reading a stale one.
+        Call this whenever a mapped task's instance count changes mid-pass, or a view in
+        :attr:`finished_tis` is replaced, so a downstream evaluated later in the same pass
+        recomputes them instead of reading a stale one.
         """
         self.upstream_task_id_counts.clear()
         self.producer_tis.clear()
         self.regional_runs.clear()
+        self.finished_tis_by_task_id = None

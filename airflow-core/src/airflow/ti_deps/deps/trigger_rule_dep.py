@@ -268,6 +268,15 @@ class TriggerRuleDep(BaseTIDep):
                 return True
             return False
 
+        def _iter_finished_upstream_tis(relevant_ids: set[str] | KeysView[str]) -> Iterator[SchedulingTI]:
+            finished_tis_by_task_id = dep_context.get_finished_tis_by_task_id(
+                ti.get_dagrun(session=session), session=session
+            )
+            for upstream_id in relevant_ids:
+                for upstream in finished_tis_by_task_id.get(upstream_id, ()):
+                    if _is_relevant_upstream(upstream=upstream, relevant_ids=relevant_ids):
+                        yield upstream
+
         def _iter_upstream_conditions(relevant_tasks: dict) -> Iterator[ColumnElement]:
             # Optimization: If the current task is not in a mapped task group,
             # it depends on all upstream task instances.
@@ -323,12 +332,7 @@ class TriggerRuleDep(BaseTIDep):
                 return
 
             indirect_setups = {k: v for k, v in relevant_setups.items() if k not in task.upstream_task_ids}
-            finished_upstream_tis = (
-                x
-                for x in dep_context.ensure_finished_tis(ti.get_dagrun(session=session), session=session)
-                if _is_relevant_upstream(upstream=x, relevant_ids=indirect_setups.keys())
-            )
-            upstream_states = _UpstreamTIStates.calculate(finished_upstream_tis)
+            upstream_states = _UpstreamTIStates.calculate(_iter_finished_upstream_tis(indirect_setups.keys()))
 
             # all of these counts reflect indirect setups which are relevant for this ti
             success = upstream_states.success
@@ -403,14 +407,7 @@ class TriggerRuleDep(BaseTIDep):
             trigger_rule = task.trigger_rule
             trigger_rule_str = getattr(trigger_rule, "value", trigger_rule)
 
-            finished_upstream_tis = (
-                finished_ti
-                for finished_ti in dep_context.ensure_finished_tis(
-                    ti.get_dagrun(session=session), session=session
-                )
-                if _is_relevant_upstream(upstream=finished_ti, relevant_ids=task.upstream_task_ids)
-            )
-            upstream_states = _UpstreamTIStates.calculate(finished_upstream_tis)
+            upstream_states = _UpstreamTIStates.calculate(_iter_finished_upstream_tis(task.upstream_task_ids))
 
             success = upstream_states.success
             skipped = upstream_states.skipped
@@ -741,11 +738,7 @@ class TriggerRuleDep(BaseTIDep):
 
             in_scope_tasks = {tid: task.dag.get_task(tid) for tid in in_scope_ids}
 
-            done = sum(
-                1
-                for x in dep_context.ensure_finished_tis(ti.get_dagrun(session=session), session=session)
-                if _is_relevant_upstream(upstream=x, relevant_ids=in_scope_ids)
-            )
+            done = sum(1 for _ in _iter_finished_upstream_tis(in_scope_ids))
 
             if not any(t.get_needs_expansion() for t in in_scope_tasks.values()):
                 expected = len(in_scope_tasks)

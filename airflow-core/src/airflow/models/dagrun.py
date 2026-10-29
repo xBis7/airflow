@@ -1952,10 +1952,11 @@ class DagRun(Base, LoggingMixin):
                                 finished_tis[i] = replace(fti, state=TaskInstanceState.REMOVED)
                     ready_tis.extend(revised_tis)
                     revised_expansion_keys.add(expansion_key)
-                    if revised_tis:
+                    if revised_tis or removed_indexes:
                         # Revising a mapped task can add new instances, growing its instance count
-                        # the same way expansion does. Drop the upstream-count memo so a downstream
-                        # evaluated later in this pass recomputes it instead of reading a stale value.
+                        # the same way expansion does, or swap finished views for REMOVED copies above.
+                        # Drop the per-pass memos so a downstream evaluated later in this pass
+                        # recomputes them instead of reading a stale value.
                         dep_context.invalidate_upstream_task_id_counts()
 
                 # _revise_map_indexes_if_mapped might mark the current task as REMOVED

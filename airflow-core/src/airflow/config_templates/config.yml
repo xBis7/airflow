@@ -2939,6 +2939,14 @@ scheduler:
       type: integer
       example: ~
       default: "16"
+    order_schedulable_tis_by_run_after:
+      description: |
+        Order the task instances competing for executor slots by their Dag run's ``run_after``.
+        Set to ``False`` to restore ordering by the Dag run's ``logical_date``.
+      example: ~
+      version_added: 3.4.0
+      type: boolean
+      default: "True"
     use_row_level_locking:
       description: |
         Should the scheduler issue ``SELECT ... FOR UPDATE`` in relevant queries.

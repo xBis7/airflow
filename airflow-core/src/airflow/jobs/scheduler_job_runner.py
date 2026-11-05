@@ -398,6 +398,10 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
         self._parallelism = conf.getint("core", "parallelism")
         self._multi_team = conf.getboolean("core", "multi_team")
         self._dag_tags_in_metrics = conf.getboolean("metrics", "dag_tags_in_metrics", fallback=False)
+        # Benchmark switch: ``False`` restores main's ordering of schedulable TIs by ``logical_date``.
+        self._order_schedulable_tis_by_run_after = conf.getboolean(
+            "scheduler", "order_schedulable_tis_by_run_after", fallback=True
+        )
         self._max_partition_dag_runs_per_loop = MAX_PARTITION_DAG_RUNS_PER_LOOP
         self._dag_id_to_team_name: dict[str, str | None] = {}
 
@@ -1077,6 +1081,9 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
         """
         dr_task_concurrency_subquery = _get_current_dr_task_concurrency(states=EXECUTION_STATES)
 
+        dr_order_col = DR.run_after if self._order_schedulable_tis_by_run_after else DR.logical_date
+        dr_order_label = f"{dr_order_col.key}_for_ordering"
+
         query = (
             select(TI)
             .with_hint(TI, "USE INDEX (ti_state)", dialect_name="mysql")
@@ -1095,7 +1102,7 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                 isouter=True,
             )
             .where(func.coalesce(dr_task_concurrency_subquery.c.task_per_dr_count, 0) < DM.max_active_tasks)
-            .order_by(-TI.priority_weight, DR.run_after, TI.region_index)
+            .order_by(-TI.priority_weight, dr_order_col, TI.region_index)
         )
 
         # Starvation filters should be applied before computing the row_num based on the
@@ -1127,13 +1134,13 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
                 func.row_number()
                 .over(
                     partition_by=[TI.dag_id, TI.run_id],
-                    order_by=[-TI.priority_weight, DR.run_after, TI.region_index],
+                    order_by=[-TI.priority_weight, dr_order_col, TI.region_index],
                 )
                 .label("row_num"),
                 DM.max_active_tasks.label("dr_max_active_tasks"),
                 # Create columns for the order_by checks here for sqlite.
                 TI.priority_weight.label("priority_weight_for_ordering"),
-                DR.run_after.label("run_after_for_ordering"),
+                dr_order_col.label(dr_order_label),
                 TI.region_index.label("region_index_for_ordering"),
             )
         ).subquery()
@@ -1150,7 +1157,7 @@ class SchedulerJobRunner(BaseJobRunner, LoggingMixin):
             # Add the order_by columns from the ranked query for sqlite.
             .order_by(
                 -ranked_query.c.priority_weight_for_ordering,
-                ranked_query.c.run_after_for_ordering,
+                ranked_query.c[dr_order_label],
                 ranked_query.c.region_index_for_ordering,
             )
             .options(selectinload(TI.dag_model))

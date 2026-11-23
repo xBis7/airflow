@@ -169,6 +169,10 @@ class TriggerRuleDep(BaseTIDep):
                 if regional
                 else None
             )
+            if os.environ.get("PERF_TEST__NEW_CODE", "").lower() == "true":
+                return dep_context.get_mapped_ti_count(
+                    task, ti.run_id, dag_id=ti.dag_id, session=session, producer_contexts=contexts
+                )
             return get_mapped_ti_count(task, ti.run_id, session=session, producer_contexts=contexts)
 
         def _iter_expansion_dependencies(task_group: SerializedTaskGroup | None) -> Iterator[str]:
@@ -226,6 +230,11 @@ class TriggerRuleDep(BaseTIDep):
                 producer_contexts=(
                     dep_context.coordinate_resolver(ti, session=session).producer_contexts(ti)
                     if regional
+                    else None
+                ),
+                count_mapped_tis=(
+                    functools.partial(dep_context.get_mapped_ti_count, dag_id=ti.dag_id)
+                    if os.environ.get("PERF_TEST__NEW_CODE", "").lower() == "true"
                     else None
                 ),
             )

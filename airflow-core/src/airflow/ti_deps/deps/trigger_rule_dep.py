@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import collections.abc
 import functools
+import os
 from collections import Counter
 from collections.abc import Iterator, KeysView, Mapping
 from typing import TYPE_CHECKING, NamedTuple
@@ -269,11 +270,18 @@ class TriggerRuleDep(BaseTIDep):
             return False
 
         def _iter_finished_upstream_tis(relevant_ids: set[str] | KeysView[str]) -> Iterator[SchedulingTI]:
-            finished_tis_by_task_id = dep_context.get_finished_tis_by_task_id(
-                ti.get_dagrun(session=session), session=session
-            )
-            for upstream_id in relevant_ids:
-                for upstream in finished_tis_by_task_id.get(upstream_id, ()):
+            if os.environ.get("PERF_TEST__NEW_CODE", "").lower() == "true":
+                finished_tis_by_task_id = dep_context.get_finished_tis_by_task_id(
+                    ti.get_dagrun(session=session), session=session
+                )
+                for upstream_id in relevant_ids:
+                    for upstream in finished_tis_by_task_id.get(upstream_id, ()):
+                        if _is_relevant_upstream(upstream=upstream, relevant_ids=relevant_ids):
+                            yield upstream
+            else:
+                for upstream in dep_context.ensure_finished_tis(
+                    ti.get_dagrun(session=session), session=session
+                ):
                     if _is_relevant_upstream(upstream=upstream, relevant_ids=relevant_ids):
                         yield upstream
 

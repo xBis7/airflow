@@ -18,12 +18,16 @@
 from __future__ import annotations
 
 import contextlib
+import time
+from collections import Counter, defaultdict
 from typing import TYPE_CHECKING
 from uuid import UUID
 
 import attr
-from sqlalchemy import select
+from sqlalchemy import event, select
+from sqlalchemy.engine import Engine
 
+from airflow._shared.observability.metrics import stats
 from airflow.exceptions import TaskNotFound
 from airflow.utils.state import State
 
@@ -37,6 +41,57 @@ if TYPE_CHECKING:
     from airflow.models.task_coordinates import SchedulingTI, TaskCoordinateResolver
     from airflow.models.taskinstance import TaskInstance
     from airflow.serialization.definitions.node import DAGNode
+
+# Scratch measurements for the performance harness; DagRun.update_state emits them once per Dag run,
+# so the memo arm does not pay one metric call per lookup.
+perf_counts: Counter[str] = Counter()
+perf_seconds: defaultdict[str, float] = defaultdict(float)
+perf_dep_seconds: defaultdict[str, float] = defaultdict(float)
+
+
+# Every statement of the process, so what the scheduler emits covers its whole loop, not only the
+# dependency checks.
+@event.listens_for(Engine, "before_cursor_execute")
+def _start_query_timer(conn, cursor, statement, parameters, context, executemany) -> None:
+    perf_counts["db_queries"] += 1
+    conn.info.setdefault("perf_query_starts", []).append(time.monotonic())
+
+
+@event.listens_for(Engine, "after_cursor_execute")
+def _stop_query_timer(conn, cursor, statement, parameters, context, executemany) -> None:
+    # Empty for a statement already running in another thread when this module was imported.
+    if starts := conn.info.get("perf_query_starts"):
+        perf_seconds["db_queries"] += time.monotonic() - starts.pop()
+
+
+def emit_perf_metrics() -> None:
+    """Emit and reset the measurements gathered since the last call."""
+    stats.incr("perf.mapped_ti_count.db_lookups", perf_counts.pop("db_lookups", 0))
+    stats.incr("perf.mapped_ti_count.memo_hits", perf_counts.pop("memo_hits", 0))
+    stats.timing("perf.mapped_ti_count.duration", perf_seconds.pop("mapped_ti_count", 0.0) * 1000)
+    stats.incr("perf.scheduler.db_queries", perf_counts.pop("db_queries", 0))
+    stats.timing("perf.scheduler.db_duration", perf_seconds.pop("db_queries", 0.0) * 1000)
+    for dep, seconds in perf_dep_seconds.items():
+        stats.timing("perf.dep_duration", seconds * 1000, tags={"dep": dep})
+    perf_dep_seconds.clear()
+
+
+def get_counted_mapped_ti_count(
+    task: DAGNode,
+    run_id: str,
+    *,
+    session: Session,
+    producer_contexts: Mapping[str, ProducerContext] | None = None,
+) -> int:
+    """Return ``get_mapped_ti_count``, counted and timed as a database lookup."""
+    from airflow.serialization.definitions.mappedoperator import get_mapped_ti_count
+
+    start = time.monotonic()
+    try:
+        perf_counts["db_lookups"] += 1
+        return get_mapped_ti_count(task, run_id, session=session, producer_contexts=producer_contexts)
+    finally:
+        perf_seconds["mapped_ti_count"] += time.monotonic() - start
 
 
 @attr.define
@@ -231,11 +286,20 @@ class DepContext:
         """
         from airflow.serialization.definitions.mappedoperator import get_mapped_ti_count
 
-        key = (task.dag_id, run_id, task.node_id, frozenset((producer_contexts or {}).items()))
-        if (count := self.mapped_ti_counts.get(key)) is None:
-            count = get_mapped_ti_count(task, run_id, session=session, producer_contexts=producer_contexts)
-            self.mapped_ti_counts[key] = count
-        return count
+        start = time.monotonic()
+        try:
+            key = (task.dag_id, run_id, task.node_id, frozenset((producer_contexts or {}).items()))
+            if (count := self.mapped_ti_counts.get(key)) is None:
+                perf_counts["db_lookups"] += 1
+                count = get_mapped_ti_count(
+                    task, run_id, session=session, producer_contexts=producer_contexts
+                )
+                self.mapped_ti_counts[key] = count
+            else:
+                perf_counts["memo_hits"] += 1
+            return count
+        finally:
+            perf_seconds["mapped_ti_count"] += time.monotonic() - start
 
     def invalidate_upstream_task_id_counts(self) -> None:
         """

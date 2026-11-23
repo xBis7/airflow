@@ -103,7 +103,7 @@ from airflow.models.tasklog import LogTemplate
 from airflow.sdk.definitions.context import CallbackMeta, CallbackSource  # noqa: SDK001
 from airflow.serialization.definitions.deadline import SerializedReferenceModels
 from airflow.serialization.definitions.notset import NOTSET, ArgNotSet, is_arg_set
-from airflow.ti_deps.dep_context import DepContext
+from airflow.ti_deps.dep_context import DepContext, emit_perf_metrics
 from airflow.ti_deps.dependencies_states import SCHEDULEABLE_STATES
 from airflow.utils.helpers import chunks, is_container, prune_dict
 from airflow.utils.log.logging_mixin import LoggingMixin
@@ -1449,6 +1449,7 @@ class DagRun(Base, LoggingMixin):
                     )
                     if changed_by_upstream:  # Something changed, we need to recalculate!
                         unfinished = unfinished.recalculate()
+        emit_perf_metrics()
 
         tis_for_dagrun_state = self._tis_for_dagrun_state(dag=dag, tis=tis)
 

@@ -16,8 +16,8 @@
 # under the License.
 """
 Performance integration test for the scheduler.
-Creates a backlog of Dag runs, starts the Airflow processes and measures how long they take to
-finish it, once per test case of the code under test. See README.md.
+Creates a backlog of Dag runs, starts the Airflow processes and measures how far they get through
+it within a fixed window, once per test case of the code under test. See README.md.
 """
 
 from __future__ import annotations
@@ -28,11 +28,17 @@ import os
 import subprocess
 import sys
 import time
+import urllib.parse
+import urllib.request
 from typing import TYPE_CHECKING, Any
 
 import pytest
+import redis
+from sqlalchemy import delete, select, tuple_
 
 from airflow.configuration import conf
+from airflow.models import DagRun
+from airflow.utils.session import create_session
 from airflow.utils.state import State
 
 from tests_common.test_utils.integration_setup import (
@@ -53,6 +59,8 @@ from tests_common.test_utils.integration_setup import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from airflow.serialization.definitions.dag import SerializedDAG
 
 log = logging.getLogger("integration.perf.test_perf")
@@ -63,6 +71,24 @@ POLL_USAGE_SCRIPT = os.path.join(TEST_DIR, "poll_usage.py")
 
 # "true" or "false" per test case, read by the code under test.
 NEW_CODE_ENV_VAR = "PERF_TEST__NEW_CODE"
+
+PROMETHEUS_URL = "http://breeze-prometheus:9090"
+# Prometheus scrapes every 30s, and the collector keeps serving a stopped process's last values for
+# minutes, so one scrape after the stop carries the final totals.
+FINAL_SCRAPE_WAIT_SECONDS = 40
+# Cumulative from process start, so the last value of each process is its total for the test case.
+PROMETHEUS_TOTALS = {
+    "loops": "histogram_count(airflow_scheduler_scheduler_loop_duration_milliseconds)",
+    "loop_ms": "histogram_sum(airflow_scheduler_scheduler_loop_duration_milliseconds)",
+    "dependency_checks": "histogram_count(airflow_dagrun_dependency_check_milliseconds)",
+    "dependency_check_ms": "histogram_sum(airflow_dagrun_dependency_check_milliseconds)",
+    "count_lookup_ms": "histogram_sum(airflow_perf_mapped_ti_count_duration_milliseconds)",
+    "count_db_lookups": "airflow_perf_mapped_ti_count_db_lookups_total",
+    "count_memo_hits": "airflow_perf_mapped_ti_count_memo_hits_total",
+    "sql_statements": "airflow_perf_scheduler_db_queries_total",
+    "sql_ms": "histogram_sum(airflow_perf_scheduler_db_duration_milliseconds)",
+    "queued": "histogram_count(airflow_task_scheduled_duration_milliseconds)",
+}
 
 # Per Airflow process; Airflow's defaults times the API server workers exceed Postgres's limit.
 DB_POOL_SIZE = 3
@@ -120,6 +146,112 @@ def compute_required_db_connections(sizing: dict[str, Any]) -> int:
     )
 
 
+def flush_celery_broker() -> None:
+    """Drop every message in the broker, including those a stopped worker had prefetched."""
+    # Celery's purge leaves the prefetched ones, which the broker hands out again later.
+    redis.Redis.from_url(conf.get("celery", "broker_url")).flushdb()
+
+
+def delete_unfinished_dag_runs(runs: list[tuple[str, str]]) -> int:
+    """Delete the unfinished runs of ``runs`` with their task instances; return how many."""
+    with create_session() as session:
+        result = session.execute(
+            delete(DagRun)
+            .where(
+                tuple_(DagRun.dag_id, DagRun.run_id).in_(runs),
+                DagRun.state.not_in([State.SUCCESS, State.FAILED]),
+            )
+            .execution_options(synchronize_session=False)
+        )
+    return getattr(result, "rowcount", 0)
+
+
+def compute_mean_dag_run_seconds(runs: list[tuple[str, str]]) -> float | None:
+    """Mean time from running to success of the successful runs of ``runs``."""
+    with create_session() as session:
+        rows = session.execute(
+            select(DagRun.start_date, DagRun.end_date).where(
+                tuple_(DagRun.dag_id, DagRun.run_id).in_(runs), DagRun.state == State.SUCCESS
+            )
+        ).all()
+    durations = [(end - start).total_seconds() for start, end in rows if start and end]
+    return sum(durations) / len(durations) if durations else None
+
+
+def query_prometheus_totals(arm: str, window_seconds: int) -> dict[str, float | None]:
+    """Sum each of ``PROMETHEUS_TOTALS`` over the processes labelled ``arm``, by their last values."""
+    totals: dict[str, float | None] = {}
+    for name, expr in PROMETHEUS_TOTALS.items():
+        # target_info carries the resource attributes, perf.arm among them, of each process.
+        query = (
+            f"sum(max_over_time(({expr} * on (exported_instance) group_left () "
+            f'target_info{{perf_arm="{arm}"}})[{window_seconds}s:15s]))'
+        )
+        url = f"{PROMETHEUS_URL}/api/v1/query?{urllib.parse.urlencode({'query': query})}"
+        try:
+            with urllib.request.urlopen(url, timeout=30) as response:
+                result = json.load(response)["data"]["result"]
+        except (OSError, ValueError, KeyError) as error:
+            log.warning("Prometheus query for %s failed: %r", name, error)
+            result = []
+        totals[name] = float(result[0]["value"][1]) if result else None
+    return totals
+
+
+def divide(numerator: float | None, denominator: float | None, scale: float = 1) -> float | None:
+    if numerator is None or not denominator:
+        return None
+    return numerator / denominator / scale
+
+
+SUMMARY_ROWS: list[tuple[str, Callable[[dict[str, Any]], float | None], str]] = [
+    ("Dag runs succeeded", lambda r: r["succeeded"], "{:.0f}"),
+    (
+        "Time to finish every Dag run (s)",
+        lambda r: r["elapsed"] if r["succeeded"] == r["runs"] else None,
+        "{:.0f}",
+    ),
+    ("Dag run duration, mean (s)", lambda r: r["mean_dag_run_seconds"], "{:.0f}"),
+    ("Task instances queued per minute", lambda r: divide(r["queued"], r["elapsed"], 1 / 60), "{:.1f}"),
+    ("Scheduler loop, mean (s)", lambda r: divide(r["loop_ms"], r["loops"], 1000), "{:.2f}"),
+    (
+        "Dependency check per Dag run, mean (ms)",
+        lambda r: divide(r["dependency_check_ms"], r["dependency_checks"]),
+        "{:.0f}",
+    ),
+    (
+        "Copy count lookups, time per loop (s)",
+        lambda r: divide(r["count_lookup_ms"], r["loops"], 1000),
+        "{:.2f}",
+    ),
+    (
+        "Copy count lookups to the database per loop",
+        lambda r: divide(r["count_db_lookups"], r["loops"]),
+        "{:.0f}",
+    ),
+    (
+        "Copy count lookups from the memo per loop",
+        lambda r: divide(r["count_memo_hits"], r["loops"]),
+        "{:.0f}",
+    ),
+    ("Scheduler SQL statements per loop", lambda r: divide(r["sql_statements"], r["loops"]), "{:.0f}"),
+    ("Scheduler SQL time per loop (s)", lambda r: divide(r["sql_ms"], r["loops"], 1000), "{:.2f}"),
+]
+
+
+def format_summary(results: dict[str, dict[str, Any]]) -> str:
+    """One row per measure, one column per test case."""
+    label_width = max(len(label) for label, _, _ in SUMMARY_ROWS) + 2
+    lines = [" " * label_width + "".join(f"{name:>16}" for name in results)]
+    for label, compute, fmt in SUMMARY_ROWS:
+        cells = []
+        for result in results.values():
+            value = compute(result)
+            cells.append(f"{'n/a' if value is None else fmt.format(value):>16}")
+        lines.append(f"{label:<{label_width}}" + "".join(cells))
+    return "\n".join(lines)
+
+
 @pytest.mark.integration("otel")
 @pytest.mark.integration("redis")
 @pytest.mark.backend("postgres")
@@ -129,6 +261,13 @@ class TestPerformance:
     profile = os.environ.get("PERF_TEST__PROFILE", "dynamic")  # key of PROFILES; sizes the deployment
     sizing: dict[str, Any]
     dags: dict[str, SerializedDAG] = {}
+    # Keyed by run id prefix, printed side by side once every test case has run.
+    results: dict[str, dict[str, Any]] = {}
+
+    @classmethod
+    def teardown_class(cls):
+        if cls.results:
+            print_to_terminal(f"\n\n{format_summary(cls.results)}\n")
 
     @classmethod
     def setup_class(cls):
@@ -209,9 +348,9 @@ class TestPerformance:
         dag_ids: list[str],
         dag_run_count: int,
         run_conf: dict[str, Any],
-        timeout_seconds: int,
+        cutoff_seconds: int,
     ) -> None:
-        """Create the Dag runs, start the processes, wait for the runs to finish, stop the processes."""
+        """Create the Dag runs, start the processes, wait for the runs or the cutoff, stop the processes."""
         dags = {dag_id: self.dags[dag_id] for dag_id in dag_ids}
         # Created before any process exists, so every test case starts from the same rows, all
         # eligible at once, and CLI triggering cannot cap the live runs at its own rate. This is the
@@ -219,6 +358,10 @@ class TestPerformance:
         runs = create_queued_dag_runs(
             dags, run_id_prefix=run_id_prefix, dag_run_count=dag_run_count, run_conf=run_conf
         )
+        # Workers would otherwise start on tasks queued by an earlier test case or session.
+        flush_celery_broker()
+        # Inherited by every process started below; the dashboard and the summary group by it.
+        os.environ["OTEL_RESOURCE_ATTRIBUTES"] = f"perf.arm={run_id_prefix}"
         processes, started_at = start_processes(
             worker_count=self.sizing["worker_count"],
             worker_concurrency=self.sizing["worker_concurrency"],
@@ -226,9 +369,9 @@ class TestPerformance:
         )
         try:
             processes["usage_poller"] = self.start_usage_poller(processes)
-            # A guard only: unfinished runs fail below.
+            # Runs still going at the cutoff do not fail the test case; it measures the window.
             with ProgressReporter(runs):
-                states = wait_for_dag_runs(runs, max_wait_time=timeout_seconds)
+                states = wait_for_dag_runs(runs, max_wait_time=cutoff_seconds)
             elapsed_seconds = time.monotonic() - started_at
 
             exited = {}
@@ -237,44 +380,58 @@ class TestPerformance:
                     exited[role] = process.returncode
             assert not exited, f"processes exited, with these codes: {exited}"
 
-            not_succeeded = {run: state for run, state in states.items() if state != State.SUCCESS}
-            assert not not_succeeded, (
-                f"{len(not_succeeded)} of {len(runs)} Dag runs are not successful after {timeout_seconds}s: "
-                f"{not_succeeded}"
-            )
+            failed = {run: state for run, state in states.items() if state == State.FAILED}
+            assert not failed, f"{len(failed)} of {len(runs)} Dag runs failed: {failed}"
         finally:
             terminate_processes(processes)
+            # The scheduler of the next test case would pick them up.
+            deleted = delete_unfinished_dag_runs(runs)
+        succeeded = sum(state == State.SUCCESS for state in states.values())
         # After the processes are stopped, so their shutdown logging does not bury it.
-        print_to_terminal(f"\n{run_id_prefix}: {len(runs)} Dag runs finished in {elapsed_seconds:.0f}s\n")
+        print_to_terminal(
+            f"\n{run_id_prefix}: {succeeded} of {len(runs)} Dag runs succeeded in {elapsed_seconds:.0f}s, "
+            f"{deleted} unfinished deleted\n"
+        )
+        time.sleep(FINAL_SCRAPE_WAIT_SECONDS)
+        self.results[run_id_prefix] = {
+            "runs": len(runs),
+            "succeeded": succeeded,
+            "elapsed": elapsed_seconds,
+            "mean_dag_run_seconds": compute_mean_dag_run_seconds(runs),
+            **query_prometheus_totals(
+                run_id_prefix, int(time.monotonic() - started_at) + FINAL_SCRAPE_WAIT_SECONDS
+            ),
+        }
 
     @pytest.mark.parametrize(
-        "new_code",
+        ("test_case", "dag_id", "new_code"),
         [
-            pytest.param(False, id="original_code"),
-            pytest.param(True, id="new_code"),
+            # The same Dag: the code under test is what differs between the test cases.
+            pytest.param("original_code", "perf_task_group_dag", False, id="original_code"),
+            pytest.param("new_code", "perf_task_group_dag", True, id="new_code"),
         ],
     )
-    def test_scheduler_load(self, new_code: bool):
-        """Run many Dag runs of the fan-out Dag at once, with the original code and then the new code."""
-        test_case = "new_code" if new_code else "original_code"
+    def test_scheduler_load(self, test_case: str, dag_id: str, new_code: bool):
+        """Run the same load on perf_task_group_dag, once on the original code and once on the new code."""
         # Inherited by every process started below.
         os.environ[NEW_CODE_ENV_VAR] = str(new_code).lower()
 
         # The load; each variable overrides its default for one run.
+        # Few enough that the new code finishes them, so the time to finish compares the test cases.
         dag_run_count = int(os.environ.get("PERF_TEST__DAG_RUN_COUNT", "5"))  # queued runs created up front
-        mapped_task_count = int(os.environ.get("PERF_TEST__MAPPED_TASK_COUNT", "20"))  # instances per stage
-        # Give up on the test case after this.
-        timeout_seconds = int(os.environ.get("PERF_TEST__TIMEOUT_SECONDS", "3600"))
+        mapped_task_count = int(os.environ.get("PERF_TEST__MAPPED_TASK_COUNT", "70"))  # instances per stage
+        # Stop the test case after this, finished or not.
+        cutoff_seconds = int(os.environ.get("PERF_TEST__CUTOFF_SECONDS", "4500"))
         print_to_terminal(
-            f"\n\n{test_case}: {dag_run_count} runs of perf_dag, {mapped_task_count} mapped instances per stage, "
-            f"timeout {timeout_seconds}s, profile {self.profile}\n"
+            f"\n\n{test_case}: {dag_run_count} runs of {dag_id}, {mapped_task_count} mapped instances per stage, "
+            f"cutoff {cutoff_seconds}s, profile {self.profile}, new code {new_code}\n"
         )
 
         self.execute_dag_runs(
             # Run ids carry the test case name.
             run_id_prefix=test_case,
-            dag_ids=["perf_dag"],
+            dag_ids=[dag_id],
             dag_run_count=dag_run_count,
             run_conf={"mapped_task_count": mapped_task_count},
-            timeout_seconds=timeout_seconds,
+            cutoff_seconds=cutoff_seconds,
         )

@@ -44,6 +44,9 @@ by pytest's capture.
 
 Watch the run from the host: Grafana at <http://localhost:23000>, dashboard "Scheduler
 performance"; Jaeger at <http://localhost:26686>; Prometheus at <http://localhost:29090>.
+Each test case labels its processes with the `perf.arm` resource attribute, its run id prefix, so the
+dashboard groups every series by test case. Once every test case has run, the test prints a table
+comparing them, read from Prometheus.
 
 The first run on a machine raises the Postgres connection limit the profile needs, persists it
 in the breeze volume and restarts the container from inside breeze. If the restart is not
@@ -80,7 +83,7 @@ class-level choice, because it sizes the deployment before the database is creat
 |-----------------------|-----------|----------------------------|------------------------------------------------------------------------|
 | `dag_run_count`           | `5`       | `PERF_TEST__DAG_RUN_COUNT`           | Queued runs created up front, before the scheduler starts.             |
 | `mapped_task_count`   | `20`      | `PERF_TEST__MAPPED_TASK_COUNT`   | Mapped instances per stage, passed to every run in its `conf`.         |
-| `timeout_seconds`     | `3600`    | `PERF_TEST__TIMEOUT_SECONDS`     | Give up on a test case after this; unfinished runs compare with nothing.   |
+| `cutoff_seconds`      | `4500`    | `PERF_TEST__CUTOFF_SECONDS`      | Stop a test case after this; runs still going do not fail it.              |
 | `profile`             | `dynamic` | `PERF_TEST__PROFILE`             | Concurrency profile, see below.                                        |
 
 The Dag is fixed: a first task producing a list, then nine mapped stages that expand over it,

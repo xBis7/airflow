@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import collections.abc
 import functools
+import os
 from collections import Counter
 from collections.abc import Iterator, KeysView, Mapping
 from typing import TYPE_CHECKING, NamedTuple
@@ -27,6 +28,7 @@ from uuid import UUID
 from sqlalchemy import and_, func, or_, select
 
 from airflow.task.trigger_rule import TriggerRule as TR
+from airflow.ti_deps.dep_context import get_counted_mapped_ti_count
 from airflow.ti_deps.deps.base_ti_dep import BaseTIDep
 from airflow.ti_deps.deps.prev_dagrun_dep import is_past_depends_met
 from airflow.utils.state import TaskInstanceState
@@ -166,9 +168,11 @@ class TriggerRuleDep(BaseTIDep):
                 if regional
                 else None
             )
-            return dep_context.get_mapped_ti_count(
-                task, ti.run_id, session=session, producer_contexts=contexts
-            )
+            if os.environ.get("PERF_TEST__NEW_CODE", "").lower() == "true":
+                return dep_context.get_mapped_ti_count(
+                    task, ti.run_id, session=session, producer_contexts=contexts
+                )
+            return get_counted_mapped_ti_count(task, ti.run_id, session=session, producer_contexts=contexts)
 
         def _iter_expansion_dependencies(task_group: SerializedTaskGroup | None) -> Iterator[str]:
             if is_mapped(task):
@@ -227,7 +231,11 @@ class TriggerRuleDep(BaseTIDep):
                     if regional
                     else None
                 ),
-                count_mapped_tis=dep_context.get_mapped_ti_count,
+                count_mapped_tis=(
+                    dep_context.get_mapped_ti_count
+                    if os.environ.get("PERF_TEST__NEW_CODE", "").lower() == "true"
+                    else get_counted_mapped_ti_count
+                ),
             )
 
         def _is_relevant_upstream(upstream: SchedulingTI, relevant_ids: set[str] | KeysView[str]) -> bool:

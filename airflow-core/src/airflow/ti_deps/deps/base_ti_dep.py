@@ -17,9 +17,10 @@
 # under the License.
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING, NamedTuple
 
-from airflow.ti_deps.dep_context import DepContext
+from airflow.ti_deps.dep_context import DepContext, perf_dep_seconds
 from airflow.utils.session import provide_session
 
 if TYPE_CHECKING:
@@ -116,7 +117,11 @@ class BaseTIDep:
             yield self._passing_status(reason="Context specified all task dependencies should be ignored.")
             return
 
-        yield from self._get_dep_statuses(ti, cxt, session=session)
+        start = time.monotonic()
+        try:
+            yield from self._get_dep_statuses(ti, cxt, session=session)
+        finally:
+            perf_dep_seconds[type(self).__name__] += time.monotonic() - start
 
     @provide_session
     def is_met(self, ti: TaskInstance, dep_context: DepContext | None = None, *, session: Session) -> bool:

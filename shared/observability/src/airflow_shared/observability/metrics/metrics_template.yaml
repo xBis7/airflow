@@ -535,6 +535,26 @@ metrics:
     legacy_name: "-"
     name_variables: ["toolset", "framework", "outcome"]
 
+  - name: "perf.mapped_ti_count.db_lookups"
+    description: "Performance harness only. Mapped task instance counts computed from the database by
+    the trigger rule dependency."
+    type: "counter"
+    legacy_name: "-"
+    name_variables: []
+
+  - name: "perf.mapped_ti_count.memo_hits"
+    description: "Performance harness only. Mapped task instance counts read from the per-pass memo by
+    the trigger rule dependency."
+    type: "counter"
+    legacy_name: "-"
+    name_variables: []
+
+  - name: "perf.scheduler.db_queries"
+    description: "Performance harness only. SQL statements the scheduler executed."
+    type: "counter"
+    legacy_name: "-"
+    name_variables: []
+
   # ==========
   # Gauges
   # ==========
@@ -1053,6 +1073,27 @@ metrics:
   - name: "connection_test.hook_duration"
     description: "Milliseconds a worker spends running the hook's ``test_connection`` for a
     worker-dispatched connection test."
+    type: "timer"
+    legacy_name: "-"
+    name_variables: []
+
+  - name: "perf.dep_duration"
+    description: "Performance harness only. Milliseconds spent evaluating one dependency class for a
+    Dag run in one scheduling pass. Metric with dep (the dependency class) tagging."
+    type: "timer"
+    legacy_name: "-"
+    name_variables: []
+
+  - name: "perf.mapped_ti_count.duration"
+    description: "Performance harness only. Milliseconds the trigger rule dependency spent getting mapped
+    task instance counts, from the database or the per-pass memo, in one Dag run's scheduling pass."
+    type: "timer"
+    legacy_name: "-"
+    name_variables: []
+
+  - name: "perf.scheduler.db_duration"
+    description: "Performance harness only. Milliseconds the scheduler spent executing SQL statements
+    since the previous emission, emitted once per Dag run's scheduling pass."
     type: "timer"
     legacy_name: "-"
     name_variables: []

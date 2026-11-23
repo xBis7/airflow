@@ -248,32 +248,36 @@ class TestPerformance:
         print_to_terminal(f"\n{run_id_prefix}: {len(runs)} Dag runs finished in {elapsed_seconds:.0f}s\n")
 
     @pytest.mark.parametrize(
-        "new_code",
+        ("test_case", "dag_id", "new_code"),
         [
-            pytest.param(False, id="original_code"),
-            pytest.param(True, id="new_code"),
+            # Both on the new code: the Dag shape is what differs between the test cases.
+            pytest.param("original_code", "perf_dag", True, id="original_code"),
+            pytest.param("new_code", "perf_task_group_dag", True, id="new_code"),
         ],
     )
-    def test_scheduler_load(self, new_code: bool):
-        """Run many Dag runs of the fan-out Dag at once, with the original code and then the new code."""
-        test_case = "new_code" if new_code else "original_code"
+    def test_scheduler_load(self, test_case: str, dag_id: str, new_code: bool):
+        """
+        Run the same load on perf_dag, then on perf_task_group_dag.
+
+        perf_dag expands every stage on its own; perf_task_group_dag expands the group of stages once.
+        """
         # Inherited by every process started below.
         os.environ[NEW_CODE_ENV_VAR] = str(new_code).lower()
 
         # The load; each variable overrides its default for one run.
-        dag_run_count = int(os.environ.get("PERF_TEST__DAG_RUN_COUNT", "5"))  # queued runs created up front
-        mapped_task_count = int(os.environ.get("PERF_TEST__MAPPED_TASK_COUNT", "20"))  # instances per stage
+        dag_run_count = int(os.environ.get("PERF_TEST__DAG_RUN_COUNT", "35"))  # queued runs created up front
+        mapped_task_count = int(os.environ.get("PERF_TEST__MAPPED_TASK_COUNT", "70"))  # instances per stage
         # Give up on the test case after this.
         timeout_seconds = int(os.environ.get("PERF_TEST__TIMEOUT_SECONDS", "3600"))
         print_to_terminal(
-            f"\n\n{test_case}: {dag_run_count} runs of perf_dag, {mapped_task_count} mapped instances per stage, "
-            f"timeout {timeout_seconds}s, profile {self.profile}\n"
+            f"\n\n{test_case}: {dag_run_count} runs of {dag_id}, {mapped_task_count} mapped instances per stage, "
+            f"timeout {timeout_seconds}s, profile {self.profile}, new code {new_code}\n"
         )
 
         self.execute_dag_runs(
             # Run ids carry the test case name.
             run_id_prefix=test_case,
-            dag_ids=["perf_dag"],
+            dag_ids=[dag_id],
             dag_run_count=dag_run_count,
             run_conf={"mapped_task_count": mapped_task_count},
             timeout_seconds=timeout_seconds,

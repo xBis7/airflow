@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
     from sqlalchemy.sql.expression import ColumnOperators
 
+    from airflow.models.dagrun import SchedulingTI
     from airflow.models.mappedoperator import MappedOperator
     from airflow.models.taskinstance import TaskInstance
     from airflow.serialization.definitions.taskgroup import SerializedMappedTaskGroup
@@ -59,7 +60,7 @@ class _UpstreamTIStates(NamedTuple):
     skipped_setup: int
 
     @classmethod
-    def calculate(cls, finished_upstreams: Iterator[TaskInstance]) -> _UpstreamTIStates:
+    def calculate(cls, finished_upstreams: Iterator[SchedulingTI]) -> _UpstreamTIStates:
         """
         Calculate states for a task instance.
 
@@ -190,7 +191,7 @@ class TriggerRuleDep(BaseTIDep):
                 session=session,
             )
 
-        def _is_relevant_upstream(upstream: TaskInstance, relevant_ids: set[str] | KeysView[str]) -> bool:
+        def _is_relevant_upstream(upstream: SchedulingTI, relevant_ids: set[str] | KeysView[str]) -> bool:
             """
             Whether a task instance is a "relevant upstream" of the current task.
 

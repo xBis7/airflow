@@ -23,7 +23,8 @@ import os
 import re
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Iterator, Sequence
-from typing import TYPE_CHECKING, Any, NamedTuple, TypeVar, cast, overload
+from dataclasses import dataclass, field, fields, replace
+from typing import TYPE_CHECKING, Any, NamedTuple, Protocol, TypeVar, cast, overload
 
 import structlog
 from natsort import natsorted
@@ -90,9 +91,11 @@ from airflow.utils.types import NOTSET, DagRunTriggeredByType, DagRunType
 if TYPE_CHECKING:
     from datetime import datetime
     from typing import Literal, TypeAlias
+    from uuid import UUID
 
     from pydantic import NonNegativeInt
-    from sqlalchemy.orm import Query, Session
+    from sqlalchemy.engine import Row
+    from sqlalchemy.orm import InstrumentedAttribute, Query, Session
     from sqlalchemy.sql.elements import Case
 
     from airflow.models.dag_version import DagVersion
@@ -115,14 +118,86 @@ log = structlog.get_logger(__name__)
 tracer = trace.get_tracer(__name__)
 
 
+class SchedulingTI(Protocol):
+    """
+    Shape of a task instance during scheduling, satisfied by ``TaskInstance`` and the frozen ``FinishedTI``.
+
+    Read-only on purpose: scheduling decisions and trigger-rule evaluation only read these, and
+    declaring them as properties lets an immutable view (such as a frozen dataclass) satisfy the protocol.
+    """
+
+    @property
+    def id(self) -> UUID: ...
+
+    @property
+    def dag_id(self) -> str: ...
+
+    @property
+    def run_id(self) -> str: ...
+
+    @property
+    def task_id(self) -> str: ...
+
+    @property
+    def map_index(self) -> int: ...
+
+    @property
+    def state(self) -> str | None: ...
+
+    @property
+    def start_date(self) -> datetime | None: ...
+
+    @property
+    def end_date(self) -> datetime | None: ...
+
+    @property
+    def task(self) -> Operator | None: ...
+
+
+@dataclass(frozen=True, slots=True, eq=False)
+class FinishedTI:
+    """
+    Immutable view of a task instance in a terminal state.
+
+    Keeps the dag_run rescan lightweight and fast: scheduling only reads these columns
+    off finished task instances, so a fully instrumented TaskInstance per row is
+    unnecessary. ``task`` is attached from the serialized dag rather than the row.
+
+    ``eq=False`` keeps identity equality and ``__hash__`` mirrors the key hash, the same as
+    a TaskInstance.
+
+    Anything needing a full TaskInstance must re-fetch it by ``id``.
+    """
+
+    id: UUID
+    dag_id: str
+    run_id: str
+    task_id: str
+    map_index: int
+    state: str | None
+    start_date: datetime | None
+    end_date: datetime | None
+    task: Operator | None = field(default=None, kw_only=True)
+
+    def __hash__(self) -> int:
+        return hash((self.task_id, self.dag_id, self.run_id, self.map_index))
+
+
+# Get the necessary columns from the FinishedTI fields so that the class stays
+# the single source of truth. For any needed change, add or remove a field there.
+# Rows are unpacked into FinishedTI positionally, so the column fields must stay
+# first and in declaration order, with ``task`` last.
+FINISHED_TI_COLUMNS = tuple(getattr(TI, f.name) for f in fields(FinishedTI) if f.name != "task")
+
+
 class TISchedulingDecision(NamedTuple):
     """Type of return for DagRun.task_instance_scheduling_decisions."""
 
-    tis: list[TI]
+    tis: list[SchedulingTI]
     schedulable_tis: list[TI]
     changed_tis: bool
     unfinished_tis: list[TI]
-    finished_tis: list[TI]
+    finished_tis: list[SchedulingTI]
 
 
 def _default_run_after(ctx):
@@ -748,6 +823,30 @@ class DagRun(Base, LoggingMixin):
             return DagRunType(run_type).generate_run_id(suffix=run_after.isoformat())
         return DagRunType(run_type).generate_run_id(suffix=f"{run_after.isoformat()}_{get_random_string()}")
 
+    @overload
+    @staticmethod
+    def fetch_task_instances(
+        dag_id: str | None = ...,
+        run_id: str | None = ...,
+        task_ids: list[str] | None = ...,
+        state: Iterable[TaskInstanceState | None] | None = ...,
+        session: Session = ...,
+        *,
+        columns: None = None,
+    ) -> list[TI]: ...
+
+    @overload
+    @staticmethod
+    def fetch_task_instances(
+        dag_id: str | None = ...,
+        run_id: str | None = ...,
+        task_ids: list[str] | None = ...,
+        state: Iterable[TaskInstanceState | None] | None = ...,
+        session: Session = ...,
+        *,
+        columns: Sequence[InstrumentedAttribute[Any]],
+    ) -> Sequence[Row[Any]]: ...
+
     @staticmethod
     @provide_session
     def fetch_task_instances(
@@ -756,34 +855,38 @@ class DagRun(Base, LoggingMixin):
         task_ids: list[str] | None = None,
         state: Iterable[TaskInstanceState | None] | None = None,
         session: Session = NEW_SESSION,
-    ) -> list[TI]:
-        """Return the task instances for this dag run."""
-        tis = (
-            select(TI)
-            .options(joinedload(TI.dag_run))
-            .where(
-                TI.dag_id == dag_id,
-                TI.run_id == run_id,
-            )
+        *,
+        columns: Sequence[InstrumentedAttribute[Any]] | None = None,
+    ) -> list[TI] | Sequence[Row[Any]]:
+        """
+        Return the task instances for this dag run.
+
+        If ``columns`` is provided then the result is plain rows with the
+        values of these columns, otherwise the result is ORM objects.
+        """
+        stmt = (select(*columns) if columns else select(TI).options(joinedload(TI.dag_run))).where(
+            TI.dag_id == dag_id, TI.run_id == run_id
         )
 
         if state:
             if isinstance(state, str):
-                tis = tis.where(TI.state == state)
+                stmt = stmt.where(TI.state == state)
             else:
                 # this is required to deal with NULL values
                 if None in state:
                     if all(x is None for x in state):
-                        tis = tis.where(TI.state.is_(None))
+                        stmt = stmt.where(TI.state.is_(None))
                     else:
                         not_none_state = (s for s in state if s)
-                        tis = tis.where(or_(TI.state.in_(not_none_state), TI.state.is_(None)))
+                        stmt = stmt.where(or_(TI.state.in_(not_none_state), TI.state.is_(None)))
                 else:
-                    tis = tis.where(TI.state.in_(state))
+                    stmt = stmt.where(TI.state.in_(state))
 
         if task_ids is not None:
-            tis = tis.where(TI.task_id.in_(task_ids))
-        return session.scalars(tis).all()
+            stmt = stmt.where(TI.task_id.in_(task_ids))
+        if columns:
+            return session.execute(stmt).all()
+        return session.scalars(stmt).all()
 
     def _check_last_n_dagruns_failed(self, dag_id, max_consecutive_failed_dag_runs, session):
         """Check if last N dags failed."""
@@ -1201,8 +1304,41 @@ class DagRun(Base, LoggingMixin):
 
     @provide_session
     def task_instance_scheduling_decisions(self, session: Session = NEW_SESSION) -> TISchedulingDecision:
-        tis = self.get_task_instances(session=session, state=State.task_states)
-        self.log.debug("number of tis tasks for %s: %s task(s)", self, len(tis))
+        # Fetch finished task instances as lightweight read-only rows and only the
+        # unfinished ones as full ORM objects. Scheduling only reads finished ones, so
+        # hydrating them is pure overhead.
+        #
+        # Check if there are any pending TI changes.
+        has_pending_ti_changes = any(
+            isinstance(obj, TI) and obj.dag_id == self.dag_id and obj.run_id == self.run_id
+            for obj in itertools.chain(session.new, session.dirty, session.deleted)
+        )
+        if has_pending_ti_changes:
+            # Flush here to avoid task instances ending up in the wrong list or in both,
+            # in case of a pending in-session state change.
+            # The airflow session maker sets autoflush=False (ref settings.configure_orm).
+            session.flush()
+        # Both queries restrict a partial Dag to the same subset, so no row outside it is
+        # mistaken for an orphan and marked REMOVED.
+        task_ids = DagRun._get_partial_task_ids(self.dag)
+        unfinished_tis = DagRun.fetch_task_instances(
+            dag_id=self.dag_id,
+            run_id=self.run_id,
+            task_ids=task_ids,
+            state=State.unfinished,
+            session=session,
+        )
+        finished_rows = DagRun.fetch_task_instances(
+            dag_id=self.dag_id,
+            run_id=self.run_id,
+            task_ids=task_ids,
+            state=State.finished,
+            columns=FINISHED_TI_COLUMNS,
+            session=session,
+        )
+        self.log.debug(
+            "number of tis tasks for %s: %s task(s)", self, len(unfinished_tis) + len(finished_rows)
+        )
 
         def _filter_tis_and_exclude_removed(dag: SerializedDAG, tis: list[TI]) -> Iterable[TI]:
             """Populate ``ti.task`` while excluding those missing one, marking them as REMOVED."""
@@ -1217,10 +1353,37 @@ class DagRun(Base, LoggingMixin):
                 else:
                     yield ti
 
-        tis = list(_filter_tis_and_exclude_removed(self.get_dag(), tis))
+        def _build_finished_tis(dag: SerializedDAG, rows) -> list[FinishedTI]:
+            """Attach the serialized task, dropping (and marking REMOVED) rows whose task is gone."""
+            finished: list[FinishedTI] = []
+            orphaned: set[str] = set()
+            for row in rows:
+                try:
+                    task = dag.get_task(row.task_id)
+                except TaskNotFound:
+                    if row.state != TaskInstanceState.REMOVED:
+                        orphaned.add(row.task_id)
+                    continue
+                finished.append(FinishedTI(*row, task=task))
+            if orphaned:
+                self.log.error("Failed to get task for finished tis %s. Marking them as removed.", orphaned)
+                session.execute(
+                    update(TI)
+                    .where(
+                        TI.dag_id == self.dag_id,
+                        TI.run_id == self.run_id,
+                        TI.task_id.in_(orphaned),
+                        TI.state != TaskInstanceState.REMOVED,
+                    )
+                    .values(state=TaskInstanceState.REMOVED)
+                    .execution_options(synchronize_session=False)
+                )
+            return finished
 
-        unfinished_tis = [t for t in tis if t.state in State.unfinished]
-        finished_tis = [t for t in tis if t.state in State.finished]
+        dag = self.get_dag()
+        unfinished_tis = list(_filter_tis_and_exclude_removed(dag, unfinished_tis))
+        finished_tis: list[SchedulingTI] = list(_build_finished_tis(dag, finished_rows))
+
         if unfinished_tis:
             schedulable_tis = [ut for ut in unfinished_tis if ut.state in SCHEDULEABLE_STATES]
             self.log.debug("number of scheduleable tasks for %s: %s task(s)", self, len(schedulable_tis))
@@ -1241,6 +1404,7 @@ class DagRun(Base, LoggingMixin):
             schedulable_tis = []
             changed_tis = False
 
+        tis: list[SchedulingTI] = [*unfinished_tis, *finished_tis]
         return TISchedulingDecision(
             tis=tis,
             schedulable_tis=schedulable_tis,
@@ -1354,7 +1518,7 @@ class DagRun(Base, LoggingMixin):
     def _get_ready_tis(
         self,
         schedulable_tis: list[TI],
-        finished_tis: list[TI],
+        finished_tis: list[SchedulingTI],
         session: Session,
     ) -> tuple[list[TI], bool, bool]:
         old_states: dict[TaskInstanceKey, Any] = {}
@@ -1433,11 +1597,19 @@ class DagRun(Base, LoggingMixin):
                 # It's enough to revise map index once per task id,
                 # checking the map index for each mapped task significantly slows down scheduling
                 if schedulable.task.task_id not in revised_map_index_task_ids:
-                    ready_tis.extend(
-                        self._revise_map_indexes_if_mapped(
-                            schedulable.task, dag_version_id=schedulable.dag_version_id, session=session
-                        )
+                    revised_tis, removed_indexes = self._revise_map_indexes_if_mapped(
+                        schedulable.task, dag_version_id=schedulable.dag_version_id, session=session
                     )
+                    if removed_indexes:
+                        # Mirror the bulk UPDATE onto the frozen views, as the session does for ORM rows.
+                        for i, fti in enumerate(finished_tis):
+                            if (
+                                isinstance(fti, FinishedTI)
+                                and fti.task_id == schedulable.task_id
+                                and fti.map_index in removed_indexes
+                            ):
+                                finished_tis[i] = replace(fti, state=TaskInstanceState.REMOVED)
+                    ready_tis.extend(revised_tis)
                     revised_map_index_task_ids.add(schedulable.task.task_id)
 
                 # _revise_map_indexes_if_mapped might mark the current task as REMOVED
@@ -1457,7 +1629,7 @@ class DagRun(Base, LoggingMixin):
     def _are_premature_tis(
         self,
         unfinished_tis: Sequence[TI],
-        finished_tis: list[TI],
+        finished_tis: list[SchedulingTI],
         session: Session,
     ) -> tuple[bool, bool]:
         dep_context = DepContext(
@@ -1473,7 +1645,7 @@ class DagRun(Base, LoggingMixin):
             dep_context.have_changed_ti_states,
         )
 
-    def _emit_true_scheduling_delay_stats_for_finished_state(self, finished_tis: list[TI]) -> None:
+    def _emit_true_scheduling_delay_stats_for_finished_state(self, finished_tis: list[SchedulingTI]) -> None:
         """
         Emit the true scheduling delay stats.
 
@@ -1814,7 +1986,7 @@ class DagRun(Base, LoggingMixin):
 
     def _revise_map_indexes_if_mapped(
         self, task: Operator, *, dag_version_id: UUIDType, session: Session
-    ) -> Iterator[TI]:
+    ) -> tuple[list[TI], set[int]]:
         """
         Check if task increased or reduced in length and handle appropriately.
 
@@ -1830,9 +2002,9 @@ class DagRun(Base, LoggingMixin):
         try:
             total_length = get_mapped_ti_count(task, self.run_id, session=session)
         except NotMapped:
-            return  # Not a mapped task, don't need to do anything.
+            return [], set()  # Not a mapped task, don't need to do anything.
         except NotFullyPopulated:
-            return  # Upstreams not ready, don't need to revise this yet.
+            return [], set()  # Upstreams not ready, don't need to revise this yet.
 
         query = session.scalars(
             select(TI.map_index).where(
@@ -1857,6 +2029,7 @@ class DagRun(Base, LoggingMixin):
             )
             session.flush()
 
+        new_tis: list[TI] = []
         for index in range(total_length):
             if index in existing_indexes:
                 continue
@@ -1866,7 +2039,8 @@ class DagRun(Base, LoggingMixin):
             ti = session.merge(ti)
             ti.refresh_from_task(task)
             session.flush()
-            yield ti
+            new_tis.append(ti)
+        return new_tis, removed_indexes
 
     @classmethod
     @provide_session

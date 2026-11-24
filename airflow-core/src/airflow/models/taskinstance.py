@@ -26,7 +26,7 @@ import math
 import uuid
 import warnings
 from collections import defaultdict
-from collections.abc import Collection, Iterable
+from collections.abc import Callable, Collection, Iterable
 from datetime import timedelta
 from functools import cache
 from typing import TYPE_CHECKING, Any
@@ -2098,6 +2098,7 @@ class TaskInstance(Base, LoggingMixin):
         ti_count: int | None,
         *,
         session: Session,
+        count_mapped_tis: Callable[..., int] | None = None,
     ) -> int | range | None:
         """
         Infer the map indexes of an upstream "relevant" to this ti.
@@ -2137,6 +2138,8 @@ class TaskInstance(Base, LoggingMixin):
         :param upstream: The referenced upstream task.
         :param ti_count: The total count of task instance this task was expanded
             by the scheduler, i.e. ``expanded_ti_count`` in the template context.
+        :param count_mapped_tis: A callable that replaces ``get_mapped_ti_count`` for the common ancestor's count,
+            e.g. a memoized one shared by every task instance checked in a scheduling pass.
         :return: Specific map index or map indexes to pull, or ``None`` if we
             want to "whole" return value (i.e. no mapped task groups involved).
         """
@@ -2165,7 +2168,9 @@ class TaskInstance(Base, LoggingMixin):
         # should use a "partial" value. Let's break down the mapped ti count
         # between the ancestor and further expansion happened inside it.
 
-        ancestor_ti_count = get_mapped_ti_count(common_ancestor, self.run_id, session=session)
+        ancestor_ti_count = (count_mapped_tis or get_mapped_ti_count)(
+            common_ancestor, self.run_id, session=session
+        )
         ancestor_map_index = self.map_index * ancestor_ti_count // ti_count
 
         # If the task is NOT further expanded inside the common ancestor, we

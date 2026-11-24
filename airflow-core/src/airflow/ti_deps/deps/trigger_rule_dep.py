@@ -146,9 +146,7 @@ class TriggerRuleDep(BaseTIDep):
             This extra closure allows us to query the database only when needed,
             and at most once.
             """
-            from airflow.models.mappedoperator import get_mapped_ti_count
-
-            return get_mapped_ti_count(task, ti.run_id, session=session)
+            return dep_context.get_mapped_ti_count(task, ti.run_id, session=session)
 
         def _iter_expansion_dependencies(task_group: SerializedMappedTaskGroup | None) -> Iterator[str]:
             if is_mapped(task):
@@ -189,6 +187,7 @@ class TriggerRuleDep(BaseTIDep):
                 upstream=task.dag.task_dict[upstream_id],
                 ti_count=expanded_ti_count,
                 session=session,
+                count_mapped_tis=dep_context.get_mapped_ti_count,
             )
 
         def _is_relevant_upstream(upstream: SchedulingTI, relevant_ids: set[str] | KeysView[str]) -> bool:

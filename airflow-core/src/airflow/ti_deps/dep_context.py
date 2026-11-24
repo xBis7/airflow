@@ -29,6 +29,9 @@ if TYPE_CHECKING:
     from sqlalchemy.orm.session import Session
 
     from airflow.models.dagrun import DagRun, SchedulingTI
+    from airflow.models.mappedoperator import MappedOperator
+    from airflow.serialization.definitions.taskgroup import SerializedTaskGroup
+    from airflow.serialization.serialized_objects import SerializedBaseOperator
 
 
 @attr.define
@@ -83,6 +86,38 @@ class DepContext:
 
     have_changed_ti_states: bool = False
     """Have any of the TIs state's been changed as a result of evaluating dependencies"""
+
+    mapped_ti_counts: dict[tuple[str, str, str], int] = attr.ib(factory=dict, repr=False)
+    """
+    Per-pass memo of mapped task instance counts, keyed by ``(dag_id, run_id, node_id)``,
+    so the copies of a mapped task group share one count lookup instead of each copy running its own.
+
+    This is deliberately an ``init=True`` field even though callers never pass it. ``attrs.evolve``
+    only carries over fields that ``__init__`` accepts, and
+    :meth:`~airflow.models.taskinstance.TaskInstance.are_dependencies_met` evolves the context for
+    every ``UP_FOR_RESCHEDULE`` task instance. With ``init=False`` those instances would each get a
+    fresh empty dict, so they would neither read the memo nor warm it for anything else.
+    """
+
+    def get_mapped_ti_count(
+        self,
+        task: MappedOperator | SerializedBaseOperator | SerializedTaskGroup,
+        run_id: str,
+        *,
+        session: Session,
+    ) -> int:
+        """
+        Return :func:`~airflow.models.mappedoperator.get_mapped_ti_count`, memoized.
+
+        A count that cannot be computed yet raises and is not stored, so it is looked up again later.
+        """
+        from airflow.models.mappedoperator import get_mapped_ti_count
+
+        key = (task.dag_id, run_id, task.node_id)
+        if (count := self.mapped_ti_counts.get(key)) is None:
+            count = get_mapped_ti_count(task, run_id, session=session)
+            self.mapped_ti_counts[key] = count
+        return count
 
     def ensure_finished_tis(self, dag_run: DagRun, session: Session) -> list[SchedulingTI]:
         """

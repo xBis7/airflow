@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import collections.abc
 import functools
+import os
 from collections import Counter
 from collections.abc import Iterator, KeysView, Mapping
 from typing import TYPE_CHECKING, NamedTuple
@@ -27,6 +28,7 @@ from sqlalchemy import and_, func, or_, select
 
 from airflow.models.taskinstance import PAST_DEPENDS_MET
 from airflow.task.trigger_rule import TriggerRule as TR
+from airflow.ti_deps.dep_context import get_counted_mapped_ti_count
 from airflow.ti_deps.deps.base_ti_dep import BaseTIDep
 from airflow.utils.state import TaskInstanceState
 
@@ -146,7 +148,9 @@ class TriggerRuleDep(BaseTIDep):
             This extra closure allows us to query the database only when needed,
             and at most once.
             """
-            return dep_context.get_mapped_ti_count(task, ti.run_id, session=session)
+            if os.environ.get("PERF_TEST__NEW_CODE", "").lower() == "true":
+                return dep_context.get_mapped_ti_count(task, ti.run_id, session=session)
+            return get_counted_mapped_ti_count(task, ti.run_id, session=session)
 
         def _iter_expansion_dependencies(task_group: SerializedMappedTaskGroup | None) -> Iterator[str]:
             if is_mapped(task):
@@ -187,7 +191,11 @@ class TriggerRuleDep(BaseTIDep):
                 upstream=task.dag.task_dict[upstream_id],
                 ti_count=expanded_ti_count,
                 session=session,
-                count_mapped_tis=dep_context.get_mapped_ti_count,
+                count_mapped_tis=(
+                    dep_context.get_mapped_ti_count
+                    if os.environ.get("PERF_TEST__NEW_CODE", "").lower() == "true"
+                    else get_counted_mapped_ti_count
+                ),
             )
 
         def _is_relevant_upstream(upstream: SchedulingTI, relevant_ids: set[str] | KeysView[str]) -> bool:

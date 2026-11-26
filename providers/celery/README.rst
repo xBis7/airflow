@@ -23,7 +23,7 @@
 
 Package ``apache-airflow-providers-celery``
 
-Release: ``3.12.3``
+Release: ``4.0.1``
 
 
 `Celery <https://docs.celeryq.dev/en/stable/>`__
@@ -36,7 +36,7 @@ This is a provider package for ``celery`` provider. All classes for this provide
 are in ``airflow.providers.celery`` python package.
 
 You can find package information and changelog for the provider
-in the `documentation <https://airflow.apache.org/docs/apache-airflow-providers-celery/3.12.3/>`_.
+in the `documentation <https://airflow.apache.org/docs/apache-airflow-providers-celery/4.0.1/>`_.
 
 Installation
 ------------
@@ -45,21 +45,22 @@ You can install this package on top of an existing Airflow installation (see ``R
 for the minimum Airflow version supported) via
 ``pip install apache-airflow-providers-celery``
 
-The package supports the following python versions: 3.10,3.11,3.12,3.13
+The package supports the following python versions: 3.11,3.12,3.13,3.14
 
 Requirements
 ------------
 
-==================  ==================
-PIP package         Version required
-==================  ==================
-``apache-airflow``  ``>=2.10.0``
-``celery[redis]``   ``>=5.5.0,<6``
-``flower``          ``>=1.0.0``
-==================  ==================
+==========================================  ==================
+PIP package                                 Version required
+==========================================  ==================
+``apache-airflow``                          ``>=2.11.0``
+``apache-airflow-providers-common-compat``  ``>=1.15.0``
+``celery[redis]``                           ``>=5.5.0,<6``
+``flower``                                  ``>=1.0.0``
+==========================================  ==================
 
-Cross provider package dependencies
------------------------------------
+Optional cross provider package dependencies
+--------------------------------------------
 
 Those are dependencies that might be needed in order to use all the features of the package.
 You need to install the specified providers in order to use them.
@@ -77,5 +78,14 @@ Dependent package                                                               
 `apache-airflow-providers-cncf-kubernetes <https://airflow.apache.org/docs/apache-airflow-providers-cncf-kubernetes>`_  ``cncf.kubernetes``
 ======================================================================================================================  ===================
 
+Optional dependencies
+----------------------
+
+===================  ===================================================
+Extra                Dependencies
+===================  ===================================================
+``cncf.kubernetes``  ``apache-airflow-providers-cncf-kubernetes>=7.4.0``
+===================  ===================================================
+
 The changelog for the provider package can be found in the
-`changelog <https://airflow.apache.org/docs/apache-airflow-providers-celery/3.12.3/changelog.html>`_.
+`changelog <https://airflow.apache.org/docs/apache-airflow-providers-celery/4.0.1/changelog.html>`_.

@@ -25,6 +25,411 @@
 Changelog
 ---------
 
+1.23.1
+......
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Log errors from OpenLineage database info lookups in the fallback SQL facets helper (#74805)``
+
+Misc
+~~~~
+
+* ``Type the durable default of the common.compat ResumableJobMixin stand-in as bool | None (#75271)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``[main] Upgrade important CI environment (#76278)``
+
+1.23.0
+......
+
+Features
+~~~~~~~~
+
+* ``Export 'ResumableJobMixin' with a fallback for Airflow versions below 3.3 (#74673)``
+* ``Let retry policies reschedule a task without using a retry (#74719)``
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Resolve async connections off the event loop before Airflow 3.3.2 (#74766)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Remove unused mypy suppressions in common providers (#75257)``
+   * ``Stop parallel prek hooks racing on __pycache__ cleanup (#73823)``
+
+1.22.0
+......
+
+Features
+~~~~~~~~
+
+* ``Add 'mask_secret' to the common.compat SDK helpers (#70766)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+
+1.21.0
+......
+
+Features
+~~~~~~~~
+
+* ``Keep retried task attempts and their data under the attempt UUID (#74222)``
+* ``Add get_async_extra_dejson to the common.compat connection helpers (#74147)``
+* ``Support Airflow 2.11 in the Common AI provider (#73991)``
+
+Misc
+~~~~
+
+* ``Drop support for Python 3.10 (#74157)``
+
+Doc-only
+~~~~~~~~
+
+* ``Update provider READMEs for the Python 3.11 baseline (#74158)``
+* ``Persist 'retry_reason' not just for retries but even when a task fails (#73027)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Test get_async_extra_dejson against the real supervisor comms (#74166)``
+   * ``Use "Airflow versions" in user-facing docs, not "cores" (#74045)``
+   * ``[main] Upgrade important CI environment (#73629)``
+
+1.20.0
+......
+
+Features
+~~~~~~~~
+
+* ``Add ChainRetryPolicy to common.compat for Airflow 3.3 (#73553)``
+* ``Add REPARSE_ALL permission for reparsing files with no registered Dag (#73274)``
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Fix BaseBranchOperator import on Airflow 2 without standard provider (#73140)``
+
+Misc
+~~~~
+
+* ``Add missing tests for common.compat.standard operators and triggers (#73262)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Revert "[main] Upgrade important CI environment (#73308)" (#73621)``
+   * ``[main] Upgrade important CI environment (#73308)``
+
+1.19.0
+......
+
+Features
+~~~~~~~~
+
+* ``Add common.compat alias for BaseEventTrigger (#72140)``
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Fix lineage entities sharing mutable defaults across instances (#72509)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Add missing unit tests for common.compat lineage entities (#72506)``
+   * ``Prepare providers release 2026-08-18 (#71794)``
+   * ``Adopt flit 4 as the provider distribution build backend (#71186)``
+   * ``Update changelog with better wording (#71161)``
+
+1.18.0
+......
+
+Features
+~~~~~~~~
+
+* ``Gate audit log rows not tied to a Dag on a dedicated AccessView (#70759)``
+* ``Add IMPORT_ERRORS_ALL permission for import errors of files with no registered Dag (#69790)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+
+1.17.0
+......
+
+Features
+~~~~~~~~
+
+* ``Honor async hook subclass overrides in get_async_connection (#69140)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+
+
+1.16.0
+......
+
+Features
+~~~~~~~~
+
+* ``Added get_async_hook in common.compat provider (#69208)``
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Fix 'RecursionError' in 'common.compat' hook lineage 'add_extra polyfill' (#68735)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Document each provider's optional extras in its docs index (#69478)``
+   * ``Fix inconsistency between generated provider docs and pyproject.toml (#68991)``
+
+1.15.0
+......
+
+Features
+~~~~~~~~
+
+* ``Add BundleVersion dataclass and version_data persistence to DagVersion (#66491)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Add explicit [tool.flit.sdist] sections to flit-based pyproject.tomls (#65861)``
+   * ``Isolate non-provider mypy hooks per distribution with dedicated .build/ venvs (#65492)``
+
+1.14.3
+......
+
+Misc
+~~~~
+
+* ``Add OpenLineage parent and transport info injection to 'EmrServerlessStartJobOperator' (#64807)``
+* ``Add OpenLineage parent info injection to GlueJobOperator (#64513)``
+* ``Fix RESOURCE_ASSET compatibility with Airflow 2.x in common-compat (#64933)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Prepare providers release 2026-04-07 (#64864)``
+
+1.14.2
+......
+
+Misc
+~~~~
+
+* ``Add Python 3.14 Support (#63520)``
+* ``Remove usage of deprecated module airflow.security.permissions (#63335)``
+* ``Remove remaining session query usages (#62758)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``refactor: remove modules that are supposed to be removed in Airflow 3.2 (#62927)``
+   * ``Add *.iml to .gitignore in all distributions (#63636)``
+
+1.14.1
+......
+
+Misc
+~~~~
+
+* ``Consolidate 'SkipMixin' imports through 'common-compat' layer (#62776)``
+* ``Move SkipMixin and BranchMixIn to Task SDK (#62749)``
+* ``Move determine_kwargs and KeywordParameters to SDK DecoratedOperator (#62746)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+
+1.14.0
+......
+
+Features
+~~~~~~~~
+
+* ``Route providers to consume Stats from common compat provider (#61812)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Add 'lifecycle' field to provider.yaml schema and all providers per AIP-95 (#62190)``
+
+1.13.1
+......
+
+Features
+~~~~~~~~
+
+* ``Move lineage from airflow core to task sdk (#61157)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+
+1.13.0
+......
+
+.. note::
+    The new feature ``Add support for async callables in ''PythonOperator''`` will only work on Airflow 3.2.
+
+Features
+~~~~~~~~
+
+* ``Add support for async callables in ''PythonOperator'' (#60268)``
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Fix BaseAsyncOperator in common-compat provider for Airflow 2.x (#60663)``
+
+Misc
+~~~~
+
+* ``Option to disable exporting of legacy metric names (#53722)``
+* ``Define 'TaskInstanceKey' in task-sdk to support client server separation (#60776)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Move lineage from airflow core to task sdk (#60968)``
+   * ``Revert "Move lineage from airflow core to task sdk (#60968)" (#61151)``
+
+1.12.0
+......
+
+Features
+~~~~~~~~
+
+* ``Allow providers to consume AirflowConfigException from compat sdk (#60044)``
+* ``Source conf from 'airflow.sdk.configuration.conf' for apache providers (#59966)``
+* ``Consume ''AirflowOptionalProviderFeatureException'' from compat sdk in providers (#60335)``
+
+Misc
+~~~~
+
+* ``New year means updated Copyright notices (#60344)``
+* ``Move listeners module to shared library for client server separation (#59883)``
+* ``Move over plugins_manager to a shared library (#59956)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Add support for async callables in PythonOperator (#59087)``
+   * ``Revert "Add support for async callables in PythonOperator (#59087)" (#60266)``
+
+1.11.0
+......
+
+Features
+~~~~~~~~
+
+* ``Extract shared "module_loading" distribution (#59139)``
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Fix circular import errors when CeleryExecutor is used with sentry (#59745)``
+
+Misc
+~~~~
+
+* ``Prevent client secrets and proxy credentials from being logged in Microsoft Graph hook logs (#59688)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+
+1.10.1
+......
+
+Misc
+~~~~
+
+* ``Add backcompat for exceptions in providers (#58727)``
+* ``Move the traces and metrics code under a common observability package (#56187)``
+* ``Bump minimum prek version to 0.2.0 (#58952)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+
+1.10.0
+......
+
+.. note::
+    This release of provider is only available for Airflow 2.11+ as explained in the
+    Apache Airflow providers support policy <https://github.com/apache/airflow/blob/main/PROVIDERS.rst#minimum-supported-version-of-airflow-for-community-managed-providers>_.
+
+Features
+~~~~~~~~
+
+* ``Adjust compat HookLevelLineage for new add_extra method (#58057)``
+
+Misc
+~~~~
+
+* ``Move out some exceptions to TaskSDK (#54505)``
+* ``Bump minimum Airflow version in providers to Airflow 2.11.0 (#58612)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Updates to release process of providers (#58316)``
+
+1.9.0
+.....
+
+Features
+~~~~~~~~
+
+* ``feat: backwards comp get async conn (#57143)``
+
+Misc
+~~~~
+
+* ``Convert all airflow distributions to be compliant with ASF requirements (#58138)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Delete all unnecessary LICENSE Files (#58191)``
+   * ``Enable PT006 rule to 19 files in providers (cncf,common) (#57995)``
+   * ``Synchronize default versions in all split .pre-commit-config.yaml (#57851)``
+   * ``Fix mypy errors in 'common/compat' (#57759)``
+   * ``Extract prek hooks for Common.Compat provider (#57183)``
+
+1.8.0
+.....
+
+Features
+~~~~~~~~
+
+* ``Simplify version-specific imports in the Standard provider (#56867)``
+* ``Add SQLA's 'mapped_column' to common-compat (#56880)``
+* ``Add comprehensive compatibility imports for Airflow 2 to 3 migration (#56790)``
+
+Misc
+~~~~
+
+* ``Common.Compat: Extract reusable compat utilities and rename to sdk (#56884)``
+* ``Simplify version-specific imports in the Google provider (#56793)``
+* ``Migrate Apache providers & Elasticsearch to ''common.compat'' (#57016)``
+
+Doc-only
+~~~~~~~~
+
+* ``Remove placeholder Release Date in changelog and index files (#56056)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Enable PT011 rule to prvoider tests (#56495)``
+
+1.7.4
+.....
+
+
+Misc
+~~~~
+
+* ``Bump mypy to 1.18.1 (#55596)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Prepare release for Sep 2025 1st wave of providers (#55203)``
+   * ``Fix Airflow 2 reference in README/index of providers (#55240)``
+   * ``Switch pre-commit to prek (#54258)``
+
 1.7.3
 .....
 
@@ -149,7 +554,7 @@ Misc
 .....
 
 .. note::
-  This version has no code changes. It's released due to yank of previous version due to packaging issues.
+  This version contains no code changes. It was released to replace a previous version that was yanked due to a packaging issue.
 
 1.4.0
 .....
@@ -205,8 +610,6 @@ Misc
    * ``Bumping common compat to 1.3.0 (#44728)``
    * ``Prevent __init__.py in providers from being modified (#44713)``
    * ``Fix accidental db tests in Task SDK (#44690)``
-
-.. Review and move the new changes to one of the sections above:
    * ``feat: automatically inject OL info into spark job in DataprocSubmitJobOperator (#44477)``
 
 1.2.2

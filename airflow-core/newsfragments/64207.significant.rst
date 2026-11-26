@@ -1,0 +1,12 @@
+OTel timer and timing metrics now use Histogram instead of Gauge, preserving count, sum, and bucket distribution across recordings.
+
+* Types of change
+
+  * [ ] Dag changes
+  * [ ] Config changes
+  * [ ] API changes
+  * [ ] CLI changes
+  * [x] Behaviour changes
+  * [ ] Plugin changes
+  * [ ] Dependency changes
+  * [ ] Code interface changes

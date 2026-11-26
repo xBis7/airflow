@@ -27,11 +27,532 @@
 Changelog
 ---------
 
-3.12.3
+4.0.1
+.....
+
+.. note::
+    An explicit ``[celery] result_backend`` with a driverless ``db+postgresql://`` URL now gets the same
+    driver as one derived from ``sql_alchemy_conn``: ``db+postgresql+psycopg://...`` when psycopg (v3) and
+    SQLAlchemy 2.0+ are installed, ``db+postgresql+psycopg2://...`` otherwise. Before, the URL went to
+    SQLAlchemy unchanged, which picks psycopg2 on SQLAlchemy 2.0 and fails when psycopg2 is not installed.
+    To keep psycopg2 with both drivers installed, set ``db+postgresql+psycopg2://`` explicitly.
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Fix driverless PostgreSQL Celery 'result_backend' requiring psycopg2 (#77166)``
+* ``Fix Celery workers rejecting deadline callbacks on Airflow 3.2 (#75438)``
+* ``Fix CeleryExecutor failing to load with Celery 5.7 (#76591)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+
+4.0.0
+.....
+
+.. warning::
+  The deprecated ``CeleryExecutor.cleanup_stuck_queued_tasks`` and ``CeleryKubernetesExecutor.cleanup_stuck_queued_tasks`` methods have been removed. Use ``revoke_task`` instead.
+
+Breaking changes
+~~~~~~~~~~~~~~~~
+
+* ``Remove deprecated cleanup_stuck_queued_tasks from CeleryExecutor and CeleryKubernetesExecutor (#76129)``
+
+Misc
+~~~~
+
+* ``Make the celery visibility_timeout redelivery docs version-conditional (#75373)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``[main] Upgrade important CI environment (#76278)``
+
+3.26.0
+......
+
+Features
+~~~~~~~~
+
+* ``Add support for forwarding CeleryExecutor task logs to stdout (#69597)``
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Fix Celery result backend compatibility with PgBouncer (#74841)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+
+3.25.0
+......
+
+Features
+~~~~~~~~
+
+* ``Carry task attempt UUIDs through remote executor providers (#73917)``
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Use configured default queue for Celery executor callbacks (#73552)``
+
+Misc
+~~~~
+
+* ``Drop support for Python 3.10 (#74157)``
+
+Doc-only
+~~~~~~~~
+
+* ``Update provider READMEs for the Python 3.11 baseline (#74158)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Correlate executor task events by attempt UUID (#73916)``
+   * ``[main] Upgrade important CI environment (#73629)``
+
+3.24.1
+......
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Fix airflow celery stop crashing on stale PID file (#72817)``
+
+Misc
+~~~~
+
+* ``Unify executor workload queues (#63491)``
+* ``Stop recommending psycopg3 connection strings on older Airflow (#70619)``
+
+Doc-only
+~~~~~~~~
+
+* ``Remove note about airflow 2.7.0 from docs (#72913)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Revert "[main] Upgrade important CI environment (#73308)" (#73621)``
+   * ``[main] Upgrade important CI environment (#73308)``
+
+3.24.0
+......
+
+Features
+~~~~~~~~
+
+* ``Parse additional Kafka, Redis & SQS options in 'broker_transport_options' (#70228)``
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Fix mismatched AirflowConfigException in celery and edge3 (#72437)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Use common.compat.sdk for the remaining provider timezone imports (#71209)``
+   * ``Prepare providers release 2026-08-18 (#71794)``
+   * ``Adopt flit 4 as the provider distribution build backend (#71186)``
+   * ``Update changelog with better wording (#71161)``
+
+3.23.1
+......
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Honor verbose logging for Celery workers (#69828)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+
+3.23.0
+......
+
+.. note::
+    When ``[celery] result_backend`` is not set and Airflow derives it from ``sql_alchemy_conn``, a
+    driverless ``postgresql://`` connection string now produces ``db+postgresql+psycopg://...`` instead
+    of ``db+postgresql+psycopg2://...``, matching the sync Postgres driver default change in
+    ``apache-airflow`` and ``apache-airflow-providers-postgres``. An explicit ``[celery] result_backend``
+    or an explicit driver in ``sql_alchemy_conn`` is unaffected.
+
+Features
+~~~~~~~~
+
+* ``Add streaming task log support to KubernetesExecutor (#69300)``
+* ``Add the team_name tag to the Celery executor task_timeout_error (#69092)``
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Fix Celery worker crash on Airflow 3.0 with json_logs (#69919)``
+
+Misc
+~~~~
+
+* ``Make psycopg (v3) the default synchronous Postgres driver (#69526)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+
+
+3.22.0
+......
+
+Features
+~~~~~~~~
+
+* ``Honor json_logs config in Celery worker startup (#68916)``
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Fix Celery worker JSON logging config for teams (#69139)``
+
+Misc
+~~~~
+
+* ``Make PostgreSQL SQLAlchemy driver explicit (postgresql+psycopg2://) (#68314)``
+
+Doc-only
+~~~~~~~~
+
+* ``Clarify Redis maintenance for CeleryExecutor in docs (#67393)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Document each provider's optional extras in its docs index (#69478)``
+   * ``Fix inconsistency between generated provider docs and pyproject.toml (#68991)``
+   * ``Test fix in main Celery worker tests leaking logging handler onto captured stdout (#69163)``
+   * ``Prepare ad-hoc provider documentation 2026-06-26 (#69022)``
+   * ``Prepare ad-hoc provider documentation 2026-06-26``
+
+3.21.0
+......
+
+Features
+~~~~~~~~
+
+* ``Add Celery worker mp_start_method config to curb Python 3.14 memory (#69015)``
+
+Misc
+~~~~
+
+* ``Cache Celery apps when publishing workloads (#67127)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+
+3.20.0
+......
+
+Features
+~~~~~~~~
+
+* ``Add callback support to AWS batch executor (#62984)``
+
+Misc
+~~~~
+
+* ``Use contextlib.suppress instead of try-except-pass in providers (#66178)``
+
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Providers wave 2026-04-26 (#65902)``
+   * ``Providers wave 2026-04-26``
+   * ``Add CeleryExecutor callback workload routing test (#66435)``
+   * ``Adjust log message header for expandable sources (#66570)``
+   * ``Fix flaky test_celery_integration with deterministic task registration (#66602)``
+   * ``Add Celery worker workload dispatch regression tests (#65849)``
+   * ``Remove the DualStatsManager and the Stats interfaces (#63932)``
+
+3.19.0
+......
+
+Features
+~~~~~~~~
+
+* ``Add SSL_MUTUAL_TLS config option to Celery provider for one-way TLS support (#64767)``
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Fix Celery version compat logic after PR 62645 (#65844)``
+* ``Fix Celery workers not executing tasks when --celery-hostname is set (#65826)``
+* ``Fix Celery provider ImportError on airflow 3.2.x by gating ExecutorWorkload on 3.3+ (#65752)``
+* ``Pre-assign external_executor_id at queuing time to prevent duplicate execution on scheduler crash (#65594)``
+
+Misc
+~~~~
+
+* ``Widen BaseExecutor method signatures to accept WorkloadKey (#65392)``
+* ``Move ExecutorCallback execution into a supervised process (#62645)``
+* ``Add explicit [tool.flit.sdist] sections to flit-based pyproject.tomls (#65861)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+
+3.18.0
+......
+
+Features
+~~~~~~~~
+
+* ``Ignore redelivered message for already-running task (#64052)``
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Fix amqps:// SSL config and celery_config_options bypass (#64392)``
+
+Misc
+~~~~
+
+* ``Clean up CeleryExecutor to use workload terminology and typing (#63888)``
+* ``Compat sdk conf follow-up: Celery, Common AI, FAB, Edge3 (#64292)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Fix Celery tests after conf-backcompat merge (#64388)``
+
+3.17.2
+......
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Set task name for 2.11.X path (#63746)``
+* ``Fix misaligned 'queued_tasks' types in hybrid executors (#63744)``
+* ``Add gc.freeze to minimize memory usage in celery worker (#62212)``
+* ``Warn about hardcoded 24h visibility_timeout that kills long-running Celery tasks (#62869)``
+
+Misc
+~~~~
+
+* ``Add Python 3.14 Support (#63520)``
+* ``Refactor: remove modules that are supposed to be removed in Airflow 3.2 (#62927)``
+* ``Make test_celery_integration runnable (#64153)``
+* ``Update celery provider conf imports to use common compat SDK (#64134)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``remove useless mock db (#63740)``
+   * ``Add *.iml to .gitignore in all distributions (#63636)``
+
+3.17.1
+......
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Ensure Celery tasks are registered at worker startup (main) (#63110)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+
+3.17.0
+......
+
+Features
+~~~~~~~~
+
+* ``Celery: explicitly specify 'psycopg2' in driverless postgres URLs (#62159)``
+* ``Executor Synchronous callback workload (#61153)``
+* ``Enable multi-team in Celery executor (#62534)``
+
+Bug Fixes
+~~~~~~~~~
+
+* ``docs(celery): fix wrong link in cli (#62460)``
+* ``Fix Celery worker crash on macOS due to unpicklable local function (#62655)``
+
+Misc
+~~~~
+
+* ``Insert a team_name similar to team conf for 2.X compat (#61923)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Add 'lifecycle' field to provider.yaml schema and all providers per AIP-95 (#62190)``
+   * ``Prepare documentation for next release of providers (2026-02-24) (#62495)``
+
+3.16.0
+......
+
+Features
+~~~~~~~~
+
+* ``AIP-67 - Multi Team: Update Celery Executor to support multi team (#60675)``
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Use TaskFormatter for Celery log formatting instead of default Formatter (#61701)``
+* ``Fix Redis import race condition in Celery executor (#61362)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Construct task instances with 'ExecuteTask.make' for celery executor integration tests (#61311)``
+   * ``Update delay-time in celery flaky-test  (#61325)``
+
+3.15.2
+......
+
+Misc
+~~~~
+
+* ``Define 'TaskInstanceKey' in task-sdk to support client server separation (#60776)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+
+3.15.1
+......
+
+Misc
+~~~~
+
+* ``Consume ''AirflowOptionalProviderFeatureException'' from compat sdk in providers (#60335)``
+* ``New year means updated Copyright notices (#60344)``
+* ``Introduce a "cli" section in provider metadata (#59805)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Re-apply PriorityWeightStrategy SDK work (#60112)``
+
+3.15.0
+......
+
+Features
+~~~~~~~~
+
+* ``Add result_backend_transport_options for Redis Sentinel support in Celery (#59498)``
+
+Misc
+~~~~
+
+* ``Cleanup of variables in settings.py (#59875)``
+* ``Remove top-level SDK reference in Core (#59817)``
+* ``Add and fix SIM107 and B012 Ruff rule (#59770)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``TaskInstance unused method cleanup (#59835)``
+   * ``Revert "Remove PriorityWeightStrategy reference in SDK" (#59828)``
+   * ``Remove PriorityWeightStrategy reference in SDK (#59780)``
+   * ``Refactor/sqla2 providers(celery, kubernetes, databricks, mysql) to remove SQLA query usage (#59537)``
+
+3.14.1
+......
+
+Misc
+~~~~
+
+* ``Add backcompat for exceptions in providers (#58727)``
+* ``Move the traces and metrics code under a common observability package (#56187)``
+* ``Remove global from celery provider (#58869)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+
+3.14.0
+......
+
+.. note::
+    This release of provider is only available for Airflow 2.11+ as explained in the
+    Apache Airflow providers support policy <https://github.com/apache/airflow/blob/main/PROVIDERS.rst#minimum-supported-version-of-airflow-for-community-managed-providers>_.
+
+Features
+~~~~~~~~
+
+* ``Send executor integration info in workload (#57800)``
+* ``Add duplicate hostname check for Celery workers (#58591)``
+
+Misc
+~~~~
+
+* ``Move out some exceptions to TaskSDK (#54505)``
+* ``Bump minimum Airflow version in providers to Airflow 2.11.0 (#58612)``
+* ``Fix lower bound dependency to common-compat provider (#58833)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Updates to release process of providers (#58316)``
+   * ``Prepare release for 2025-11-27 wave of providers (#58697)``
+
+3.13.1
+......
+
+Misc
+~~~~
+
+* ``Convert all airflow distributions to be compliant with ASF requirements (#58138)``
+* ``Migrate 'celery' to 'common.compat' (#57322)``
+
+Doc-only
+~~~~~~~~
+
+* ``[Doc] Fixing some typos and spelling errors (#57225)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Delete all unnecessary LICENSE Files (#58191)``
+   * ``Enable PT006 rule to celery Provider test (#57938)``
+   * ``Enable ruff PLW1641 rule (#57679)``
+   * ``Enable ruff PLW1510 rule (#57660)``
+   * ``Fix code formatting via ruff preview (#57641)``
+
+3.13.0
+......
+
+Features
+~~~~~~~~
+
+* ``Add CLI command to remove all queues from Celery worker (#56195)``
+
+Misc
+~~~~
+
+* ``Remove CELERY_APP_NAME deprecation (#56835)``
+
+Doc-only
+~~~~~~~~
+
+* ``Update celery broker_url config description (#56917)``
+* ``Update broken link for monkey-patch reference (#56862)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Fix use of DeprecationWarning in celery provider to AirflowProviderDeprecationWarning (#56526)``
+   * ``Remove placeholder Release Date in changelog and index files (#56056)``
+
+3.12.4
 ......
 
 
-Release Date: ``|PypiReleaseDate|``
+Bug Fixes
+~~~~~~~~~
+
+* ``Only send hostname to celery worker if passed in cli (#55913)``
+* ``Don't check db migration needlessly for 'airflow celery' cli commands. (#55878)``
+* ``Fix: Use get instead of hasattr for task_result in BulkStateFetcher (#52839)``
+
+Misc
+~~~~
+
+* ``AIP-67 - Multi Team: Pass args/kwargs to super in CeleryExecutor (#56006)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Fix pytest collection failure for classes decorated with context managers (#55915)``
+   * ``Prepare release for Sep 2025 2nd wave of providers (#55688)``
+   * ``Switch all airflow logging to structlog (#52651)``
+   * ``Fix celery tests with Python 3.13 after 5.5.3 (#56017)``
+
+3.12.3
+......
+
 
 Bug Fixes
 ~~~~~~~~~
@@ -56,8 +577,6 @@ Doc-only
    * ``Remove airflow.models.DAG (#54383)``
    * ``Switch pre-commit to prek (#54258)``
    * ``make bundle_name not nullable (#47592)``
-
-.. Review and move the new changes to one of the sections above:
    * ``Fix Airflow 2 reference in README/index of providers (#55240)``
 
 3.12.2
@@ -247,7 +766,7 @@ Misc
 ......
 
 .. note::
-  This version has no code changes. It's released due to yank of previous version due to packaging issues.
+  This version contains no code changes. It was released to replace a previous version that was yanked due to a packaging issue.
 
 3.10.1
 ......
@@ -659,7 +1178,8 @@ Misc
 * ``Move default_celery.py to inside the provider (#32628)``
 * ``Raise original import error in CLI vending of executors (#32931)``
 
-.. Review and move the new changes to one of the sections above:
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
    * ``Introduce decorator to load providers configuration (#32765)``
    * ``Allow configuration to be contributed by providers (#32604)``
    * ``Prepare docs for July 2023 wave of Providers (RC2) (#32381)``

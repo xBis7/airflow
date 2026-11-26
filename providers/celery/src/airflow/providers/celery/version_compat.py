@@ -27,11 +27,17 @@ def get_base_airflow_version_tuple() -> tuple[int, int, int]:
 
 
 AIRFLOW_V_3_0_PLUS = get_base_airflow_version_tuple() >= (3, 0, 0)
+AIRFLOW_V_3_1_PLUS = get_base_airflow_version_tuple() >= (3, 1, 0)
+AIRFLOW_V_3_1_9_PLUS = get_base_airflow_version_tuple() >= (3, 1, 9)
+AIRFLOW_V_3_2_PLUS = get_base_airflow_version_tuple() >= (3, 2, 0)
+AIRFLOW_V_3_3_PLUS = get_base_airflow_version_tuple() >= (3, 3, 0)
+AIRFLOW_V_3_4_PLUS = get_base_airflow_version_tuple() >= (3, 4, 0)
 
-try:
-    from airflow.sdk.execution_time.timeout import timeout
-except ImportError:
-    from airflow.utils.timeout import timeout  # type: ignore[assignment,attr-defined,no-redef]
-
-
-__all__ = ["AIRFLOW_V_3_0_PLUS", "timeout"]
+__all__ = [
+    "AIRFLOW_V_3_0_PLUS",
+    "AIRFLOW_V_3_1_PLUS",
+    "AIRFLOW_V_3_1_9_PLUS",
+    "AIRFLOW_V_3_2_PLUS",
+    "AIRFLOW_V_3_3_PLUS",
+    "AIRFLOW_V_3_4_PLUS",
+]

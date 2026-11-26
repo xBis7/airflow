@@ -3004,7 +3004,12 @@ def test_scheduling_decisions_mark_orphaned_finished_tis_removed(dag_maker, sess
         dag_run_1.run_id,
         stays.map_index,
     )
+    # This read returns the ORM copy loaded in memory, and the assertion checks
+    # that the bulk UPDATE also synchronised the session.
+    assert dag_run_1.get_task_instance("vanishes", session=session).state == TaskInstanceState.REMOVED
     session.expire_all()
+    # After expiring the session, the following reads hit the database,
+    # and the assertions check what the UPDATE actually wrote.
     assert dag_run_1.get_task_instance("vanishes", session=session).state == TaskInstanceState.REMOVED
     assert dag_run_1_later.get_task_instance("vanishes", session=session).state == TaskInstanceState.SUCCESS
     assert dag_run_2.get_task_instance("vanishes", session=session).state == TaskInstanceState.SUCCESS

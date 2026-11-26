@@ -1432,7 +1432,6 @@ class DagRun(Base, LoggingMixin):
                         TI.state != TaskInstanceState.REMOVED,
                     )
                     .values(state=TaskInstanceState.REMOVED)
-                    .execution_options(synchronize_session=False)
                 )
             return finished
 

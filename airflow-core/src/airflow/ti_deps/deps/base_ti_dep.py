@@ -17,8 +17,10 @@
 # under the License.
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING, NamedTuple
 
+from airflow.ti_deps import perf_harness
 from airflow.ti_deps.dep_context import DepContext
 from airflow.utils.session import provide_session
 
@@ -116,7 +118,12 @@ class BaseTIDep:
             yield self._passing_status(reason="Context specified all task dependencies should be ignored.")
             return
 
-        yield from self._get_dep_statuses(ti, cxt, session=session)
+        # Includes what the caller does between statuses, which is debug logging.
+        started = time.monotonic()
+        try:
+            yield from self._get_dep_statuses(ti, cxt, session=session)
+        finally:
+            perf_harness.dep_seconds[type(self).__name__] += time.monotonic() - started
 
     @provide_session
     def is_met(self, ti: TaskInstance, dep_context: DepContext | None = None, *, session: Session) -> bool:

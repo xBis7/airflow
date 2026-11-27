@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import collections.abc
 import functools
+import time
 from collections import Counter
 from collections.abc import Iterator, KeysView, Mapping
 from typing import TYPE_CHECKING, NamedTuple
@@ -27,6 +28,7 @@ from uuid import UUID
 from sqlalchemy import and_, func, or_, select
 
 from airflow.task.trigger_rule import TriggerRule as TR
+from airflow.ti_deps import perf_harness
 from airflow.ti_deps.deps.base_ti_dep import BaseTIDep
 from airflow.ti_deps.deps.prev_dagrun_dep import is_past_depends_met
 from airflow.utils.state import TaskInstanceState
@@ -268,16 +270,36 @@ class TriggerRuleDep(BaseTIDep):
                 return True
             return False
 
-        def _get_relevant_finished_tis(relevant_ids: set[str] | KeysView[str]) -> Iterator[SchedulingTI]:
-            finished_tis_by_task_id = dep_context.get_finished_tis_by_task_id(
-                ti.get_dagrun(session=session), session=session
-            )
-            return (
-                finished_ti
-                for task_id in relevant_ids
-                for finished_ti in finished_tis_by_task_id.get(task_id, ())
-                if _is_relevant_upstream(upstream=finished_ti, relevant_ids=relevant_ids)
-            )
+        def _get_relevant_finished_tis(
+            relevant_ids: set[str] | KeysView[str], *, site: str
+        ) -> Iterator[SchedulingTI]:
+            dag_run = ti.get_dagrun(session=session)
+            # Outside the timer: a context created without finished_tis queries them here, in both
+            # test cases alike.
+            finished_tis = dep_context.ensure_finished_tis(dag_run, session=session)
+            # A list, not main's generator, so the timer covers the whole search; every caller
+            # consumes all of it anyway.
+            started = time.monotonic()
+            if perf_harness.NEW_CODE:
+                finished_tis_by_task_id = dep_context.get_finished_tis_by_task_id(dag_run, session=session)
+                relevant = [
+                    finished_ti
+                    for task_id in relevant_ids
+                    for finished_ti in finished_tis_by_task_id.get(task_id, ())
+                    if _is_relevant_upstream(upstream=finished_ti, relevant_ids=relevant_ids)
+                ]
+                seconds = time.monotonic() - started
+                examined_tis = sum(len(finished_tis_by_task_id.get(task_id, ())) for task_id in relevant_ids)
+            else:
+                relevant = [
+                    finished_ti
+                    for finished_ti in finished_tis
+                    if _is_relevant_upstream(upstream=finished_ti, relevant_ids=relevant_ids)
+                ]
+                seconds = time.monotonic() - started
+                examined_tis = len(finished_tis)
+            perf_harness.record_lookup(site, seconds, examined_tis)
+            return iter(relevant)
 
         def _iter_upstream_conditions(relevant_tasks: dict) -> Iterator[ColumnElement]:
             # Optimization: If the current task is not in a mapped task group,
@@ -334,7 +356,9 @@ class TriggerRuleDep(BaseTIDep):
                 return
 
             indirect_setups = {k: v for k, v in relevant_setups.items() if k not in task.upstream_task_ids}
-            upstream_states = _UpstreamTIStates.calculate(_get_relevant_finished_tis(indirect_setups.keys()))
+            upstream_states = _UpstreamTIStates.calculate(
+                _get_relevant_finished_tis(indirect_setups.keys(), site="trigger_rule_setup")
+            )
 
             # all of these counts reflect indirect setups which are relevant for this ti
             success = upstream_states.success
@@ -409,7 +433,9 @@ class TriggerRuleDep(BaseTIDep):
             trigger_rule = task.trigger_rule
             trigger_rule_str = getattr(trigger_rule, "value", trigger_rule)
 
-            upstream_states = _UpstreamTIStates.calculate(_get_relevant_finished_tis(task.upstream_task_ids))
+            upstream_states = _UpstreamTIStates.calculate(
+                _get_relevant_finished_tis(task.upstream_task_ids, site="trigger_rule_direct")
+            )
 
             success = upstream_states.success
             skipped = upstream_states.skipped
@@ -740,7 +766,7 @@ class TriggerRuleDep(BaseTIDep):
 
             in_scope_tasks = {tid: task.dag.get_task(tid) for tid in in_scope_ids}
 
-            done = sum(1 for _ in _get_relevant_finished_tis(in_scope_ids))
+            done = sum(1 for _ in _get_relevant_finished_tis(in_scope_ids, site="trigger_rule_teardown"))
 
             if not any(t.get_needs_expansion() for t in in_scope_tasks.values()):
                 expected = len(in_scope_tasks)

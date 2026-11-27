@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import contextlib
+import time
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -25,6 +26,7 @@ import attr
 from sqlalchemy import select
 
 from airflow.exceptions import TaskNotFound
+from airflow.ti_deps import perf_harness
 from airflow.utils.state import State
 
 if TYPE_CHECKING:
@@ -230,11 +232,13 @@ class DepContext:
         finished_tis = self.ensure_finished_tis(dag_run, session=session)
         index = self.finished_tis_index
         if index.source is not finished_tis:
+            started = time.monotonic()
             by_task_id: dict[str, list[SchedulingTI]] = {}
             for finished_ti in finished_tis:
                 by_task_id.setdefault(finished_ti.task_id, []).append(finished_ti)
             index.source = finished_tis
             index.by_task_id = by_task_id
+            perf_harness.record_index_build(len(finished_tis), time.monotonic() - started)
         return index.by_task_id
 
     def invalidate_finished_tis_index(self) -> None:

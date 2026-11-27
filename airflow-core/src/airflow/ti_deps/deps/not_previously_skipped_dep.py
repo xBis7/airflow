@@ -18,15 +18,17 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import TYPE_CHECKING
 
 from airflow.models.xcom import XComModel, xcom_entity
+from airflow.ti_deps import perf_harness
 from airflow.ti_deps.deps.base_ti_dep import BaseTIDep
 from airflow.ti_deps.deps.prev_dagrun_dep import is_past_depends_met
 from airflow.utils.state import TaskInstanceState
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Mapping
+    from collections.abc import Container, Iterator, Mapping
 
     from sqlalchemy.orm import Session
 
@@ -64,9 +66,20 @@ class NotPreviouslySkippedDep(BaseTIDep):
     IS_TASK_DEP = True
 
     def _get_dep_statuses(self, ti, dep_context, *, session):
-        finished_tis_by_task_id = dep_context.get_finished_tis_by_task_id(
-            ti.get_dagrun(session=session), session=session
-        )
+        dag_run = ti.get_dagrun(session=session)
+        # Outside the timer, as in TriggerRuleDep.
+        finished_tis = dep_context.ensure_finished_tis(dag_run, session=session)
+        started = time.monotonic()
+        finished_tis_by_task_id: Mapping[str, list[SchedulingTI]] | None = None
+        finished_task_ids: Container[str]
+        if perf_harness.NEW_CODE:
+            finished_tis_by_task_id = dep_context.get_finished_tis_by_task_id(dag_run, session=session)
+            finished_task_ids = finished_tis_by_task_id
+            examined_tis = 0
+        else:
+            finished_task_ids = {t.task_id for t in finished_tis}
+            examined_tis = len(finished_tis)
+        perf_harness.record_lookup("not_previously_skipped", time.monotonic() - started, examined_tis)
 
         # An unexpanded placeholder (map index -1) keeps the direct-upstream lookup below.
         mapped_group = ti.task.get_closest_mapped_task_group() if ti.map_index >= 0 else None
@@ -77,7 +90,7 @@ class NotPreviouslySkippedDep(BaseTIDep):
                     # Read below from the per-pass memo, together with the rest of the group.
                     continue
 
-                if parent.task_id not in finished_tis_by_task_id:
+                if parent.task_id not in finished_task_ids:
                     # This can happen if the parent task has not yet run.
                     continue
 
@@ -123,7 +136,7 @@ class NotPreviouslySkippedDep(BaseTIDep):
         # not be expanded yet. ShortCircuitOperator lists every task it skips, not only its
         # direct downstream, so honour any decision of the same group for this map index.
         decisions = _mapped_group_skip_decisions(
-            ti, mapped_group, finished_tis_by_task_id, dep_context, session
+            ti, mapped_group, finished_tis, finished_tis_by_task_id, dep_context, session
         )
         upstream_task_ids = ti.task.upstream_task_ids
         for parent_task_id, succeeded, prev_result in decisions.get(ti.map_index, ()):
@@ -214,7 +227,8 @@ def _shares_map_indexes(task, mapped_group: SerializedMappedTaskGroup) -> bool:
 def _mapped_group_skip_decisions(
     ti: TaskInstance,
     mapped_group: SerializedMappedTaskGroup,
-    finished_tis_by_task_id: Mapping[str, list[SchedulingTI]],
+    finished_tis: list[SchedulingTI],
+    finished_tis_by_task_id: Mapping[str, list[SchedulingTI]] | None,
     dep_context: DepContext,
     session: Session,
 ) -> dict[int, list[tuple[str, bool, dict]]]:
@@ -229,11 +243,22 @@ def _mapped_group_skip_decisions(
         for t in mapped_group.iter_tasks()
         if t.inherits_from_skipmixin and _shares_map_indexes(t, mapped_group)
     }
-    finished_states = {
-        (t.task_id, t.map_index): t.state
-        for task_id in skipmixin_task_ids
-        for t in finished_tis_by_task_id.get(task_id, ())
-    }
+    started = time.monotonic()
+    if finished_tis_by_task_id is not None:
+        finished_states = {
+            (t.task_id, t.map_index): t.state
+            for task_id in skipmixin_task_ids
+            for t in finished_tis_by_task_id.get(task_id, ())
+        }
+        seconds = time.monotonic() - started
+        examined_tis = sum(len(finished_tis_by_task_id.get(task_id, ())) for task_id in skipmixin_task_ids)
+    else:
+        finished_states = {
+            (t.task_id, t.map_index): t.state for t in finished_tis if t.task_id in skipmixin_task_ids
+        }
+        seconds = time.monotonic() - started
+        examined_tis = len(finished_tis)
+    perf_harness.record_lookup("mapped_group_skip", seconds, examined_tis)
     if finished_states:
         query = XComModel.get_many(
             run_id=ti.run_id, key=XCOM_SKIPMIXIN_KEY, dag_ids=ti.dag_id, task_ids=skipmixin_task_ids

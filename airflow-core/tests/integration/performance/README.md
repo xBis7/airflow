@@ -44,6 +44,9 @@ by pytest's capture.
 
 Watch the run from the host: Grafana at <http://localhost:23000>, dashboard "Scheduler
 performance"; Jaeger at <http://localhost:26686>; Prometheus at <http://localhost:29090>.
+Each test case labels its processes with the `perf.arm` resource attribute, its run id prefix, so the
+dashboard groups every series by test case. Once every test case has run, the test prints a table
+comparing them, read from Prometheus.
 
 The first run on a machine raises the Postgres connection limit the profile needs, persists it
 in the breeze volume and restarts the container from inside breeze. If the restart is not
@@ -78,14 +81,26 @@ class-level choice, because it sizes the deployment before the database is creat
 
 | Setting               | Default   | Override                   | Effect                                                                 |
 |-----------------------|-----------|----------------------------|------------------------------------------------------------------------|
+| `dag_id`              | `perf_chains_dag` | `PERF_TEST__DAG_ID`        | The Dag every run of the test case belongs to.                         |
 | `dag_run_count`           | `5`       | `PERF_TEST__DAG_RUN_COUNT`           | Queued runs created up front, before the scheduler starts.             |
-| `mapped_task_count`   | `20`      | `PERF_TEST__MAPPED_TASK_COUNT`   | Mapped instances per stage, passed to every run in its `conf`.         |
-| `timeout_seconds`     | `3600`    | `PERF_TEST__TIMEOUT_SECONDS`     | Give up on a test case after this; unfinished runs compare with nothing.   |
+| `mapped_task_count`   | `20`      | `PERF_TEST__MAPPED_TASK_COUNT`   | `perf_dag` only: mapped instances per stage, passed to every run in its `conf`. |
+| `CHAIN_COUNT`         | `100`     | `PERF_TEST__CHAIN_COUNT`         | `perf_chains_dag` only: independent chains, read when the Dag is serialized. |
+| `CHAIN_LENGTH`        | `50`      | `PERF_TEST__CHAIN_LENGTH`        | `perf_chains_dag` only: empty tasks per chain, read when the Dag is serialized. |
+| `cutoff_seconds`      | `3600`    | `PERF_TEST__CUTOFF_SECONDS`      | Stop a test case after this; runs still going do not fail it and are deleted. |
 | `profile`             | `dynamic` | `PERF_TEST__PROFILE`             | Concurrency profile, see below.                                        |
 
-The Dag is fixed: a first task producing a list, then nine mapped stages that expand over it,
+`perf_dag` is a first task producing a list, then nine mapped stages that expand over it,
 each depending on the whole previous stage. Only the size of a run changes, through its `conf`.
 The total mapped task instances per test case are `dag_run_count * 9 * mapped_task_count`.
+
+`perf_chains_dag` is `CHAIN_COUNT` independent chains of `CHAIN_LENGTH` empty tasks, so each run holds
+`CHAIN_COUNT * CHAIN_LENGTH` task instances, each waiting on one upstream. It measures the dependency
+checks of a large Dag run: every pass checks each waiting task instance while thousands have finished.
+Its tasks are `EmptyOperator`s, which the scheduler marks succeeded itself, so no worker parses the
+file once per task and the scheduler is the only constraint; each loop moves every chain one step.
+Because nothing reaches the executor, the test sets `[scheduler] scheduler_idle_sleep_time` to `0` for
+it, or the scheduler would sleep after every loop. Its shape is fixed when `setup_class` serializes
+it, so its sizes come from the environment, not from `conf`.
 
 To adjust:
 

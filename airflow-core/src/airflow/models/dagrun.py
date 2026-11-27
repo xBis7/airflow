@@ -103,6 +103,7 @@ from airflow.models.tasklog import LogTemplate
 from airflow.sdk.definitions.context import CallbackMeta, CallbackSource  # noqa: SDK001
 from airflow.serialization.definitions.deadline import SerializedReferenceModels
 from airflow.serialization.definitions.notset import NOTSET, ArgNotSet, is_arg_set
+from airflow.ti_deps import perf_harness
 from airflow.ti_deps.dep_context import DepContext
 from airflow.ti_deps.dependencies_states import SCHEDULEABLE_STATES
 from airflow.utils.helpers import chunks, is_container, prune_dict
@@ -1449,6 +1450,7 @@ class DagRun(Base, LoggingMixin):
                     )
                     if changed_by_upstream:  # Something changed, we need to recalculate!
                         unfinished = unfinished.recalculate()
+        perf_harness.emit_perf_metrics()
 
         tis_for_dagrun_state = self._tis_for_dagrun_state(dag=dag, tis=tis)
 
@@ -1995,7 +1997,8 @@ class DagRun(Base, LoggingMixin):
                                 and fti.region_index in removed_indexes
                             ):
                                 finished_tis[i] = replace(fti, state=TaskInstanceState.REMOVED)
-                        dep_context.invalidate_finished_tis_index()
+                        if perf_harness.NEW_CODE:
+                            dep_context.invalidate_finished_tis_index()
                     ready_tis.extend(revised_tis)
                     revised_expansion_keys.add(expansion_key)
                     if revised_tis:

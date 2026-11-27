@@ -535,6 +535,34 @@ metrics:
     legacy_name: "-"
     name_variables: ["toolset", "framework", "outcome"]
 
+  - name: "perf.finished_tis.lookups"
+    description: "Performance harness only. Searches of a Dag run's finished task instances by a
+    scheduler dependency, one per task instance evaluated at each site. Metric with site (the
+    dependency code that searched) tagging."
+    type: "counter"
+    legacy_name: "-"
+    name_variables: []
+
+  - name: "perf.finished_tis.examined"
+    description: "Performance harness only. Finished task instances those searches went through:
+    every finished task instance of the Dag run without the index, those of the relevant task ids
+    with it. Metric with site (the dependency code that searched) tagging."
+    type: "counter"
+    legacy_name: "-"
+    name_variables: []
+
+  - name: "perf.finished_tis.index_builds"
+    description: "Performance harness only. Builds of the index of finished task instances by task id."
+    type: "counter"
+    legacy_name: "-"
+    name_variables: []
+
+  - name: "perf.finished_tis.indexed"
+    description: "Performance harness only. Finished task instances put into the index by those builds."
+    type: "counter"
+    legacy_name: "-"
+    name_variables: []
+
   # ==========
   # Gauges
   # ==========
@@ -1053,6 +1081,28 @@ metrics:
   - name: "connection_test.hook_duration"
     description: "Milliseconds a worker spends running the hook's ``test_connection`` for a
     worker-dispatched connection test."
+    type: "timer"
+    legacy_name: "-"
+    name_variables: []
+
+  - name: "perf.finished_tis.lookup_duration"
+    description: "Performance harness only. Milliseconds the scheduler dependencies spent searching the
+    finished task instances, index builds included, in one Dag run's scheduling pass. Metric with site
+    (the dependency code that searched) tagging."
+    type: "timer"
+    legacy_name: "-"
+    name_variables: []
+
+  - name: "perf.finished_tis.index_duration"
+    description: "Performance harness only. Milliseconds spent building the index of finished task
+    instances by task id in one Dag run's scheduling pass; part of perf.finished_tis.lookup_duration."
+    type: "timer"
+    legacy_name: "-"
+    name_variables: []
+
+  - name: "perf.dep_duration"
+    description: "Performance harness only. Milliseconds spent evaluating one dependency class for a
+    Dag run in one scheduling pass. Metric with dep (the dependency class) tagging."
     type: "timer"
     legacy_name: "-"
     name_variables: []
